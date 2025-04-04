@@ -55,7 +55,7 @@ const getUpcomingDeadlines = (controls: Control[], days: number = 7) => {
 export function Dashboard({ controls, technicians }: DashboardProps) {
   // Data for status distribution chart
   const statusData = useMemo(() => {
-    const statusCounts = {
+    const statusCounts: Record<string, number> = {
       [ControlStatus.InProgress]: 0,
       [ControlStatus.InReview]: 0,
       [ControlStatus.Complete]: 0,
@@ -163,7 +163,7 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
   }, [controls]);
   
   // COLORS for charts
-  const STATUS_COLORS = {
+  const STATUS_COLORS: Record<string, string> = {
     [ControlStatus.InProgress]: '#6366f1', // indigo-500
     [ControlStatus.InReview]: '#f59e0b', // amber-500
     [ControlStatus.Complete]: '#10b981', // emerald-500
@@ -184,7 +184,18 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">Dashboard</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
+        <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
+        <a 
+          href="/"
+          className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md shadow-sm hover:bg-indigo-700 transition-colors text-sm font-medium"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+          View All Controls
+        </a>
+      </div>
       
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
