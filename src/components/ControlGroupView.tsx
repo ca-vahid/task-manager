@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Control, Technician, ControlStatus, ViewDensity } from '@/lib/types';
 import { ControlCard } from './ControlCard';
 import {
@@ -27,6 +27,7 @@ interface ControlGroupViewProps {
   onUpdateControl: (id: string, updates: Partial<Omit<Control, 'id'>>) => Promise<void>;
   onDeleteControl: (id: string) => Promise<void>;
   onDragEnd: (event: DragEndEvent) => void;
+  columnsPerPage?: number; // New prop for customizing columns per page
 }
 
 export function ControlGroupView({
@@ -36,11 +37,16 @@ export function ControlGroupView({
   viewDensity = 'medium',
   onUpdateControl,
   onDeleteControl,
-  onDragEnd
+  onDragEnd,
+  columnsPerPage = 3 // Default to 3 columns per page
 }: ControlGroupViewProps) {
   
   const [activeControl, setActiveControl] = React.useState<Control | null>(null);
-
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
   // Configure sensors for improved drag experience
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -181,23 +187,57 @@ export function ControlGroupView({
     return names;
   }, [groups, groupBy, statusOrder]);
 
-  // Get all control IDs for drag context
-  const allControlIds = useMemo(() => controls.map(c => c.id), [controls]);
-  
-  // Handle drag start
-  const handleDragStart = (event: DragStartEvent) => {
-    const { active } = event;
-    const draggedControl = controls.find(c => c.id === active.id);
-    if (draggedControl) {
-      setActiveControl(draggedControl);
+  // Fix the pagination calculation and navigation logic
+  // Get exact pages that have content for pagination
+  const pagesWithContent = useMemo(() => {
+    const pages = [];
+    
+    for (let i = 0; i < Math.ceil(sortedGroupNames.length / columnsPerPage); i++) {
+      const startIndex = i * columnsPerPage;
+      const endIndex = Math.min(startIndex + columnsPerPage, sortedGroupNames.length);
+      const pageGroupNames = sortedGroupNames.slice(startIndex, endIndex);
+      
+      if (pageGroupNames.length > 0) {
+        pages.push(i);
+      }
+    }
+    
+    return pages;
+  }, [sortedGroupNames, columnsPerPage]);
+
+  // Calculate the actual number of pages with content
+  const totalPages = pagesWithContent.length;
+  const hasMultiplePages = totalPages > 1;
+
+  // Corrected page navigation logic
+  const goToNextPage = () => {
+    const currentIndex = pagesWithContent.indexOf(currentPage);
+    if (currentIndex < pagesWithContent.length - 1) {
+      setCurrentPage(pagesWithContent[currentIndex + 1]);
     }
   };
-  
-  // Handle drag end and reset state
-  const handleDragEnd = (event: DragEndEvent) => {
-    setActiveControl(null);
-    onDragEnd(event);
+
+  const goToPrevPage = () => {
+    const currentIndex = pagesWithContent.indexOf(currentPage);
+    if (currentIndex > 0) {
+      setCurrentPage(pagesWithContent[currentIndex - 1]);
+    }
   };
+
+  // Use scrollLeft for smooth transitions
+  useEffect(() => {
+    if (containerRef.current) {
+      // Calculate the target scroll position based on the current page's index
+      const visiblePageIndex = pagesWithContent.indexOf(currentPage);
+      const targetScrollLeft = containerRef.current.offsetWidth * visiblePageIndex;
+
+      containerRef.current.scrollTo({
+        left: targetScrollLeft,
+        behavior: 'smooth',
+      });
+    }
+    // Removed pagesWithContent from dependency array as offsetWidth handles dynamic width changes
+  }, [currentPage, totalPages]); 
 
   const getGroupStyle = (groupName: string) => {
     if (groupBy === 'status') {
@@ -218,88 +258,195 @@ export function ControlGroupView({
     }
   };
 
+  // Get all control IDs for drag context
+  const allControlIds = useMemo(() => controls.map(c => c.id), [controls]);
+
+  // Handle drag start
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    const draggedControl = controls.find(c => c.id === active.id);
+    if (draggedControl) {
+      setActiveControl(draggedControl);
+    }
+  };
+
+  // Handle drag end and reset state
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveControl(null);
+    onDragEnd(event);
+  };
+
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-    >
-      {/* Switch to a horizontal layout for groups when there are few groups */}
-      <div className={`${sortedGroupNames.length <= 3 ? 'md:grid md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-8'}`}>
-        {sortedGroupNames.map(groupName => {
-          const style = getGroupStyle(groupName);
+    <div className="relative px-16">
+      {/* Pagination UI */}
+      {hasMultiplePages && (
+        <>
+          {/* Left Arrow - Positioned outside columns */}
+          <button 
+            onClick={goToPrevPage}
+            disabled={pagesWithContent.indexOf(currentPage) === 0}
+            className={`absolute -left-16 top-1/2 -translate-y-1/2 z-20 bg-indigo-600 hover:bg-indigo-700 rounded-full p-3 shadow-lg border border-white transition-all ${
+              pagesWithContent.indexOf(currentPage) === 0 ? 'opacity-40 cursor-not-allowed' : 'hover:scale-110'
+            }`}
+            aria-label="Previous page"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
           
-          return (
-            <div 
-              key={groupName} 
-              className={`bg-white rounded-lg shadow-md overflow-hidden border ${style.border} transition-all duration-200 hover:shadow-lg`}
-            >
-              <div className={`px-4 py-3 flex justify-between items-center ${style.bg} border-b ${style.border}`}>
-                <h3 className={`font-semibold flex items-center ${style.text}`}>
-                  {style.icon}
-                  {groupName}
-                  <span className="ml-2 text-xs bg-white bg-opacity-80 rounded-full px-2 py-0.5 shadow-inner">
-                    {groups[groupName].length}
-                  </span>
-                </h3>
-              </div>
-              
-              <SortableContext 
-                items={allControlIds} 
-                strategy={verticalListSortingStrategy}
-              >
-                <div className={`${
-                  viewDensity === 'compact' 
-                    ? 'p-2 space-y-2' 
-                    : viewDensity === 'medium' 
-                    ? 'p-3 space-y-3' 
-                    : 'p-4 space-y-4'
-                } ${groups[groupName].length === 0 ? 'p-0' : ''}`}>
-                  {groups[groupName].map(control => (
-                    <SortableItem
-                      key={control.id}
-                      id={control.id}
-                      control={control}
-                      technicians={technicians}
-                      onUpdateControl={onUpdateControl}
-                      onDeleteControl={onDeleteControl}
-                      viewDensity={viewDensity}
-                    />
-                  ))}
-                  
-                  {groups[groupName].length === 0 && (
-                    <div className="p-8 text-center text-gray-500 italic">
-                      No controls in this group
-                    </div>
-                  )}
-                </div>
-              </SortableContext>
-            </div>
-          );
-        })}
-        
-        {sortedGroupNames.length === 0 && (
-          <div className="bg-white rounded-lg shadow-md p-8 text-center text-gray-500 border border-gray-200">
-            No controls match your filter criteria
-          </div>
-        )}
-      </div>
-      
-      {/* Drag Overlay for the currently dragged item */}
-      <DragOverlay adjustScale={true}>
-        {activeControl ? (
-          <div className="bg-white border shadow-lg rounded-lg opacity-90 w-full max-w-md">
-            <ControlCard
-              control={activeControl}
-              technicians={technicians}
-              onUpdateControl={onUpdateControl}
-              onDeleteControl={onDeleteControl}
-              viewDensity={viewDensity}
+          {/* Right Arrow - Positioned outside columns */}
+          <button 
+            onClick={goToNextPage}
+            disabled={pagesWithContent.indexOf(currentPage) === pagesWithContent.length - 1}
+            className={`absolute -right-16 top-1/2 -translate-y-1/2 z-20 bg-indigo-600 hover:bg-indigo-700 rounded-full p-3 shadow-lg border border-white transition-all ${
+              pagesWithContent.indexOf(currentPage) === pagesWithContent.length - 1 ? 'opacity-40 cursor-not-allowed' : 'hover:scale-110'
+            }`}
+            aria-label="Next page"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </>
+      )}
+
+      {/* Pagination Indicator */}
+      {hasMultiplePages && (
+        <div className="flex justify-center mt-2 mb-6 gap-2">
+          {pagesWithContent.map((pageIndex, index) => (
+            <button
+              key={pageIndex}
+              onClick={() => setCurrentPage(pageIndex)}
+              className={`transition-all duration-300 ${
+                currentPage === pageIndex
+                  ? 'h-3 w-10 bg-indigo-600'
+                  : 'h-3 w-3 bg-gray-300 hover:bg-indigo-400'
+              } rounded-full`}
+              aria-label={`Go to page ${index + 1}`}
             />
-          </div>
-        ) : null}
-      </DragOverlay>
-    </DndContext>
+          ))}
+        </div>
+      )}
+
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        {/* Outer container clips the scrolling content */}
+        <div className="overflow-hidden relative"> 
+          {/* Container that scrolls horizontally */}
+          <div
+            ref={containerRef}
+            // Use flex, enable horizontal scrolling, add smooth behavior & snapping
+            className="flex overflow-x-auto scroll-smooth snap-x snap-mandatory no-scrollbar"
+            // Let flexbox determine the full width based on children
+          >
+            {/* Loop through VALID page indexes */} 
+            {pagesWithContent.map((pageIndex) => {
+              const startIndex = pageIndex * columnsPerPage;
+              const endIndex = Math.min(startIndex + columnsPerPage, sortedGroupNames.length);
+              const pageGroupNames = sortedGroupNames.slice(startIndex, endIndex);
+
+              // Container for one page's worth of columns
+              return (
+                <div
+                  key={pageIndex}
+                  // Each page takes full width of the viewport and snaps to the start
+                  className="flex-shrink-0 w-full snap-start"
+                >
+                  {/* Grid layout FOR THE COLUMNS ON THIS PAGE */}
+                  {/* Added px-3 here to act as padding/gap between snapped pages */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-3">
+                    {pageGroupNames.map(groupName => {
+                      const style = getGroupStyle(groupName);
+                      return (
+                        <div 
+                          key={groupName} 
+                          className={`bg-white rounded-lg shadow-md overflow-hidden border ${style.border} transition-all duration-200 hover:shadow-lg`}
+                        >
+                          {/* Column Header */}
+                          <div className={`px-4 py-3 flex justify-between items-center ${style.bg} border-b ${style.border}`}>
+                            <h3 className={`font-semibold flex items-center ${style.text}`}>
+                              {style.icon}
+                              {groupName}
+                              <span className="ml-2 text-xs bg-white bg-opacity-80 rounded-full px-2 py-0.5 shadow-inner">
+                                {groups[groupName].length}
+                              </span>
+                            </h3>
+                          </div>
+                          
+                          {/* Column Content */}
+                          <SortableContext 
+                            items={allControlIds} 
+                            strategy={verticalListSortingStrategy}
+                          >
+                            <div className={`${ 
+                              viewDensity === 'compact' 
+                                ? 'p-2 space-y-2' 
+                                : viewDensity === 'medium' 
+                                ? 'p-3 space-y-3' 
+                                : 'p-4 space-y-4'
+                            } ${groups[groupName].length === 0 ? 'p-0' : ''} min-h-[100px]`}> {/* Added min-height */} 
+                              {groups[groupName].map(control => (
+                                <SortableItem
+                                  key={control.id}
+                                  id={control.id}
+                                  control={control}
+                                  technicians={technicians}
+                                  onUpdateControl={onUpdateControl}
+                                  onDeleteControl={onDeleteControl}
+                                  viewDensity={viewDensity}
+                                />
+                              ))}
+                              
+                              {groups[groupName].length === 0 && (
+                                <div className="p-8 text-center text-gray-500 italic">
+                                  No controls in this group
+                                </div>
+                              )}
+                            </div>
+                          </SortableContext>
+                        </div>
+                      );
+                    })}
+                    {/* Add invisible placeholders to maintain grid structure on last page */}
+                    {Array.from({ length: columnsPerPage - pageGroupNames.length }).map((_, i) => (
+                       <div key={`placeholder-${pageIndex}-${i}`} aria-hidden="true" className="invisible"></div> 
+                    ))}
+                  </div> {/* End of inner grid */} 
+                </div> // End of page container
+              );
+            })}
+
+             {/* Message if no groups/controls match filters */} 
+             {sortedGroupNames.length === 0 && (
+              <div className="w-full flex-shrink-0 flex items-center justify-center p-8">
+                <div className="bg-white rounded-lg shadow-md p-8 text-center text-gray-500 border border-gray-200">
+                  No controls match your filter criteria
+                </div>
+              </div>
+            )}
+          </div> {/* End of scrolling container */} 
+        </div> {/* End of overflow-hidden container */} 
+
+        {/* Drag Overlay for the currently dragged item */}
+        <DragOverlay adjustScale={true}>
+          {activeControl ? (
+            <div className="bg-white border shadow-lg rounded-lg opacity-90 w-full max-w-md">
+              <ControlCard
+                control={activeControl}
+                technicians={technicians}
+                onUpdateControl={onUpdateControl}
+                onDeleteControl={onDeleteControl}
+                viewDensity={viewDensity}
+              />
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+    </div>
   );
 } 

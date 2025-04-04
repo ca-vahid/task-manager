@@ -793,6 +793,7 @@ export function ControlList() {
           setError(null); // Clear errors when closing modal
         }}
         title="Bulk Add Controls with AI"
+        size="large"
       >
         <BulkAddControlForm 
           technicians={technicians}
@@ -833,6 +834,7 @@ export function ControlList() {
               onUpdateControl={handleUpdateControl}
               onDeleteControl={handleDeleteControl}
               onDragEnd={handleDragEnd}
+              columnsPerPage={3}
             />
           )}
           
