@@ -10,6 +10,7 @@ export function Header() {
 
   const navItems = [
     { href: '/', label: 'Controls' },
+    { href: '/dashboard', label: 'Dashboard' },
     { href: '/technicians', label: 'Technicians' },
     // Add more links as needed
   ];
