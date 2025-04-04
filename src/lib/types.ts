@@ -6,11 +6,9 @@ export interface Technician {
 }
 
 export enum ControlStatus {
-  NotStarted = "Not Started",
   InProgress = "In Progress",
   InReview = "In Review",
   Complete = "Complete",
-  OnHold = "On Hold",
 }
 
 export enum PriorityLevel {
@@ -33,6 +31,7 @@ export interface Control {
   tags: string[]; // For additional filtering capabilities
   progress: number; // Percentage complete (0-100)
   lastUpdated: Timestamp | null; // When the control was last modified
+  externalUrl: string | null; // URL to external ticketing system
 }
 
 // Interface for search and filter options

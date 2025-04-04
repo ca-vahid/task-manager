@@ -49,13 +49,16 @@ export function TimelineView({
     ];
     
     controls.forEach(control => {
-      // First check if the control is completed - it goes in the Completed group regardless of date
-      if (control.status === ControlStatus.Complete) {
+      // Handle obsolete status values from database
+      const isValidStatus = Object.values(ControlStatus).includes(control.status as ControlStatus);
+      
+      // If the control has a valid 'Complete' status, put it in the Completed group
+      if (isValidStatus && control.status === ControlStatus.Complete) {
         groups[0].controls.push(control);
         return;
       }
       
-      // For non-completed tasks, organize by date
+      // For non-completed tasks or tasks with obsolete status, organize by date
       if (!control.estimatedCompletionDate) {
         groups[6].controls.push(control);
         return;
@@ -119,11 +122,8 @@ export function TimelineView({
     } else {
       // Default color based on status
       switch (control.status) {
-        case ControlStatus.NotStarted:
-          baseStyle += "border-gray-400 ";
-          break;
         case ControlStatus.InProgress:
-          baseStyle += "border-blue-400 ";
+          baseStyle += "border-indigo-400 ";
           break;
         case ControlStatus.InReview:
           baseStyle += "border-amber-400 ";
@@ -131,10 +131,8 @@ export function TimelineView({
         case ControlStatus.Complete:
           baseStyle += "border-emerald-400 ";
           break;
-        case ControlStatus.OnHold:
-          baseStyle += "border-red-400 ";
-          break;
         default:
+          // Fallback color for obsolete status values
           baseStyle += "border-gray-300 ";
       }
     }
@@ -249,10 +247,11 @@ export function TimelineView({
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center min-w-0 gap-2">
                       <span className={`h-2 w-2 rounded-full flex-shrink-0 ${
-                        control.status === ControlStatus.Complete ? 'bg-emerald-500' : 
-                        control.status === ControlStatus.OnHold ? 'bg-red-500' : 
-                        control.status === ControlStatus.InProgress ? 'bg-blue-500' : 
-                        control.status === ControlStatus.InReview ? 'bg-amber-500' : 'bg-gray-500'
+                        Object.values(ControlStatus).includes(control.status as ControlStatus) ?
+                          (control.status === ControlStatus.Complete ? 'bg-emerald-500' : 
+                          control.status === ControlStatus.InProgress ? 'bg-indigo-500' : 
+                          control.status === ControlStatus.InReview ? 'bg-amber-500' : 'bg-gray-500')
+                        : 'bg-gray-500' // Fallback for obsolete status values
                       }`} />
                       <span className="text-xs font-mono bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded flex-shrink-0">
                         {control.dcfId}
@@ -280,17 +279,19 @@ export function TimelineView({
                       <div className="flex items-center gap-2">
                         {/* Status badge */}
                         <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          control.status === ControlStatus.Complete 
-                            ? 'bg-emerald-100 text-emerald-800' 
-                            : control.status === ControlStatus.OnHold 
-                            ? 'bg-red-100 text-red-800' 
-                            : control.status === ControlStatus.InProgress 
-                            ? 'bg-blue-100 text-blue-800' 
-                            : control.status === ControlStatus.InReview
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-gray-100 text-gray-800'
+                          Object.values(ControlStatus).includes(control.status as ControlStatus) ?
+                            (control.status === ControlStatus.Complete 
+                              ? 'bg-emerald-100 text-emerald-800' 
+                              : control.status === ControlStatus.InProgress 
+                              ? 'bg-indigo-100 text-indigo-800' 
+                              : control.status === ControlStatus.InReview
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-gray-100 text-gray-800')
+                            : 'bg-gray-100 text-gray-800' // Fallback for obsolete status values
                         }`}>
-                          {control.status}
+                          {Object.values(ControlStatus).includes(control.status as ControlStatus) 
+                            ? control.status 
+                            : 'Unknown Status'}
                         </span>
                         
                         {/* Priority badge */}
@@ -338,7 +339,7 @@ export function TimelineView({
                             control.progress >= 100 
                               ? 'bg-emerald-500' 
                               : control.progress >= 75 
-                              ? 'bg-blue-500' 
+                              ? 'bg-indigo-500' 
                               : control.progress >= 50 
                               ? 'bg-amber-500'
                               : control.progress >= 25

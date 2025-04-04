@@ -27,7 +27,11 @@ export async function PUT(request: Request, { params }: { params: Params }) {
       status,
       estimatedCompletionDate,
       assigneeId,
-      order
+      order,
+      priorityLevel,
+      tags,
+      progress,
+      externalUrl
     } = body;
 
     if (!id) {
@@ -62,6 +66,10 @@ export async function PUT(request: Request, { params }: { params: Params }) {
     }
     if (assigneeId !== undefined) updateData.assigneeId = assigneeId; // Allow null
     if (order !== undefined) updateData.order = order;
+    if (priorityLevel !== undefined) updateData.priorityLevel = priorityLevel;
+    if (tags !== undefined) updateData.tags = tags;
+    if (progress !== undefined) updateData.progress = progress;
+    if (externalUrl !== undefined) updateData.externalUrl = externalUrl; // Allow null
 
     if (Object.keys(updateData).length === 0) {
        return NextResponse.json({ message: 'No update data provided' }, { status: 400 });

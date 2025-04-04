@@ -304,20 +304,14 @@ export function ControlFilterBar({
                   let chipClass = "px-3 py-1 rounded-md text-xs font-medium cursor-pointer transition-colors ";
                   
                   switch(status) {
-                    case ControlStatus.NotStarted:
-                      chipClass += isActive ? "bg-slate-200 text-slate-800" : "bg-slate-100 text-slate-600 hover:bg-slate-200";
-                      break;
                     case ControlStatus.InProgress:
-                      chipClass += isActive ? "bg-blue-200 text-blue-800" : "bg-blue-50 text-blue-600 hover:bg-blue-100";
+                      chipClass += isActive ? "bg-indigo-200 text-indigo-800" : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100";
                       break;
                     case ControlStatus.InReview:
                       chipClass += isActive ? "bg-amber-200 text-amber-800" : "bg-amber-50 text-amber-600 hover:bg-amber-100";
                       break;
                     case ControlStatus.Complete:
                       chipClass += isActive ? "bg-emerald-200 text-emerald-800" : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100";
-                      break;
-                    case ControlStatus.OnHold:
-                      chipClass += isActive ? "bg-red-200 text-red-800" : "bg-red-50 text-red-600 hover:bg-red-100";
                       break;
                     default:
                       chipClass += isActive ? "bg-gray-200 text-gray-800" : "bg-gray-100 text-gray-600 hover:bg-gray-200";

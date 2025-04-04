@@ -24,6 +24,7 @@ import { TimelineView } from './TimelineView';
 import { CollapsibleGroup } from './CollapsibleGroup';
 import { BatchOperationsToolbar } from './BatchOperationsToolbar';
 import { Modal } from './Modal'; // Import the Modal component
+import { BulkAddControlForm } from './BulkAddControlForm'; // Import the new bulk add form component
 
 export function ControlList() {
   const [controls, setControls] = useState<Control[]>([]);
@@ -32,6 +33,7 @@ export function ControlList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false); // State to toggle form visibility
+  const [showBulkAddForm, setShowBulkAddForm] = useState(false); // State to toggle bulk add form
   const [groupBy, setGroupBy] = useState<'status' | 'assignee' | 'none'>('status');
   const [viewMode, setViewMode] = useState<ViewMode>('kanban');
   const [viewDensity, setViewDensity] = useState<ViewDensity>('medium');
@@ -479,6 +481,113 @@ export function ControlList() {
     }
   };
 
+  // New function to handle adding multiple controls at once
+  const handleAddControls = useCallback(async (newControlsData: Omit<Control, 'id'>[]) => {
+    setError(null);
+    
+    try {
+      // Generate temporary IDs for all new controls for optimistic updates
+      const tempControls: Control[] = newControlsData.map((controlData, index) => {
+        const tempId = `temp-bulk-${Date.now()}-${index}`;
+        
+        // Create a safe copy of the estimatedCompletionDate for optimistic update
+        let safeEstimatedCompletionDate = null;
+        if (controlData.estimatedCompletionDate) {
+          try {
+            if (controlData.estimatedCompletionDate instanceof Timestamp) {
+              const testDate = controlData.estimatedCompletionDate.toDate();
+              if (!isNaN(testDate.getTime())) {
+                safeEstimatedCompletionDate = controlData.estimatedCompletionDate;
+              }
+            }
+          } catch (error) {
+            console.error("Invalid timestamp for optimistic update:", error);
+          }
+        }
+        
+        return {
+          ...controlData,
+          id: tempId,
+          estimatedCompletionDate: safeEstimatedCompletionDate,
+          externalUrl: controlData.externalUrl
+        };
+      });
+      
+      // Optimistically add all controls to the state at once
+      setControls(prevControls => [...prevControls, ...tempControls]);
+      
+      // Close the form immediately after optimistic update
+      setShowBulkAddForm(false);
+      
+      // Create an array to track the API responses
+      const apiResults: Control[] = [];
+      
+      // Process each control sequentially to avoid race conditions
+      for (let i = 0; i < newControlsData.length; i++) {
+        const controlData = newControlsData[i];
+        const tempId = tempControls[i].id;
+        
+        try {
+          // Send the control to the API
+          const response = await fetch('/api/controls', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...controlData,
+              estimatedCompletionDate: controlData.estimatedCompletionDate
+                ? (controlData.estimatedCompletionDate as Timestamp).toDate().toISOString()
+                : null,
+            }),
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+          }
+          
+          const savedControl: Control = await response.json();
+          
+          // Process the saved control (handle date conversion, etc.)
+          let finalDate = null;
+          if (savedControl.estimatedCompletionDate) {
+            if (typeof savedControl.estimatedCompletionDate === 'string') {
+              finalDate = Timestamp.fromDate(new Date(savedControl.estimatedCompletionDate));
+            } else if ((savedControl.estimatedCompletionDate as any).seconds) {
+              finalDate = savedControl.estimatedCompletionDate;
+            }
+          }
+          
+          // Add to results array
+          apiResults.push({
+            ...savedControl,
+            estimatedCompletionDate: finalDate,
+            externalUrl: savedControl.externalUrl
+          });
+          
+        } catch (error) {
+          console.error(`Error adding control ${i + 1}:`, error);
+          // If one fails, continue with the others
+        }
+      }
+      
+      // After all API calls are done, update the state one final time
+      // replacing all temporary controls with their final versions
+      setControls(prevControls => {
+        // Filter out all temp controls
+        const filteredControls = prevControls.filter(
+          control => !tempControls.some(temp => temp.id === control.id)
+        );
+        // Add all successfully saved controls
+        return [...filteredControls, ...apiResults];
+      });
+      
+    } catch (err: any) {
+      console.error("Failed to add multiple controls:", err);
+      setError(err.message || "Failed to add controls.");
+      // Don't reopen the form - user can try again if needed
+    }
+  }, []);
+
   // Render logic
   if (loading) {
     return (
@@ -613,13 +722,27 @@ export function ControlList() {
             </div>
           )}
           
-          {/* Add Control Button - Changed to open modal */}
-          <button 
-            onClick={() => setShowAddForm(true)}
-            className={`rounded-md transition-colors bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 text-sm font-medium ml-2`}
-          >
-            + Add Control
-          </button>
+          {/* Add Control Buttons - Updated */}
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setShowAddForm(true)}
+              className="rounded-md transition-colors bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 text-sm font-medium"
+            >
+              + Add Control
+            </button>
+            
+            <button 
+              onClick={() => setShowBulkAddForm(true)}
+              className="rounded-md transition-colors bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700 px-4 py-2 text-sm font-medium flex items-center"
+            >
+              <svg className="w-4 h-4 mr-1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 3C7.23 3 3.25 6.4 3.25 10.5C3.25 12.57 4.305 14.425 6 15.677V18C6 18.2652 6.10536 18.5196 6.29289 18.7071C6.48043 18.8946 6.73478 19 7 19H17C17.2652 19 17.5196 18.8946 17.7071 18.7071C17.8946 18.5196 18 18.2652 18 18V15.677C19.695 14.425 20.75 12.57 20.75 10.5C20.75 6.4 16.77 3 12 3Z" fill="currentColor"/>
+                <path d="M10 10.5C10 9.12 11.12 8 12.5 8C13.88 8 15 9.12 15 10.5C15 11.88 13.88 13 12.5 13C11.12 13 10 11.88 10 10.5Z" fill="currentColor"/>
+                <path fillRule="evenodd" d="M8 4h2v2H8V4zm6 0h2v2h-2V4z" fill="currentColor" className="animate-pulse"/>
+              </svg>
+              Bulk Add with AI
+            </button>
+          </div>
         </div>
       </div>
       
@@ -631,6 +754,15 @@ export function ControlList() {
           setError(null); // Clear errors when closing modal
         }}
         title="Add New Control"
+        onAiExtract={() => {
+          // Find the AddControlForm component and call its AI extraction function
+          const formElement = document.querySelector('form');
+          if (formElement) {
+            // Dispatch a custom event that the form will listen for
+            const aiExtractEvent = new CustomEvent('aiextract');
+            formElement.dispatchEvent(aiExtractEvent);
+          }
+        }}
       >
         <AddControlForm 
           technicians={technicians}
@@ -648,6 +780,26 @@ export function ControlList() {
           }}
           onCancel={() => { 
             setShowAddForm(false); 
+            setError(null); // Clear errors on cancel
+          }}
+        />
+      </Modal>
+      
+      {/* Bulk Add Control Form inside Modal - New */}
+      <Modal 
+        isOpen={showBulkAddForm} 
+        onClose={() => {
+          setShowBulkAddForm(false);
+          setError(null); // Clear errors when closing modal
+        }}
+        title="Bulk Add Controls with AI"
+      >
+        <BulkAddControlForm 
+          technicians={technicians}
+          currentOrderCount={controls.length}
+          onAddControls={handleAddControls}
+          onCancel={() => { 
+            setShowBulkAddForm(false); 
             setError(null); // Clear errors on cancel
           }}
         />
