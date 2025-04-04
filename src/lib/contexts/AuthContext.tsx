@@ -1,21 +1,25 @@
 "use client";
 
 import React, { createContext, useEffect, useState } from "react";
-import { signInWithPopup, GoogleAuthProvider, signOut as firebaseSignOut } from "firebase/auth";
-import { User } from "firebase/auth";
+import { 
+  signInWithEmailAndPassword,
+  signOut as firebaseSignOut, 
+  User, 
+  onAuthStateChanged
+} from "firebase/auth";
 import { auth } from "../firebase/firebase";
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signInWithGoogle: () => Promise<void>;
+  signIn: (email: string, pass: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
-  signInWithGoogle: async () => {},
+  signIn: async (_email: string, _pass: string) => {},
   signOut: async () => {},
 });
 
@@ -24,7 +28,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    const unsubscribe = onAuthStateChanged(auth, (user: User | null) => {
       setUser(user);
       setLoading(false);
     });
@@ -32,16 +36,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  const signInWithGoogle = async () => {
-    const provider = new GoogleAuthProvider();
+  const signIn = async (email: string, pass: string) => {
+    setLoading(true);
     try {
-      await signInWithPopup(auth, provider);
+      await signInWithEmailAndPassword(auth, email, pass);
     } catch (error) {
-      console.error("Error signing in with Google", error);
+      console.error("Error signing in with email and password", error);
+      setLoading(false);
+      throw error;
     }
   };
 
   const signOutUser = async () => {
+    setLoading(true);
     try {
       await firebaseSignOut(auth);
     } catch (error) {
@@ -50,8 +57,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signInWithGoogle, signOut: signOutUser }}>
-      {children}
+    <AuthContext.Provider value={{ user, loading, signIn, signOut: signOutUser }}>
+      {!loading && children}
     </AuthContext.Provider>
   );
 }
