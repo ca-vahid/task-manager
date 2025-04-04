@@ -2,8 +2,6 @@
 
 A modern web application for managing and tracking ISO compliance controls and technician assignments. Built with Next.js, React, TypeScript, and Firebase.
 
-![ISO Compliance Tracker Screenshot](https://i.imgur.com/example.png)
-
 ## Features
 
 - **Control Management**:
