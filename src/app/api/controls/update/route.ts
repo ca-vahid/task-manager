@@ -15,6 +15,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Control ID is required' }, { status: 400 });
     }
 
+    // Handle externalUrl - ensure it's properly formatted or null
+    if (updates.externalUrl !== undefined) {
+      if (updates.externalUrl === null || updates.externalUrl === '') {
+        // Allow explicit null or empty string to clear the URL
+        updates.externalUrl = null;
+      } else if (typeof updates.externalUrl === 'string') {
+        // Ensure URL starts with http:// or https://
+        const trimmedUrl = updates.externalUrl.trim();
+        if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
+          updates.externalUrl = 'https://' + trimmedUrl;
+        } else {
+          updates.externalUrl = trimmedUrl;
+        }
+      } else {
+        // Invalid type, remove from updates
+        console.warn("Invalid externalUrl format received:", updates.externalUrl);
+        delete updates.externalUrl;
+      }
+    }
+
     // Convert date strings to Firestore compatible format if needed
     if (updates.estimatedCompletionDate !== undefined) {
       const dateValue = updates.estimatedCompletionDate;

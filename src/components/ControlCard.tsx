@@ -105,35 +105,23 @@ function getTimeRemaining(timestamp: Timestamp | null | any, status?: ControlSta
 // Get status color and background
 function getStatusStyles(status: ControlStatus): { color: string; background: string; border: string } {
   switch (status) {
-    case ControlStatus.NotStarted:
+    case ControlStatus.InProgress:
+      return { 
+        color: 'text-indigo-700', 
+        background: 'bg-gradient-to-r from-indigo-50 to-indigo-100', 
+        border: 'border-indigo-200' 
+      };
+    case ControlStatus.InReview:
       return { 
         color: 'text-amber-700', 
         background: 'bg-gradient-to-r from-amber-50 to-amber-100', 
         border: 'border-amber-200' 
-      };
-    case ControlStatus.InProgress:
-      return { 
-        color: 'text-blue-700', 
-        background: 'bg-gradient-to-r from-blue-50 to-blue-100', 
-        border: 'border-blue-200' 
       };
     case ControlStatus.Complete:
       return { 
         color: 'text-emerald-700', 
         background: 'bg-gradient-to-r from-emerald-50 to-emerald-100', 
         border: 'border-emerald-200' 
-      };
-    case ControlStatus.OnHold:
-      return { 
-        color: 'text-red-700', 
-        background: 'bg-gradient-to-r from-red-50 to-red-100', 
-        border: 'border-red-200' 
-      };
-    case ControlStatus.InReview:
-      return { 
-        color: 'text-yellow-700', 
-        background: 'bg-gradient-to-r from-yellow-50 to-yellow-100', 
-        border: 'border-yellow-200' 
       };
     default:
       return { 
@@ -161,6 +149,8 @@ export function ControlCard({
   const [titleDraft, setTitleDraft] = useState(control.title);
   const [isDcfIdEditing, setIsDcfIdEditing] = useState(false);
   const [dcfIdDraft, setDcfIdDraft] = useState(control.dcfId);
+  const [isEditingUrl, setIsEditingUrl] = useState(false);
+  const [urlDraft, setUrlDraft] = useState(control.externalUrl || '');
   
   const menuRef = React.useRef<HTMLDivElement>(null);
   const detailsRef = React.useRef<HTMLDetailsElement>(null);
@@ -170,6 +160,11 @@ export function ControlCard({
   
   // Get status styling
   const statusStyles = getStatusStyles(control.status);
+  
+  // State for explanation dialog
+  const [showExplanationDialog, setShowExplanationDialog] = useState(false);
+  // State for URL dialog
+  const [showUrlDialog, setShowUrlDialog] = useState(false);
   
   // Close menu when clicking outside
   useEffect(() => {
@@ -352,6 +347,30 @@ export function ControlCard({
     }
   };
 
+  // Handler for saving the external URL
+  const handleSaveUrl = async () => {
+    if (urlDraft === control.externalUrl) {
+      setIsEditingUrl(false);
+      setShowUrlDialog(false);
+      return;
+    }
+    setUpdateError(null);
+    try {
+      // Validate URL
+      let processedUrl = urlDraft.trim();
+      if (processedUrl && !processedUrl.startsWith('http://') && !processedUrl.startsWith('https://')) {
+        processedUrl = 'https://' + processedUrl;
+      }
+      
+      await onUpdateControl(control.id, { externalUrl: processedUrl || null });
+      setIsEditingUrl(false);
+      setShowUrlDialog(false);
+    } catch (error: any) {
+      console.error("Failed to update external URL:", error);
+      setUpdateError("Failed to save external URL.");
+    }
+  };
+
   // Toggle the menu
   const toggleMenu = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -372,501 +391,771 @@ export function ControlCard({
   const assigneeName = control.assigneeId 
     ? technicians.find(tech => tech.id === control.assigneeId)?.name || 'Unknown'
     : 'Unassigned';
+  
+  // Check if control is high priority
+  const isHighPriority = control.priorityLevel === PriorityLevel.High || control.priorityLevel === PriorityLevel.Critical;
+
+  // Define a helper function to render the delete confirmation modal consistently
+  const renderDeleteConfirmationModal = () => {
+  return (
+      <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg shadow-lg p-5 max-w-sm w-full mx-4">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Control</h3>
+          <p className="text-gray-600 mb-4">
+            Are you sure you want to delete control DCF-{control.dcfId}: "{control.title}"? This action cannot be undone.
+          </p>
+          <div className="flex justify-end gap-2">
+            <button 
+              onClick={handleCancelDelete}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+              disabled={isDeleting}
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={handleConfirmDelete}
+              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 flex items-center"
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Delete
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // Render compact view
   if (viewDensity === 'compact') {
     return (
-      <div className={`rounded-lg border shadow-sm mb-2 overflow-hidden transition-all duration-200 ${statusStyles.border}`}>
-        <div className="flex items-center justify-between p-2 gap-2">
-          {/* Left side: Status, Title */}
-          <div className="flex items-center min-w-0 flex-grow">
-            <span className={`h-2 w-2 rounded-full mr-2 flex-shrink-0 ${
-              control.status === ControlStatus.Complete ? 'bg-emerald-500' : 
-              control.status === ControlStatus.OnHold ? 'bg-red-500' : 
-              control.status === ControlStatus.InProgress ? 'bg-blue-500' : 
-              control.status === ControlStatus.InReview ? 'bg-amber-500' : 'bg-gray-500'
-            }`} />
-            <span className="text-xs font-mono bg-black/5 text-gray-700 px-1.5 py-0.5 rounded-sm mr-2 flex-shrink-0">
-              {control.dcfId}
-            </span>
-            <span className="font-medium text-sm truncate">
-              {control.title}
-            </span>
-          </div>
-          
-          {/* Right side: Priority, Assignee, Due Date */}
-          <div className="flex items-center gap-2 text-xs flex-shrink-0">
-            {control.priorityLevel && (
-              <span className={`rounded-full h-2 w-2 flex-shrink-0 ${
-                control.priorityLevel === PriorityLevel.Critical ? 'bg-red-500' : 
-                control.priorityLevel === PriorityLevel.High ? 'bg-orange-500' : 
-                control.priorityLevel === PriorityLevel.Medium ? 'bg-blue-500' : 'bg-green-500'
+      <>
+        <div className={`rounded-lg border shadow-sm mb-1.5 overflow-hidden transition-all duration-200 ${statusStyles.border}`}>
+          <div className="flex items-center justify-between p-1.5 gap-1.5">
+            {/* Left side: Status, Title */}
+            <div className="flex items-center min-w-0 flex-grow">
+              <span className={`h-2 w-2 rounded-full mr-1.5 flex-shrink-0 ${
+                control.status === ControlStatus.Complete ? 'bg-emerald-500' : 
+                control.status === ControlStatus.InProgress ? 'bg-indigo-500' : 
+                control.status === ControlStatus.InReview ? 'bg-amber-500' : 'bg-gray-500'
               }`} />
-            )}
-            
-            <span className="text-gray-500 truncate max-w-[80px]">
-              {assigneeName}
-            </span>
-            
-            {control.estimatedCompletionDate && (
-              <span className="text-gray-500 whitespace-nowrap">
-                {(() => {
-                  try {
-                    const date = control.estimatedCompletionDate?.toDate();
-                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                  } catch (e) {
-                    return '';
-                  }
-                })()}
+              <span className="text-xs font-mono bg-black/5 text-gray-700 px-1 py-0.5 rounded-sm mr-1.5 flex-shrink-0">
+                DCF-{control.dcfId}
               </span>
-            )}
+              <span className="font-medium text-xs truncate">
+                {control.title}
+              </span>
+              
+              {/* High priority indicator - compact view */}
+              {isHighPriority && (
+                <span className="ml-1 text-red-500" title={`${control.priorityLevel} Priority`}>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                    <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                  </svg>
+                </span>
+              )}
+              
+              {/* External link - compact view */}
+              {control.externalUrl && (
+                <a 
+                  href={control.externalUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="ml-1 text-gray-400 hover:text-indigo-500 transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                  title="Open in ticketing system"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                    <path fillRule="evenodd" d="M5.22 14.78a.75.75 0 001.06 0l7.22-7.22v5.69a.75.75 0 001.5 0v-7.5a.75.75 0 00-.75-.75h-7.5a.75.75 0 000 1.5h5.69l-7.22 7.22a.75.75 0 000 1.06z" clipRule="evenodd" />
+                  </svg>
+                </a>
+              )}
+            </div>
+            
+            {/* Right side: Compact indicators */}
+            <div className="flex items-center gap-1.5 text-xs flex-shrink-0">
+              {/* Priority indicator dot */}
+              {control.priorityLevel && (
+                <span className={`rounded-full h-1.5 w-1.5 flex-shrink-0 ${
+                  control.priorityLevel === PriorityLevel.Critical ? 'bg-red-500' : 
+                  control.priorityLevel === PriorityLevel.High ? 'bg-orange-500' : 
+                  control.priorityLevel === PriorityLevel.Medium ? 'bg-blue-500' : 'bg-green-500'
+                }`} title={control.priorityLevel} />
+              )}
+              
+              {/* Assignee - truncated to save space */}
+              <span className="text-gray-500 truncate max-w-[60px]" title={assigneeName}>
+                {assigneeName}
+              </span>
+              
+              {/* Date - Month/Day only */}
+              {control.estimatedCompletionDate && (
+                <span className="text-gray-500 whitespace-nowrap text-[10px]">
+                  {(() => {
+                    try {
+                      const date = control.estimatedCompletionDate?.toDate();
+                      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    } catch (e) {
+                      return '';
+                    }
+                  })()}
+                </span>
+              )}
+              
+              {/* Delete button - compact */}
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteClick(e);
+                }}
+                className="text-gray-400 hover:text-red-600 p-0.5 rounded-sm"
+                title="Delete control"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                  <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+
+        {/* Delete confirmation modal - rendered outside the card for compact view */}
+        {isConfirmingDelete && renderDeleteConfirmationModal()}
+      </>
     );
   }
 
   // Render medium view
   if (viewDensity === 'medium') {
     return (
+      <>
+        <div className={`rounded-lg border shadow-md mb-2 overflow-hidden transition-all duration-200 hover:shadow-lg ${statusStyles.border} ${statusStyles.background}`}>
+          {/* Efficient Status/Badges Header */}
+          <div className="flex items-center justify-between px-3 py-1.5 border-b border-opacity-50">
+            <div className="flex items-center gap-1.5 min-w-0 flex-grow">
+              <span className={`h-2 w-2 rounded-full flex-shrink-0 ${
+                control.status === ControlStatus.Complete ? 'bg-emerald-500' : 
+                control.status === ControlStatus.InProgress ? 'bg-indigo-500' : 
+                control.status === ControlStatus.InReview ? 'bg-amber-500' : 'bg-gray-500'
+              }`} />
+              
+              <div className="flex flex-wrap gap-1">
+                <span className={`inline-flex items-center rounded-full ${
+                  control.status === ControlStatus.Complete 
+                    ? 'bg-emerald-100 text-emerald-800' 
+                    : control.status === ControlStatus.InProgress 
+                    ? 'bg-indigo-100 text-indigo-800' 
+                    : control.status === ControlStatus.InReview
+                    ? 'bg-amber-100 text-amber-800'
+                    : 'bg-gray-100 text-gray-800'
+                } px-2 py-0.5 text-xs font-medium`}>
+                  {control.status}
+                </span>
+                
+                {timeRemaining.text && (
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                    timeRemaining.overdue ? 'bg-red-100 text-red-800' : 
+                    timeRemaining.urgent ? 'bg-amber-100 text-amber-800' : 
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {timeRemaining.text}
+                  </span>
+                )}
+                
+                {control.priorityLevel && (
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                    control.priorityLevel === PriorityLevel.Critical 
+                      ? 'bg-red-100 text-red-800' 
+                      : control.priorityLevel === PriorityLevel.High 
+                      ? 'bg-orange-100 text-orange-800' 
+                      : control.priorityLevel === PriorityLevel.Medium 
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'bg-green-100 text-green-800'
+                  }`}>
+                    {control.priorityLevel}
+                  </span>
+                )}
+              </div>
+            </div>
+            
+            <span className="text-xs font-medium text-gray-700 flex-shrink-0">
+              {assigneeName}
+            </span>
+          </div>
+
+          {/* Content Section */}
+          <div className="p-2">
+            <div className="flex justify-between items-start">
+              <div className="flex-grow min-w-0">
+                <div className="flex items-center mb-0.5">
+                  <span className="text-xs font-mono bg-black/10 text-gray-700 px-1.5 py-0.5 rounded-sm mr-1.5 flex-shrink-0">
+                    DCF-{control.dcfId}
+                  </span>
+                  
+                  <h4 className={`text-sm font-semibold truncate ${statusStyles.color}`}>
+                    {control.title}
+                  </h4>
+                  
+                  {/* High priority indicator - medium view */}
+                  {isHighPriority && (
+                    <span className="ml-1 text-red-500" title={`${control.priorityLevel} Priority`}>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                        <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                      </svg>
+                    </span>
+                  )}
+                  
+                  {/* External link - medium view */}
+                  {control.externalUrl && (
+                    <a 
+                      href={control.externalUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="ml-1.5 text-gray-400 hover:text-indigo-500 transition-colors"
+                      onClick={(e) => e.stopPropagation()}
+                      title="Open in ticketing system"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                        <path fillRule="evenodd" d="M5.22 14.78a.75.75 0 001.06 0l7.22-7.22v5.69a.75.75 0 001.5 0v-7.5a.75.75 0 00-.75-.75h-7.5a.75.75 0 000 1.5h5.69l-7.22 7.22a.75.75 0 000 1.06z" clipRule="evenodd" />
+                      </svg>
+                    </a>
+                  )}
+                </div>
+              </div>
+              
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteClick(e);
+                }} 
+                className="text-gray-400 hover:text-red-600 p-1 rounded-md flex-shrink-0"
+                aria-label="Delete control"
+                title="Delete control"
+                disabled={isDeleting}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                  <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* Progress bar for controls with progress */}
+            {control.progress !== undefined && control.progress > 0 && (
+              <div className="w-full h-1 bg-gray-200 rounded-full mt-1 overflow-hidden">
+                <div 
+                  className={`h-full rounded-full ${
+                    control.progress >= 100 
+                      ? 'bg-emerald-500' 
+                      : control.progress >= 75 
+                      ? 'bg-indigo-500' 
+                      : control.progress >= 50 
+                      ? 'bg-amber-500'
+                      : control.progress >= 25
+                      ? 'bg-orange-500'
+                      : 'bg-red-500'
+                  }`}
+                  style={{ width: `${control.progress}%` }}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Delete confirmation modal - rendered outside the card for medium view */}
+        {isConfirmingDelete && renderDeleteConfirmationModal()}
+      </>
+    );
+  }
+
+  // Render full view (default)
+  return (
+    <>
       <div className={`rounded-lg border shadow-md mb-3 overflow-hidden transition-all duration-200 hover:shadow-lg ${statusStyles.border} ${statusStyles.background}`}>
-        {/* Status/Badges Header */}
-        <div className="px-3 py-2 flex justify-between items-center border-b border-opacity-50">
-          <div className="flex items-center space-x-2">
+        {/* Top header with DCF ID, Status indicator and menu */}
+        <div className="flex items-center justify-between border-b px-3 py-1.5 border-opacity-50">
+          <div className="flex items-center">
+            {/* DCF ID */}
+          {isDcfIdEditing ? (
+              <input
+                type="text"
+                value={dcfIdDraft}
+                onChange={(e) => setDcfIdDraft(e.target.value)}
+                className="text-xs font-mono bg-white border border-gray-300 rounded px-1 py-0.5 mr-1.5 w-16 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                autoFocus
+                onBlur={handleSaveDcfId}
+                onKeyDown={(e) => e.key === 'Enter' && handleSaveDcfId()}
+              />
+          ) : (
+            <span 
+                className="text-xs font-mono bg-black/5 text-gray-700 px-1 py-0.5 rounded-sm mr-1.5 flex-shrink-0 cursor-pointer hover:bg-black/10"
+              onClick={() => setIsDcfIdEditing(true)}
+              title="Click to edit DCF ID"
+            >
+                DCF-{control.dcfId}
+            </span>
+          )}
+          
+            {/* Status indicator */}
+            <span className={`h-2 w-2 rounded-full mx-1 flex-shrink-0 ${
+              control.status === ControlStatus.Complete ? 'bg-emerald-500' : 
+              control.status === ControlStatus.InProgress ? 'bg-indigo-500' : 
+              control.status === ControlStatus.InReview ? 'bg-amber-500' : 'bg-gray-500'
+            }`} title={control.status}></span>
+        </div>
+        
+          {/* Status badge & Menu */}
+          <div className="flex items-center gap-1.5">
             <span className={`inline-flex items-center rounded-full ${
               control.status === ControlStatus.Complete 
                 ? 'bg-emerald-100 text-emerald-800' 
-                : control.status === ControlStatus.OnHold 
-                ? 'bg-red-100 text-red-800' 
                 : control.status === ControlStatus.InProgress 
-                ? 'bg-blue-100 text-blue-800' 
+                ? 'bg-indigo-100 text-indigo-800' 
                 : control.status === ControlStatus.InReview
                 ? 'bg-amber-100 text-amber-800'
                 : 'bg-gray-100 text-gray-800'
             } px-2 py-0.5 text-xs font-medium`}>
               {control.status}
             </span>
-            {timeRemaining.text && (
-              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                timeRemaining.overdue ? 'bg-red-100 text-red-800' : 
-                timeRemaining.urgent ? 'bg-amber-100 text-amber-800' : 
-                'bg-gray-100 text-gray-800'
+            
+            {/* Menu button */}
+            <div className="relative" ref={menuRef}>
+            <button
+              onClick={toggleMenu}
+                className="text-gray-400 hover:text-gray-700 p-1 rounded-md"
+              aria-label="More options"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                  <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
+              </svg>
+            </button>
+            
+            {menuOpen && (
+              <div className="absolute right-0 mt-1 bg-white rounded-md shadow-lg z-10 border border-gray-200 py-1 w-44">
+                <button 
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    setIsEditingTitle(true);
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+                  </svg>
+                  Edit Title
+                </button>
+                <button 
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    setIsDcfIdEditing(true);
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+                  </svg>
+                  Edit DCF ID
+                </button>
+                  {/* External URL option */}
+                <button 
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                      setShowUrlDialog(true);
+                      setIsEditingUrl(true);
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+                  </svg>
+                    {control.externalUrl ? 'Edit Link' : 'Add Link'}
+                </button>
+            <button 
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuOpen(false);
+                      setShowExplanationDialog(true);
+                    }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+                    View Explanation
+            </button>
+                  {/* Delete option in menu */}
+              <button 
+                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuOpen(false);
+                      handleDeleteClick(e);
+                    }}
+                disabled={isDeleting}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 mr-2">
+                      <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    Delete
+              </button>
+            </div>
+          )}
+            </div>
+        </div>
+      </div>
+
+        {/* Title Section - Full width and clear visibility */}
+        <div className="px-3 py-1.5 border-b border-opacity-20">
+          <div className="flex items-center">
+            {isEditingTitle ? (
+              <input
+                type="text"
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                className="text-sm border border-gray-300 rounded px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              autoFocus
+                onBlur={handleSaveTitle}
+                onKeyDown={(e) => e.key === 'Enter' && handleSaveTitle()}
+              />
+            ) : (
+              <>
+                <h4 
+                  className={`text-sm font-semibold cursor-pointer hover:text-indigo-600 transition-colors ${statusStyles.color} flex-grow`}
+                  onClick={() => setIsEditingTitle(true)}
+                  title="Click to edit title"
+                >
+                  {control.title}
+                  
+                  {/* High priority indicator - full view */}
+                  {isHighPriority && (
+                    <span className="inline-block ml-1.5 text-red-500" title={`${control.priorityLevel} Priority`}>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 inline-block">
+                        <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                      </svg>
+                    </span>
+                  )}
+                </h4>
+                
+                {/* External link - full view */}
+                {control.externalUrl && (
+                  <a 
+                    href={control.externalUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="ml-2 text-gray-400 hover:text-indigo-500 transition-colors flex items-center gap-1"
+                    onClick={(e) => e.stopPropagation()}
+                    title="Open in ticketing system"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                      <path fillRule="evenodd" d="M15.75 2.25H21a.75.75 0 01.75.75v5.25a.75.75 0 01-1.5 0V4.81L8.03 17.03a.75.75 0 01-1.06-1.06L19.19 3.75h-3.44a.75.75 0 010-1.5z" clipRule="evenodd" />
+                      <path fillRule="evenodd" d="M5.25 6.75a1.5 1.5 0 00-1.5 1.5v10.5a1.5 1.5 0 001.5 1.5h10.5a1.5 1.5 0 001.5-1.5V15a.75.75 0 011.5 0v3.75a3 3 0 01-3 3H5.25a3 3 0 01-3-3V8.25a3 3 0 013-3H9a.75.75 0 010 1.5H5.25z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-xs">Details</span>
+                  </a>
+                )}
+              </>
+            )}
+            </div>
+          </div>
+
+        {/* Badge bar for additional info */}
+        <div className="flex flex-wrap items-center gap-1 px-3 py-1 border-b border-opacity-20 bg-gray-50/50">
+          {/* Assignee badge */}
+          <div className="flex items-center gap-1">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            <span className="text-xs text-gray-700">
+              {assigneeName}
+            </span>
+          </div>
+          
+          {/* Time remaining badge - only if not empty */}
+          {timeRemaining.text && (
+            <div className="flex items-center gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className={`text-xs ${
+                timeRemaining.overdue ? 'text-red-600' : 
+                timeRemaining.urgent ? 'text-amber-600' : 
+                'text-gray-700'
               }`}>
                 {timeRemaining.text}
               </span>
-            )}
-            {control.priorityLevel && (
-              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                control.priorityLevel === PriorityLevel.Critical 
-                  ? 'bg-red-100 text-red-800' 
-                  : control.priorityLevel === PriorityLevel.High 
-                  ? 'bg-orange-100 text-orange-800' 
-                  : control.priorityLevel === PriorityLevel.Medium 
-                  ? 'bg-blue-100 text-blue-800'
-                  : 'bg-green-100 text-green-800'
+          </div>
+        )}
+          
+          {/* Priority badge - only if exists */}
+          {control.priorityLevel && (
+            <div className="flex items-center gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+              </svg>
+              <span className={`text-xs ${
+                control.priorityLevel === PriorityLevel.Critical ? 'text-red-600' : 
+                control.priorityLevel === PriorityLevel.High ? 'text-orange-600' : 
+                control.priorityLevel === PriorityLevel.Medium ? 'text-blue-600' : 
+                'text-green-600'
               }`}>
                 {control.priorityLevel}
               </span>
-            )}
-          </div>
-          <span className="inline-flex items-center text-xs font-medium text-gray-700">
-            {assigneeName}
-          </span>
+            </div>
+          )}
+          
+          {/* Explanation button */}
+          <button 
+            onClick={() => setShowExplanationDialog(true)}
+            className="ml-auto text-xs text-gray-500 hover:text-indigo-600 flex items-center gap-1"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>Info</span>
+          </button>
         </div>
 
-        {/* Content Section */}
-        <div className="p-3">
-          <div className="flex justify-between items-start mb-1">
-            <div className="flex-grow">
-              <span className="text-xs font-mono bg-black/10 backdrop-blur-sm text-gray-700 px-1.5 py-0.5 rounded-sm mr-2">
-                {control.dcfId}
-              </span>
-              <h4 className={`text-base font-semibold mt-1 ${statusStyles.color}`}>
-                {control.title}
-              </h4>
-            </div>
-            
-            <div className="flex flex-shrink-0">
+        {/* Progress bar - if present */}
+        {control.progress !== undefined && control.progress > 0 && (
+          <div className="w-full h-1 bg-gray-200 overflow-hidden">
+            <div 
+              className={`h-full ${
+                control.progress >= 100 
+                  ? 'bg-emerald-500' 
+                  : control.progress >= 75 
+                  ? 'bg-indigo-500' 
+                  : control.progress >= 50 
+                  ? 'bg-amber-500'
+                  : control.progress >= 25
+                  ? 'bg-orange-500'
+                  : 'bg-red-500'
+              }`}
+              style={{ width: `${control.progress}%` }}
+            />
+          </div>
+        )}
+
+        {/* Status, Assignee, Date Row - 3-column grid */}
+        <div className="grid grid-cols-3 gap-2 text-xs p-2">
+        {/* Status Dropdown */}
+        <div>
+            <label htmlFor={`status-${control.id}`} className="block text-[10px] font-medium text-gray-500 mb-0.5">Status</label>
+          <select
+            id={`status-${control.id}`}
+            value={control.status}
+            onChange={(e: ChangeEvent<HTMLSelectElement>) => handleFieldUpdate('status', e.target.value as ControlStatus)}
+              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-xs h-7 px-1.5 py-0 bg-white"
+          >
+            {Object.values(ControlStatus).map(status => (
+              <option key={status} value={status}>{status}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Assignee Dropdown */}
+        <div>
+            <label htmlFor={`assignee-${control.id}`} className="block text-[10px] font-medium text-gray-500 mb-0.5">Assignee</label>
+          <select
+            id={`assignee-${control.id}`}
+              value={control.assigneeId || ""}
+            onChange={(e: ChangeEvent<HTMLSelectElement>) => handleFieldUpdate('assigneeId', e.target.value)}
+              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-xs h-7 px-1.5 py-0 bg-white"
+          >
+              <option value="">Unassigned</option>
+            {technicians.map(tech => (
+              <option key={tech.id} value={tech.id}>{tech.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Estimated Completion Date */}
+        <div>
+            <label htmlFor={`date-${control.id}`} className="block text-[10px] font-medium text-gray-500 mb-0.5">Est. Completion</label>
+          <input
+            type="date"
+            id={`date-${control.id}`}
+            value={(() => {
+              if (!control.estimatedCompletionDate) return '';
+                try {
+                  return formatDateForInput(control.estimatedCompletionDate);
+              } catch (error) {
+                  return '';
+              }
+            })()}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => handleFieldUpdate('estimatedCompletionDate', e.target.value)}
+              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-xs h-7 px-1.5 py-0 bg-white"
+          />
+        </div>
+      </div>
+
+      {/* Update Error Message */}
+      {updateError && (
+          <p className="text-red-500 text-xs p-2 text-center">{updateError}</p>
+      )}
+    </div>
+
+      {/* Delete confirmation and Explanation dialogs */}
+      {isConfirmingDelete && renderDeleteConfirmationModal()}
+      
+      {/* External URL Dialog */}
+      {showUrlDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="font-semibold text-gray-800">
+                {control.externalUrl ? 'Edit External Link' : 'Add External Link'}
+              </h3>
               <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteClick(e);
-                }} 
-                className="text-gray-500 hover:text-red-600 p-1 rounded-md focus:outline-none disabled:opacity-50"
-                aria-label="Delete control"
-                title="Delete control"
-                disabled={isDeleting}
+                onClick={() => {
+                  setShowUrlDialog(false);
+                  setIsEditingUrl(false);
+                  setUrlDraft(control.externalUrl || '');
+                }}
+                className="text-gray-400 hover:text-gray-600"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-          </div>
-          
-          {/* Progress bar for controls with progress */}
-          {control.progress !== undefined && control.progress > 0 && (
-            <div className="w-full h-1.5 bg-gray-200 rounded-full mt-2 overflow-hidden">
-              <div 
-                className={`h-full rounded-full ${
-                  control.progress >= 100 
-                    ? 'bg-emerald-500' 
-                    : control.progress >= 75 
-                    ? 'bg-blue-500' 
-                    : control.progress >= 50 
-                    ? 'bg-amber-500'
-                    : control.progress >= 25
-                    ? 'bg-orange-500'
-                    : 'bg-red-500'
-                }`}
-                style={{ width: `${control.progress}%` }}
-              />
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Render full view (default)
-  return (
-    <div className={`rounded-lg border shadow-md mb-4 overflow-hidden transition-all duration-200 hover:shadow-lg ${statusStyles.border} ${statusStyles.background}`}>
-      {/* Status Badge */}
-      <div className="flex justify-between items-center px-4 py-2 border-b border-opacity-50">
-        <div className="flex items-center space-x-2">
-          <span className={`inline-flex items-center rounded-full ${
-            control.status === ControlStatus.Complete 
-              ? 'bg-emerald-100 text-emerald-800' 
-              : control.status === ControlStatus.OnHold 
-              ? 'bg-red-100 text-red-800' 
-              : control.status === ControlStatus.InProgress 
-              ? 'bg-blue-100 text-blue-800' 
-              : control.status === ControlStatus.InReview
-              ? 'bg-amber-100 text-amber-800'
-              : 'bg-gray-100 text-gray-800'
-          } px-3 py-0.5 text-xs font-medium`}>
-            {control.status}
-          </span>
-          {timeRemaining.text && (
-            <span className={`inline-flex items-center rounded-full px-3 py-0.5 text-xs font-medium ${
-              timeRemaining.overdue ? 'bg-red-100 text-red-800' : 
-              timeRemaining.urgent ? 'bg-amber-100 text-amber-800' : 
-              'bg-gray-100 text-gray-800'
-            }`}>
-              {timeRemaining.text}
-            </span>
-          )}
-          {control.priorityLevel && (
-            <span className={`inline-flex items-center rounded-full px-3 py-0.5 text-xs font-medium ${
-              control.priorityLevel === PriorityLevel.Critical 
-                ? 'bg-red-100 text-red-800' 
-                : control.priorityLevel === PriorityLevel.High 
-                ? 'bg-orange-100 text-orange-800' 
-                : control.priorityLevel === PriorityLevel.Medium 
-                ? 'bg-blue-100 text-blue-800'
-                : 'bg-green-100 text-green-800'
-            }`}>
-              {control.priorityLevel}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center">
-          <span className={`inline-flex items-center rounded-full bg-gray-100 px-3 py-0.5 text-xs font-medium text-gray-800`}>
-            {assigneeName}
-          </span>
-        </div>
-      </div>
-
-      <div className="p-4">
-        <div className="flex justify-between items-start mb-2">
-          <div className="flex-grow">
-            {isDcfIdEditing ? (
-              <div className="mb-2">
-                <input
-                  type="text"
-                  value={dcfIdDraft}
-                  onChange={(e) => setDcfIdDraft(e.target.value)}
-                  className="inline-block text-xs font-mono bg-white border border-gray-300 rounded px-1.5 py-0.5 mr-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  autoFocus
-                  onBlur={handleSaveDcfId}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSaveDcfId()}
-                />
-                <button onClick={handleSaveDcfId} className="text-xs text-blue-600">Save</button>
-              </div>
-            ) : (
-              <span 
-                className="text-xs font-mono bg-black/10 backdrop-blur-sm text-gray-700 px-2 py-1 rounded-md mr-2 cursor-pointer hover:bg-black/20 transition-colors"
-                onClick={() => setIsDcfIdEditing(true)}
-                title="Click to edit DCF ID"
-              >
-                {control.dcfId}
-              </span>
-            )}
             
-            {isEditingTitle ? (
-              <div className="mt-1">
+            <div className="p-4">
+              <div className="mb-4">
+                <label htmlFor="externalUrl" className="block text-sm font-medium text-gray-700 mb-1">
+                  URL to ticketing system
+                </label>
                 <input
-                  type="text"
-                  value={titleDraft}
-                  onChange={(e) => setTitleDraft(e.target.value)}
-                  className="inline-block text-md border border-gray-300 rounded px-2 py-1 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  type="url"
+                  id="externalUrl"
+                  value={urlDraft}
+                  onChange={(e) => setUrlDraft(e.target.value)}
+                  placeholder="https://tickets.example.com/ticket/123"
+                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm p-2"
                   autoFocus
-                  onBlur={handleSaveTitle}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSaveTitle()}
                 />
-                <button onClick={handleSaveTitle} className="ml-2 text-xs text-blue-600">Save</button>
+                <p className="mt-1 text-xs text-gray-500">
+                  Enter the full URL to the ticket in your external system
+                </p>
               </div>
-            ) : (
-              <h4 
-                className={`text-lg font-bold inline cursor-pointer hover:text-indigo-600 transition-colors ${statusStyles.color}`}
-                onClick={() => setIsEditingTitle(true)}
-                title="Click to edit title"
-              >
-                {control.title}
-              </h4>
-            )}
+              
+              <div className="flex justify-end gap-2">
+                <button 
+                  onClick={() => {
+                    setShowUrlDialog(false);
+                    setIsEditingUrl(false);
+                    setUrlDraft(control.externalUrl || '');
+                  }}
+                  className="px-3 py-1.5 border border-gray-300 rounded text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                {control.externalUrl && (
+                  <button 
+                    onClick={async () => {
+                      try {
+                        await onUpdateControl(control.id, { externalUrl: null });
+                        setShowUrlDialog(false);
+                        setIsEditingUrl(false);
+                        setUrlDraft('');
+                      } catch (error: any) {
+                        console.error("Failed to remove external URL:", error);
+                        setUpdateError("Failed to remove external URL.");
+                      }
+                    }}
+                    className="px-3 py-1.5 border border-red-300 rounded text-sm text-red-700 hover:bg-red-50"
+                  >
+                    Remove Link
+                  </button>
+                )}
+                <button 
+                  onClick={handleSaveUrl}
+                  className="px-3 py-1.5 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
           </div>
-          
-          <div className="flex items-center">
-            {/* Three-dots menu */}
-            <div className="relative mr-1" ref={menuRef}>
-              <button
-                onClick={toggleMenu}
-                onPointerDown={(e) => e.stopPropagation()}
-                className="text-gray-500 hover:text-gray-700 p-2 rounded-md focus:outline-none"
-                aria-label="More options"
+        </div>
+      )}
+      
+      {/* Explanation Dialog */}
+      {showExplanationDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[80vh] overflow-auto">
+            <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="font-semibold text-gray-800">Explanation</h3>
+              <button 
+                onClick={() => setShowExplanationDialog(false)}
+                className="text-gray-400 hover:text-gray-600"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
-              
-              {menuOpen && (
-                <div className="absolute right-0 mt-1 bg-white rounded-md shadow-lg z-10 border border-gray-200 py-1 w-44">
+            </div>
+            
+            <div className="p-4">
+              {isEditingExplanation ? (
+                <div>
+                  <textarea
+                    value={explanationDraft}
+                    onChange={(e) => setExplanationDraft(e.target.value)}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm p-2 min-h-[120px]"
+                    rows={4}
+                    autoFocus
+                  />
+                  <div className="flex justify-end gap-2 mt-2">
+                    <button 
+                      onClick={() => { setIsEditingExplanation(false); setExplanationDraft(control.explanation); }}
+                      className="px-3 py-1.5 border border-gray-300 rounded text-sm text-gray-700 hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      onClick={handleSaveExplanation}
+                      className="px-3 py-1.5 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-gray-700 whitespace-pre-wrap">
+                    {control.explanation || <span className="text-gray-400 italic">No explanation provided.</span>}
+                  </p>
                   <button 
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setMenuOpen(false);
-                      setIsEditingTitle(true);
-                    }}
+                    onClick={() => setIsEditingExplanation(true)}
+                    className="mt-4 text-indigo-600 hover:text-indigo-800 text-sm flex items-center"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
-                    </svg>
-                    Edit Title
-                  </button>
-                  <button 
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setMenuOpen(false);
-                      setIsDcfIdEditing(true);
-                    }}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
-                    </svg>
-                    Edit DCF ID
-                  </button>
-                  <button 
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setMenuOpen(false);
-                      startEditingExplanation();
-                    }}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                     </svg>
                     Edit Explanation
                   </button>
                 </div>
               )}
             </div>
-            
-            {/* Conditional rendering for Delete Button / Confirmation */} 
-            {!isConfirmingDelete ? (
-              <button 
-                onClick={handleDeleteClick} 
-                onPointerDown={(e) => e.stopPropagation()}
-                className="text-gray-500 hover:text-red-600 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50"
-                aria-label="Delete control"
-                title="Delete control"
-                disabled={isDeleting} // Disable while delete is in progress
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                </svg>
-              </button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-700">Delete?</span>
-                <button 
-                  onClick={handleCancelDelete}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  className="text-xs rounded px-2 py-1 border hover:bg-gray-100 disabled:opacity-50"
-                  disabled={isDeleting}
-                  aria-label="Cancel delete"
-                >
-                  Cancel
-                </button>
-                <button 
-                  onClick={handleConfirmDelete}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  className="text-xs rounded px-2 py-1 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:bg-red-400"
-                  disabled={isDeleting}
-                  aria-label="Confirm delete"
-                >
-                  {isDeleting ? 'Deleting...' : 'Confirm'}
-                </button>
-              </div>
-            )}
           </div>
         </div>
-
-        {/* Explanation Section */}
-        <details className="mb-3 group" ref={detailsRef}>
-          <summary className="text-sm font-medium cursor-pointer group-open:mb-1 list-none flex items-center">
-              <div className="flex items-center">
-                <div className="w-6 h-6 mr-2 flex items-center justify-center rounded-full bg-black/5">
-                  <span className="transform transition-transform duration-200 group-open:rotate-90">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                    </svg>
-                  </span>
-                </div>
-                <span className="font-medium">Explanation</span>
-              </div>
-          </summary>
-          {isEditingExplanation ? (
-            <div className="mt-1">
-              <textarea
-                value={explanationDraft}
-                onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setExplanationDraft(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm text-sm p-2 min-h-[80px] bg-white"
-                rows={3}
-                autoFocus
-                onBlur={handleSaveExplanation} // Save on blur
-              />
-              <div className="flex justify-end gap-2 mt-1">
-                <button onClick={() => { setIsEditingExplanation(false); setExplanationDraft(control.explanation); }} className="text-xs rounded px-2 py-1 border hover:bg-gray-100">Cancel</button>
-                <button onClick={handleSaveExplanation} className="text-xs rounded px-2 py-1 bg-blue-600 text-white hover:bg-blue-700">Save</button>
-              </div>
-            </div>
-          ) : (
-            <div onClick={startEditingExplanation} className="text-sm text-gray-700 mt-1 p-3 rounded-md bg-white/50 backdrop-blur-sm min-h-[40px] cursor-text hover:bg-white/70 whitespace-pre-wrap">
-              {control.explanation || <span className="text-gray-400 italic">Click to add explanation...</span>}
-            </div>
-          )}
-        </details>
-
-        {/* Status, Assignee, Date Row */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm mt-2">
-          {/* Status Dropdown */}
-          <div>
-            <label htmlFor={`status-${control.id}`} className="block text-xs font-medium text-gray-500 mb-1">Status</label>
-            <select
-              id={`status-${control.id}`}
-              value={control.status}
-              onChange={(e: ChangeEvent<HTMLSelectElement>) => handleFieldUpdate('status', e.target.value as ControlStatus)}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-9 px-2 py-1 bg-white"
-            >
-              {Object.values(ControlStatus).map(status => (
-                <option key={status} value={status}>{status}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Assignee Dropdown */}
-          <div>
-            <label htmlFor={`assignee-${control.id}`} className="block text-xs font-medium text-gray-500 mb-1">Assignee</label>
-            <select
-              id={`assignee-${control.id}`}
-              value={control.assigneeId || ""} // Use empty string for "Unassigned" value
-              onChange={(e: ChangeEvent<HTMLSelectElement>) => handleFieldUpdate('assigneeId', e.target.value)}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-9 px-2 py-1 bg-white"
-            >
-              <option value="">-- Unassigned --</option>
-              {technicians.map(tech => (
-                <option key={tech.id} value={tech.id}>{tech.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Estimated Completion Date */}
-          <div>
-            <label htmlFor={`date-${control.id}`} className="block text-xs font-medium text-gray-500 mb-1">Est. Completion</label>
-            {/* First validate the timestamp before calling formatDateForInput */}
-            <input
-              type="date"
-              id={`date-${control.id}`}
-              value={(() => {
-                // IIFE to contain our validation logic 
-                if (!control.estimatedCompletionDate) return '';
-                
-                try {
-                  // Check format of the timestamp
-                  if (typeof control.estimatedCompletionDate === 'string') {
-                    // If it's a string (shouldn't happen, but just in case), try to format it
-                    const date = new Date(control.estimatedCompletionDate);
-                    if (!isNaN(date.getTime())) {
-                      const year = date.getUTCFullYear();
-                      const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
-                      const day = date.getUTCDate().toString().padStart(2, '0');
-                      return `${year}-${month}-${day}`;
-                    }
-                    return '';
-                  }
-                  
-                  // If it's a Firebase Timestamp
-                  if (control.estimatedCompletionDate instanceof Timestamp) {
-                    // First validate it has valid components
-                    const { seconds, nanoseconds } = control.estimatedCompletionDate;
-                    if (typeof seconds !== 'number' || isNaN(seconds) ||
-                        typeof nanoseconds !== 'number' || isNaN(nanoseconds)) {
-                      return ''; // Invalid timestamp values
-                    }
-                    
-                    // If we get here, it's safe to use formatDateForInput
-                    return formatDateForInput(control.estimatedCompletionDate);
-                  }
-                  
-                  // If it's a raw object with seconds (from our API response)
-                  if (typeof control.estimatedCompletionDate === 'object' && 
-                      control.estimatedCompletionDate !== null) {
-                    const obj = control.estimatedCompletionDate as any;
-                    if ('seconds' in obj && typeof obj.seconds === 'number' && !isNaN(obj.seconds)) {
-                      // Convert seconds to date and format
-                      const milliseconds = obj.seconds * 1000;
-                      const date = new Date(milliseconds);
-                      if (!isNaN(date.getTime())) {
-                        const year = date.getUTCFullYear();
-                        const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
-                        const day = date.getUTCDate().toString().padStart(2, '0');
-                        return `${year}-${month}-${day}`;
-                      }
-                    }
-                  }
-                  
-                  return ''; // Default case - empty string for any unknown format
-                } catch (error) {
-                  console.error(`Error rendering date for control ${control.id}:`, error);
-                  return ''; // Return empty string for any errors
-                }
-              })()}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => handleFieldUpdate('estimatedCompletionDate', e.target.value)}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-9 px-2 py-1 bg-white"
-            />
-          </div>
-        </div>
-
-        {/* Update Error Message */}
-        {updateError && (
-            <p className="text-red-500 text-xs mt-2 text-right">{updateError}</p>
-        )}
-      </div>
-    </div>
+      )}
+    </>
   );
 } 

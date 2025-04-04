@@ -23,6 +23,7 @@ import { AddControlForm } from './AddControlForm'; // Import the new form compon
 import { TimelineView } from './TimelineView';
 import { CollapsibleGroup } from './CollapsibleGroup';
 import { BatchOperationsToolbar } from './BatchOperationsToolbar';
+import { Modal } from './Modal'; // Import the Modal component
 
 export function ControlList() {
   const [controls, setControls] = useState<Control[]>([]);
@@ -107,10 +108,15 @@ export function ControlList() {
           }
         }
         
+        // Log the externalUrl for debugging
+        console.log(`Control ${c.id} externalUrl:`, c.externalUrl);
+        
         return { 
           ...c, 
           // Use validated timestamp or null
-          estimatedCompletionDate: validatedTimestamp
+          estimatedCompletionDate: validatedTimestamp,
+          // Explicitly preserve externalUrl from the API response
+          externalUrl: c.externalUrl
         };
       });
 
@@ -297,11 +303,13 @@ export function ControlList() {
           id: tempId,
           // Use the validated date or null
           estimatedCompletionDate: safeEstimatedCompletionDate,
+          // Ensure externalUrl is included optimistically
+          externalUrl: newControlData.externalUrl
       };
       
       // Add to the end of the list
       setControls(prevControls => [...prevControls, optimisticControl]);
-      setShowAddForm(false); // Hide form immediately
+      setShowAddForm(false); // Hide modal immediately
       // --- End Optimistic Update ---
       
       try {
@@ -321,60 +329,32 @@ export function ControlList() {
               const errorData = await response.json();
               // Rollback: Remove the optimistically added control
               setControls(prevControls => prevControls.filter(c => c.id !== tempId)); 
-              setShowAddForm(true); // Re-show form on error maybe?
+              setShowAddForm(true); // Re-show modal on error
               throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
           }
 
           const savedControl: Control = await response.json();
-          
-          // Update the temporary control with the real ID and potentially server data
+
+          // If the backend returns a Timestamp object, convert it to a JS Date
+          // If it returns an ISO string, convert it to JS Date
+          let finalDate = null;
+          if (savedControl.estimatedCompletionDate) {
+            if (typeof savedControl.estimatedCompletionDate === 'string') {
+              finalDate = Timestamp.fromDate(new Date(savedControl.estimatedCompletionDate));
+            } else if ((savedControl.estimatedCompletionDate as any).seconds) {
+              finalDate = savedControl.estimatedCompletionDate; // Assume it's already a Timestamp
+            }
+          }
+
+          // Replace the optimistic item with the saved one
           setControls(prevControls => 
               prevControls.map(c => {
                   if (c.id === tempId) {
-                      // Create a cleaned up version of the saved control
-                      const cleanedControl = { ...savedControl };
-                      
-                      // Safely convert the estimatedCompletionDate if it exists
-                      let validTimestamp = null;
-                      if (savedControl.estimatedCompletionDate) {
-                          try {
-                              // Check if it's already a valid Timestamp
-                              if (savedControl.estimatedCompletionDate instanceof Timestamp) {
-                                  // Verify it's valid
-                                  const { seconds, nanoseconds } = savedControl.estimatedCompletionDate;
-                                  if (!isNaN(seconds) && !isNaN(nanoseconds)) {
-                                      validTimestamp = savedControl.estimatedCompletionDate;
-                                  }
-                              } 
-                              // If it's a string (ISO date)
-                              else if (typeof savedControl.estimatedCompletionDate === 'string') {
-                                  const date = new Date(savedControl.estimatedCompletionDate);
-                                  if (!isNaN(date.getTime())) {
-                                      validTimestamp = Timestamp.fromDate(date);
-                                  }
-                              }
-                              // If it's a Timestamp-like object
-                              else if (savedControl.estimatedCompletionDate && 
-                                      'seconds' in savedControl.estimatedCompletionDate &&
-                                      'nanoseconds' in savedControl.estimatedCompletionDate) {
-                                  const seconds = (savedControl.estimatedCompletionDate as any).seconds;
-                                  const nanoseconds = (savedControl.estimatedCompletionDate as any).nanoseconds;
-                                  if (typeof seconds === 'number' && !isNaN(seconds) &&
-                                      typeof nanoseconds === 'number' && !isNaN(nanoseconds)) {
-                                      validTimestamp = new Timestamp(seconds, nanoseconds);
-                                  }
-                              } 
-                          } catch (error) {
-                              console.error("Failed to convert timestamp from server response:", error);
-                              // Keep it null
-                          }
-                      }
-                      
-                      return { 
-                          ...c, // Keep optimistic data like explanation
-                          ...cleanedControl, // Overwrite with server data (ID, potentially others)
-                          // Use the validated timestamp or null
-                          estimatedCompletionDate: validTimestamp,
+                      return {
+                          ...savedControl,
+                          estimatedCompletionDate: finalDate,
+                          // Make sure externalUrl from response is included
+                          externalUrl: savedControl.externalUrl
                       };
                   }
                   return c;
@@ -389,7 +369,7 @@ export function ControlList() {
           setError(err.message || "Failed to add control.");
           // Ensure rollback if error occurs after optimistic add
           setControls(prevControls => prevControls.filter(c => c.id !== tempId));
-          setShowAddForm(true); // Re-show form on error maybe?
+          setShowAddForm(true); // Re-show modal on error
           // Re-throw so AddControlForm can also catch it and display inline error
           throw err; 
       }
@@ -633,31 +613,45 @@ export function ControlList() {
             </div>
           )}
           
-          {/* Add Control Button */}
+          {/* Add Control Button - Changed to open modal */}
           <button 
-            onClick={() => setShowAddForm(!showAddForm)}
-            className={`rounded-md transition-colors ${
-              showAddForm 
-                ? 'bg-gray-200 text-gray-800 hover:bg-gray-300' 
-                : 'bg-indigo-600 text-white hover:bg-indigo-700'
-            } px-4 py-2 text-sm font-medium ml-2`}
+            onClick={() => setShowAddForm(true)}
+            className={`rounded-md transition-colors bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 text-sm font-medium ml-2`}
           >
-            {showAddForm ? 'Cancel' : '+ Add Control'}
+            + Add Control
           </button>
         </div>
       </div>
       
-      {/* Add Control Form */}
-      {showAddForm && (
-        <div className="mb-6">
-          <AddControlForm 
-            technicians={technicians}
-            currentOrderCount={controls.length}
-            onAddControl={handleAddControl}
-            onCancel={() => { setShowAddForm(false); setError(null); }}
-          />
-        </div>
-      )}
+      {/* Add Control Form inside Modal */}
+      <Modal 
+        isOpen={showAddForm} 
+        onClose={() => {
+          setShowAddForm(false);
+          setError(null); // Clear errors when closing modal
+        }}
+        title="Add New Control"
+      >
+        <AddControlForm 
+          technicians={technicians}
+          currentOrderCount={controls.length}
+          onAddControl={async (newControl) => {
+            // handleAddControl already handles state updates and closing the form
+            // We just need to catch potential errors to display them *inside* the modal form
+            try {
+              await handleAddControl(newControl);
+            } catch (formError: any) {
+              console.error("Error in form submission:", formError);
+              // Error state is already set by handleAddControl, 
+              // AddControlForm should display it
+            }
+          }}
+          onCancel={() => { 
+            setShowAddForm(false); 
+            setError(null); // Clear errors on cancel
+          }}
+        />
+      </Modal>
       
       {/* Batch Operations Toolbar */}
       <BatchOperationsToolbar
