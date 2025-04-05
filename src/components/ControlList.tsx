@@ -573,19 +573,19 @@ export function ControlList() {
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
-        <div className="animate-pulse text-gray-500">Loading controls...</div>
+        <div className="animate-pulse text-gray-500 dark:text-gray-400">Loading controls...</div>
       </div>
     );
   }
 
   if (error && !showAddForm) {
     return (
-      <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 mt-4">
+      <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-500/50 text-red-800 dark:text-red-300 rounded-lg p-4 mt-4">
         <h3 className="text-lg font-medium">Error</h3>
         <p>{error}</p>
         <button 
           onClick={() => fetchData()} 
-          className="mt-2 px-4 py-2 bg-red-100 hover:bg-red-200 rounded-md transition-colors"
+          className="mt-2 px-4 py-2 bg-red-100 dark:bg-red-800/50 hover:bg-red-200 dark:hover:bg-red-700/50 rounded-md transition-colors"
         >
           Retry
         </button>
@@ -598,21 +598,21 @@ export function ControlList() {
       {/* Top Actions Row */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
         <div>
-          <h2 className="text-l font-bold text-gray-800">Compliance Controls</h2>
-          <p className="text-gray-500 text-sm mt-1">
+          <h2 className="text-l font-bold text-gray-800 dark:text-gray-100">Compliance Controls</h2>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
             {filteredControls.length} of {controls.length} controls displayed
           </p>
         </div>
         
         <div className="flex flex-wrap gap-3 items-center">
           {/* View Mode Selector */}
-          <div className="flex overflow-hidden rounded-md border border-gray-300 shadow-sm">
+          <div className="flex overflow-hidden rounded-md border border-gray-300 dark:border-gray-600 shadow-sm">
             <button
               onClick={() => setViewMode('kanban')}
               className={`px-3 py-1.5 text-sm font-medium flex items-center gap-1 transition-colors ${
                 viewMode === 'kanban' 
-                  ? 'bg-indigo-100 text-indigo-700 border-r border-gray-300' 
-                  : 'bg-white text-gray-700 hover:bg-gray-50 border-r border-gray-300'
+                  ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border-r border-gray-300 dark:border-gray-600' 
+                  : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 border-r border-gray-300 dark:border-gray-600'
               }`}
               title="Kanban board view"
             >
@@ -626,8 +626,8 @@ export function ControlList() {
               onClick={() => setViewMode('timeline')}
               className={`px-3 py-1.5 text-sm font-medium flex items-center gap-1 transition-colors ${
                 viewMode === 'timeline' 
-                  ? 'bg-indigo-100 text-indigo-700' 
-                  : 'bg-white text-gray-700 hover:bg-gray-50'
+                  ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300' 
+                  : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
               }`}
               title="Timeline view"
             >
@@ -639,13 +639,13 @@ export function ControlList() {
           </div>
           
           {/* View Density Selector */}
-          <div className="flex overflow-hidden rounded-md border border-gray-300 shadow-sm">
+          <div className="flex overflow-hidden rounded-md border border-gray-300 dark:border-gray-600 shadow-sm">
             <button
               onClick={() => setViewDensity('compact')}
-              className={`px-3 py-1.5 text-sm font-medium flex items-center gap-1 transition-colors border-r border-gray-300 ${
+              className={`px-3 py-1.5 text-sm font-medium flex items-center gap-1 transition-colors border-r border-gray-300 dark:border-gray-600 ${
                 viewDensity === 'compact' 
-                  ? 'bg-indigo-100 text-indigo-700' 
-                  : 'bg-white text-gray-700 hover:bg-gray-50'
+                  ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300' 
+                  : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
               }`}
               title="Compact view"
             >
@@ -657,10 +657,10 @@ export function ControlList() {
             
             <button
               onClick={() => setViewDensity('medium')}
-              className={`px-3 py-1.5 text-sm font-medium flex items-center gap-1 transition-colors border-r border-gray-300 ${
+              className={`px-3 py-1.5 text-sm font-medium flex items-center gap-1 transition-colors border-r border-gray-300 dark:border-gray-600 ${
                 viewDensity === 'medium' 
-                  ? 'bg-indigo-100 text-indigo-700' 
-                  : 'bg-white text-gray-700 hover:bg-gray-50'
+                  ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300' 
+                  : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
               }`}
               title="Medium view"
             >
@@ -674,8 +674,8 @@ export function ControlList() {
               onClick={() => setViewDensity('full')}
               className={`px-3 py-1.5 text-sm font-medium flex items-center gap-1 transition-colors ${
                 viewDensity === 'full' 
-                  ? 'bg-indigo-100 text-indigo-700' 
-                  : 'bg-white text-gray-700 hover:bg-gray-50'
+                  ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300' 
+                  : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
               }`}
               title="Full view"
             >
@@ -689,12 +689,12 @@ export function ControlList() {
           {/* Group By Selection - Only show in Kanban view */}
           {viewMode === 'kanban' && (
             <div className="flex items-center gap-2">
-              <label htmlFor="groupBy" className="text-sm text-gray-600">Group by:</label>
+              <label htmlFor="groupBy" className="text-sm text-gray-600 dark:text-gray-400">Group by:</label>
               <select
                 id="groupBy"
                 value={groupBy}
                 onChange={(e) => setGroupBy(e.target.value as 'status' | 'assignee' | 'none')}
-                className="border border-gray-300 rounded px-2 py-1 text-sm bg-white"
+                className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-300"
               >
                 <option value="status">Status</option>
                 <option value="assignee">Assignee</option>
@@ -707,14 +707,14 @@ export function ControlList() {
           <div className="flex gap-2">
             <button 
               onClick={() => setShowAddForm(true)}
-              className="rounded-md transition-colors bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 text-sm font-medium"
+              className="rounded-md transition-colors bg-indigo-600 dark:bg-indigo-500 text-white hover:bg-indigo-700 dark:hover:bg-indigo-600 px-4 py-2 text-sm font-medium"
             >
               + Add Control
             </button>
             
             <button 
               onClick={() => setShowBulkAddForm(true)}
-              className="rounded-md transition-colors bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700 px-4 py-2 text-sm font-medium flex items-center"
+              className="rounded-md transition-colors bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700 dark:hover:from-purple-500 dark:hover:to-indigo-500 px-4 py-2 text-sm font-medium flex items-center"
             >
               <svg className="w-4 h-4 mr-1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12 3C7.23 3 3.25 6.4 3.25 10.5C3.25 12.57 4.305 14.425 6 15.677V18C6 18.2652 6.10536 18.5196 6.29289 18.7071C6.48043 18.8946 6.73478 19 7 19H17C17.2652 19 17.5196 18.8946 17.7071 18.7071C17.8946 18.5196 18 18.2652 18 18V15.677C19.695 14.425 20.75 12.57 20.75 10.5C20.75 6.4 16.77 3 12 3Z" fill="currentColor"/>
@@ -748,17 +748,7 @@ export function ControlList() {
         <AddControlForm 
           technicians={technicians}
           currentOrderCount={controls.length}
-          onAddControl={async (newControl) => {
-            // handleAddControl already handles state updates and closing the form
-            // We just need to catch potential errors to display them *inside* the modal form
-            try {
-              await handleAddControl(newControl);
-            } catch (formError: any) {
-              console.error("Error in form submission:", formError);
-              // Error state is already set by handleAddControl, 
-              // AddControlForm should display it
-            }
-          }}
+          onAddControl={handleAddControl}
           onCancel={() => { 
             setShowAddForm(false); 
             setError(null); // Clear errors on cancel

@@ -26,6 +26,13 @@ body {
     rgb(var(--background-start-rgb));
 }
 
+@layer base {
+  /* Apply transitions to all elements for smooth theme switching */
+  * {
+    @apply transition-all duration-300 ease-in-out;
+  }
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

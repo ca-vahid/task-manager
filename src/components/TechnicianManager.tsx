@@ -207,8 +207,8 @@ export function TechnicianManager() {
   };
 
   return (
-    <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6 w-full max-w-lg mx-auto my-4">
-      <h3 className="text-lg font-semibold mb-4">Manage Technicians</h3>
+    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm p-6 w-full max-w-lg mx-auto my-4">
+      <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">Manage Technicians</h3>
       
       {/* Add Technician Form */}
       <form onSubmit={handleAddTechnician} className="flex gap-2 mb-4">
@@ -217,26 +217,26 @@ export function TechnicianManager() {
           value={newTechName}
           onChange={(e: ChangeEvent<HTMLInputElement>) => setNewTechName(e.target.value)}
           placeholder="New technician name"
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 flex-grow"
+          className="flex h-10 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 dark:placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:focus-visible:ring-indigo-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 flex-grow"
           aria-label="New technician name"
         />
         <button 
           type="submit" 
           disabled={!newTechName.trim()} // Disable if input is empty
-          className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+          className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:focus-visible:ring-indigo-400 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-indigo-600 dark:bg-indigo-500 text-white hover:bg-indigo-700 dark:hover:bg-indigo-600 h-10 px-4 py-2"
         >
           Add
         </button>
       </form>
 
-      {loading && <p>Loading technicians...</p>}
-      {error && <p className="text-red-500 text-sm mb-4">Error: {error}</p>}
+      {loading && <p className="text-gray-700 dark:text-gray-300">Loading technicians...</p>}
+      {error && <p className="text-red-500 dark:text-red-400 text-sm mb-4">Error: {error}</p>}
 
       {/* Technician List */}
       <ul className="space-y-2">
         {/* Add explicit Technician type to map parameter */}
         {technicians.map((tech: Technician) => (
-          <li key={tech.id} className="flex items-center justify-between p-2 border rounded-md min-h-[40px]"> {/* Ensure minimum height */} 
+          <li key={tech.id} className="flex items-center justify-between p-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md min-h-[40px]"> {/* Ensure minimum height */} 
             {editingTechId === tech.id ? (
               // Editing View - Should not be visible if optimistic update works
               <div className="flex-grow flex items-center gap-2">
@@ -244,19 +244,19 @@ export function TechnicianManager() {
                   type="text"
                   value={editingTechName}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setEditingTechName(e.target.value)}
-                  className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 flex-grow"
+                  className="flex h-8 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-2 py-1 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:focus-visible:ring-indigo-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 flex-grow"
                   autoFocus
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleUpdateTechnician(tech.id);
                     if (e.key === 'Escape') cancelEditing();
                   }}
                 />
-                <button onClick={() => handleUpdateTechnician(tech.id)} className="text-green-600 hover:text-green-800 text-xs px-2">Save</button>
-                <button onClick={cancelEditing} className="text-gray-500 hover:text-gray-700 text-xs px-2">Cancel</button>
+                <button onClick={() => handleUpdateTechnician(tech.id)} className="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 text-xs px-2">Save</button>
+                <button onClick={cancelEditing} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-xs px-2">Cancel</button>
               </div>
             ) : (
               // Display View
-              <span className="flex-grow truncate cursor-pointer hover:underline" title={tech.name} onClick={() => startEditing(tech)}>{tech.name}</span>
+              <span className="flex-grow truncate cursor-pointer hover:underline text-gray-900 dark:text-gray-100" title={tech.name} onClick={() => startEditing(tech)}>{tech.name}</span>
             )}
             
             {editingTechId !== tech.id && (
@@ -265,10 +265,10 @@ export function TechnicianManager() {
                   {/* <button onClick={() => startEditing(tech)} className="text-blue-600 hover:text-blue-800 text-sm">Edit</button> */}
                   {confirmingDeleteId === tech.id ? (
                      <div className="flex items-center gap-2">
-                       <span className="text-sm text-gray-700">Delete?</span>
+                       <span className="text-sm text-gray-700 dark:text-gray-300">Delete?</span>
                        <button 
                          onClick={handleCancelDelete}
-                         className="text-xs rounded px-2 py-1 border hover:bg-gray-100 disabled:opacity-50"
+                         className="text-xs rounded px-2 py-1 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50"
                          disabled={deletingTechnicianId === tech.id}
                        >
                          Cancel
@@ -284,7 +284,7 @@ export function TechnicianManager() {
                   ) : (
                      <button 
                        onClick={() => handleDeleteClick(tech.id)} 
-                       className="text-red-600 hover:text-red-800 text-sm disabled:opacity-50"
+                       className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm disabled:opacity-50"
                        disabled={deletingTechnicianId !== null} // Disable if any delete is in progress
                      >
                        Delete
@@ -295,7 +295,7 @@ export function TechnicianManager() {
           </li>
         ))}
         {technicians.length === 0 && !loading && (
-            <p className="text-gray-500 text-sm text-center">No technicians found.</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm text-center">No technicians found.</p>
         )}
       </ul>
     </div>

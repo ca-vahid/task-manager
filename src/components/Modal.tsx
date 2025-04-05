@@ -31,22 +31,22 @@ export function Modal({
 
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" 
+      className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50" 
       onClick={onClose} // Close on overlay click
     >
       <div 
-        className={`bg-white rounded-lg shadow-xl ${widthClass} w-full mx-4 max-h-[calc(95vh-2rem)] overflow-hidden flex flex-col`} 
+        className={`bg-white dark:bg-gray-800 rounded-lg shadow-xl ${widthClass} w-full mx-4 max-h-[calc(95vh-2rem)] overflow-hidden flex flex-col`} 
         onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside modal
       >
         {/* Modal Header */}
-        <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
-          <h3 className="text-xl font-semibold text-gray-900">{title}</h3>
+        <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
           <div className="flex items-center space-x-2">
             {/* AI Extract Button - only show if callback is provided */}
             {onAiExtract && (
               <button
                 onClick={onAiExtract}
-                className="p-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 rounded-md text-white transition-colors duration-200 group"
+                className="p-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 dark:from-purple-500 dark:to-indigo-500 dark:hover:from-purple-600 dark:hover:to-indigo-600 rounded-md text-white transition-colors duration-200 group"
                 title="Extract with AI"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -60,7 +60,7 @@ export function Modal({
             {/* Close button */}
             <button
               onClick={onClose}
-              className="p-1.5 hover:bg-gray-100 rounded-md text-gray-400 hover:text-gray-500 transition-colors duration-200"
+              className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-300 transition-colors duration-200"
               title="Close"
             >
               <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -71,7 +71,7 @@ export function Modal({
         </div>
         
         {/* Modal Content - with its own scrollable area */}
-        <div className="flex-grow overflow-y-auto p-6">
+        <div className="flex-grow overflow-y-auto p-6 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
           {children}
         </div>
       </div>

@@ -118,13 +118,16 @@ export function ControlGroupView({
   
   // For status groups, define the order and styles
   const statusOrder = Object.values(ControlStatus);
-  const statusStyles: Record<string, { bg: string; text: string; border: string; icon: React.ReactNode }> = {
+  const statusStyles: Record<string, { bg: string; text: string; border: string; darkBg: string; darkText: string; darkBorder: string; icon: React.ReactNode }> = {
     [ControlStatus.InProgress]: {
       bg: 'bg-gradient-to-br from-indigo-50 to-indigo-100',
       text: 'text-indigo-800',
       border: 'border-indigo-200',
+      darkBg: 'dark:bg-gradient-to-br dark:from-indigo-900/50 dark:to-indigo-800/50',
+      darkText: 'dark:text-indigo-300',
+      darkBorder: 'dark:border-indigo-700',
       icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mr-2 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mr-2 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
       )
@@ -133,8 +136,11 @@ export function ControlGroupView({
       bg: 'bg-gradient-to-br from-amber-50 to-amber-100',
       text: 'text-amber-800',
       border: 'border-amber-200',
+      darkBg: 'dark:bg-gradient-to-br dark:from-amber-900/50 dark:to-amber-800/50',
+      darkText: 'dark:text-amber-300',
+      darkBorder: 'dark:border-amber-700',
       icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mr-2 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mr-2 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
         </svg>
@@ -144,8 +150,11 @@ export function ControlGroupView({
       bg: 'bg-gradient-to-br from-emerald-50 to-emerald-100',
       text: 'text-emerald-800',
       border: 'border-emerald-200',
+      darkBg: 'dark:bg-gradient-to-br dark:from-emerald-900/50 dark:to-emerald-800/50',
+      darkText: 'dark:text-emerald-300',
+      darkBorder: 'dark:border-emerald-700',
       icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mr-2 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mr-2 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
         </svg>
       )
@@ -154,13 +163,13 @@ export function ControlGroupView({
   
   const assigneeIcons: Record<string, React.ReactNode> = {
     'Unassigned': (
-      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mr-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mr-2 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
       </svg>
     ),
     // Default icon for other assignees
     'default': (
-      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mr-2 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mr-2 text-indigo-500 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
       </svg>
     )
@@ -245,6 +254,9 @@ export function ControlGroupView({
         bg: 'bg-gradient-to-br from-gray-50 to-gray-100',
         text: 'text-gray-800',
         border: 'border-gray-200',
+        darkBg: 'dark:bg-gradient-to-br dark:from-gray-800/50 dark:to-gray-700/50',
+        darkText: 'dark:text-gray-300',
+        darkBorder: 'dark:border-gray-600',
         icon: null
       };
     } else {
@@ -253,6 +265,9 @@ export function ControlGroupView({
         bg: 'bg-gradient-to-br from-indigo-50 to-indigo-100',
         text: 'text-indigo-900',
         border: 'border-indigo-200',
+        darkBg: 'dark:bg-gradient-to-br dark:from-indigo-900/50 dark:to-indigo-800/50',
+        darkText: 'dark:text-indigo-300',
+        darkBorder: 'dark:border-indigo-700',
         icon: assigneeIcons[groupName] || assigneeIcons.default
       };
     }
@@ -285,7 +300,7 @@ export function ControlGroupView({
           <button 
             onClick={goToPrevPage}
             disabled={pagesWithContent.indexOf(currentPage) === 0}
-            className={`absolute -left-16 top-1/2 -translate-y-1/2 z-20 bg-indigo-600 hover:bg-indigo-700 rounded-full p-3 shadow-lg border border-white transition-all ${
+            className={`absolute -left-16 top-1/2 -translate-y-1/2 z-20 bg-indigo-600 hover:bg-indigo-700 rounded-full p-3 shadow-lg border border-white dark:border-gray-700 transition-all ${
               pagesWithContent.indexOf(currentPage) === 0 ? 'opacity-40 cursor-not-allowed' : 'hover:scale-110'
             }`}
             aria-label="Previous page"
@@ -299,7 +314,7 @@ export function ControlGroupView({
           <button 
             onClick={goToNextPage}
             disabled={pagesWithContent.indexOf(currentPage) === pagesWithContent.length - 1}
-            className={`absolute -right-16 top-1/2 -translate-y-1/2 z-20 bg-indigo-600 hover:bg-indigo-700 rounded-full p-3 shadow-lg border border-white transition-all ${
+            className={`absolute -right-16 top-1/2 -translate-y-1/2 z-20 bg-indigo-600 hover:bg-indigo-700 rounded-full p-3 shadow-lg border border-white dark:border-gray-700 transition-all ${
               pagesWithContent.indexOf(currentPage) === pagesWithContent.length - 1 ? 'opacity-40 cursor-not-allowed' : 'hover:scale-110'
             }`}
             aria-label="Next page"
@@ -321,7 +336,7 @@ export function ControlGroupView({
               className={`transition-all duration-300 ${
                 currentPage === pageIndex
                   ? 'h-3 w-10 bg-indigo-600'
-                  : 'h-3 w-3 bg-gray-300 hover:bg-indigo-400'
+                  : 'h-3 w-3 bg-gray-300 dark:bg-gray-600 hover:bg-indigo-400 dark:hover:bg-indigo-500'
               } rounded-full`}
               aria-label={`Go to page ${index + 1}`}
             />
@@ -365,14 +380,14 @@ export function ControlGroupView({
                       return (
                         <div 
                           key={groupName} 
-                          className={`bg-white rounded-lg shadow-md overflow-hidden border ${style.border} transition-all duration-200 hover:shadow-lg`}
+                          className={`bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden border ${style.border} ${style.darkBorder} transition-all duration-200 hover:shadow-lg`}
                         >
                           {/* Column Header */}
-                          <div className={`px-4 py-3 flex justify-between items-center ${style.bg} border-b ${style.border}`}>
-                            <h3 className={`font-semibold flex items-center ${style.text}`}>
+                          <div className={`px-4 py-3 flex justify-between items-center ${style.bg} ${style.darkBg} border-b ${style.border} ${style.darkBorder}`}>
+                            <h3 className={`font-semibold flex items-center ${style.text} ${style.darkText}`}>
                               {style.icon}
                               {groupName}
-                              <span className="ml-2 text-xs bg-white bg-opacity-80 rounded-full px-2 py-0.5 shadow-inner">
+                              <span className="ml-2 text-xs bg-white dark:bg-gray-700 bg-opacity-80 dark:bg-opacity-80 rounded-full px-2 py-0.5 shadow-inner text-gray-700 dark:text-gray-300">
                                 {groups[groupName].length}
                               </span>
                             </h3>
@@ -389,7 +404,7 @@ export function ControlGroupView({
                                 : viewDensity === 'medium' 
                                 ? 'p-3 space-y-3' 
                                 : 'p-4 space-y-4'
-                            } ${groups[groupName].length === 0 ? 'p-0' : ''} min-h-[100px]`}> {/* Added min-height */} 
+                            } ${groups[groupName].length === 0 ? 'p-0' : ''} min-h-[100px] bg-white dark:bg-gray-800`}> {/* Added dark mode background */} 
                               {groups[groupName].map(control => (
                                 <SortableItem
                                   key={control.id}
@@ -403,7 +418,7 @@ export function ControlGroupView({
                               ))}
                               
                               {groups[groupName].length === 0 && (
-                                <div className="p-8 text-center text-gray-500 italic">
+                                <div className="p-8 text-center text-gray-500 dark:text-gray-400 italic">
                                   No controls in this group
                                 </div>
                               )}
@@ -424,7 +439,7 @@ export function ControlGroupView({
              {/* Message if no groups/controls match filters */} 
              {sortedGroupNames.length === 0 && (
               <div className="w-full flex-shrink-0 flex items-center justify-center p-8">
-                <div className="bg-white rounded-lg shadow-md p-8 text-center text-gray-500 border border-gray-200">
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700">
                   No controls match your filter criteria
                 </div>
               </div>
@@ -435,7 +450,7 @@ export function ControlGroupView({
         {/* Drag Overlay for the currently dragged item */}
         <DragOverlay adjustScale={true}>
           {activeControl ? (
-            <div className="bg-white border shadow-lg rounded-lg opacity-90 w-full max-w-md">
+            <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 shadow-lg rounded-lg opacity-90 w-full max-w-md">
               <ControlCard
                 control={activeControl}
                 technicians={technicians}

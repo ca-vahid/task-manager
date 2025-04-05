@@ -53,15 +53,15 @@ export function SortableItem({
         className="absolute left-0 top-0 bottom-0 w-8 flex items-center justify-center cursor-grab opacity-0 group-hover:opacity-70 transition-opacity touch-manipulation"
         aria-label="Drag to reorder"
       >
-        <div className="w-6 h-10 flex flex-col items-center justify-center rounded hover:bg-gray-100 active:bg-gray-200 transition-colors">
-          <div className="w-4 h-0.5 bg-gray-400 mb-1 rounded-full"></div>
-          <div className="w-4 h-0.5 bg-gray-400 mb-1 rounded-full"></div>
-          <div className="w-4 h-0.5 bg-gray-400 rounded-full"></div>
+        <div className="w-6 h-10 flex flex-col items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 transition-colors">
+          <div className="w-4 h-0.5 bg-gray-400 dark:bg-gray-500 mb-1 rounded-full"></div>
+          <div className="w-4 h-0.5 bg-gray-400 dark:bg-gray-500 mb-1 rounded-full"></div>
+          <div className="w-4 h-0.5 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
         </div>
       </div>
       
       {/* Add a subtle highlight effect when dragging */}
-      <div className={`pl-6 transition-all duration-200 ${isDragging ? 'ring-2 ring-indigo-300 ring-opacity-50 rounded-lg' : ''}`}>
+      <div className={`pl-6 transition-all duration-200 ${isDragging ? 'ring-2 ring-indigo-300 dark:ring-indigo-600 ring-opacity-50 dark:ring-opacity-50 rounded-lg' : ''}`}>
         <ControlCard
           control={control}
           technicians={technicians}

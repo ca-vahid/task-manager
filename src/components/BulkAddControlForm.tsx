@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Timestamp } from 'firebase/firestore';
-import { ControlStatus, Technician, Control, PriorityLevel } from '@/lib/types';
+import { ControlStatus, Technician, Control, PriorityLevel, Company } from '@/lib/types';
 
 interface BulkAddControlFormProps {
   technicians: Technician[];
@@ -171,7 +171,8 @@ export function BulkAddControlForm({
           tags: [],
           progress: 0,
           lastUpdated: Timestamp.now(),
-          externalUrl: processedUrl
+          externalUrl: processedUrl,
+          company: Company.Both // Default company to Both
         } as Omit<Control, 'id'>;
       });
       
@@ -237,7 +238,7 @@ export function BulkAddControlForm({
     return (
       <div className="space-y-6">
         <div>
-          <p className="text-sm text-gray-600 mb-4">
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
             Paste your text below and AI will extract multiple controls. The text can include DCF IDs, titles, 
             explanations, technicians, and due dates in various formats.
           </p>
@@ -246,12 +247,12 @@ export function BulkAddControlForm({
             value={bulkText}
             onChange={(e) => setBulkText(e.target.value)}
             rows={12}
-            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-4 bg-white"
+            className="block w-full rounded-md border-gray-300 dark:border-gray-700 border-2 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 sm:text-sm p-4 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
             placeholder="Paste your text here (e.g., email with multiple controls, document with multiple requirements)..."
           />
           
           {error && (
-            <p className="text-red-600 text-sm mt-4 p-3 bg-red-50 border border-red-200 rounded">
+            <p className="text-red-600 dark:text-red-400 text-sm mt-4 p-3 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-500/50 rounded">
               Error: {error}
             </p>
           )}
@@ -260,7 +261,7 @@ export function BulkAddControlForm({
             <button 
               type="button" 
               onClick={onCancel}
-              className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
+              className="px-4 py-2 border-2 border-gray-300 dark:border-gray-700 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               disabled={isExtracting}
             >
               Cancel
@@ -268,7 +269,7 @@ export function BulkAddControlForm({
             <button 
               type="button" 
               onClick={handleExtract}
-              className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-md text-sm hover:from-purple-700 hover:to-indigo-700 flex items-center shadow-md"
+              className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 dark:from-purple-500 dark:to-indigo-400 text-white rounded-md text-sm hover:from-purple-700 hover:to-indigo-700 dark:hover:from-purple-600 dark:hover:to-indigo-500 flex items-center shadow-md"
               disabled={isExtracting || !bulkText.trim()}
             >
               {isExtracting ? (
@@ -289,7 +290,7 @@ export function BulkAddControlForm({
                   </svg>
                   Extract Controls
                   {bulkText.trim() && (
-                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-white bg-opacity-30 rounded-full">
+                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-white dark:bg-gray-700 bg-opacity-30 dark:bg-opacity-30 rounded-full">
                       {bulkText.match(/DCF-\d+|DCF \d+|\(DCF-\d+\)|\(DCF \d+\)/gi)?.length || 0}
                     </span>
                   )}
@@ -307,16 +308,16 @@ export function BulkAddControlForm({
     return (
       <div className="flex flex-col h-[calc(100vh-10rem)] max-h-[800px]">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold text-gray-800">
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
             Review Extracted Controls
-            <span className="ml-2 text-sm font-normal text-gray-500">
+            <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
               ({extractedControls.filter(c => c.isValid).length} of {extractedControls.length} valid)
             </span>
           </h3>
           <button
             type="button"
             onClick={addEmptyControl}
-            className="px-3 py-1.5 bg-white border border-gray-300 text-sm text-gray-700 rounded-md hover:bg-gray-50 flex items-center"
+            className="px-3 py-1.5 bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-700 text-sm text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center transition-colors"
           >
             <svg className="w-4 h-4 mr-1" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
               <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
@@ -330,18 +331,18 @@ export function BulkAddControlForm({
             {extractedControls.map((control, index) => (
               <div 
                 key={index} 
-                className={`border rounded-lg p-4 ${
+                className={`border-2 rounded-lg p-4 ${
                   control.isValid 
-                    ? 'border-gray-200 bg-white' 
-                    : 'border-red-200 bg-red-50'
+                    ? 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800' 
+                    : 'border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20'
                 }`}
               >
                 <div className="flex justify-between items-start mb-3">
-                  <h4 className="font-medium text-gray-900">Control #{index + 1}</h4>
+                  <h4 className="font-medium text-gray-900 dark:text-gray-100">Control #{index + 1}</h4>
                   <button
                     type="button"
                     onClick={() => removeControl(index)}
-                    className="p-1 text-gray-400 hover:text-red-500"
+                    className="p-1 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400"
                     title="Remove this control"
                   >
                     <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -351,8 +352,8 @@ export function BulkAddControlForm({
                 </div>
                 
                 {control.errors.length > 0 && (
-                  <div className="mb-3 p-2 bg-red-100 border border-red-200 rounded-md">
-                    <ul className="text-xs text-red-700 pl-5 list-disc">
+                  <div className="mb-3 p-2 bg-red-100 dark:bg-red-900/30 border-2 border-red-200 dark:border-red-700 rounded-md">
+                    <ul className="text-xs text-red-700 dark:text-red-400 pl-5 list-disc">
                       {control.errors.map((err, errIndex) => (
                         <li key={errIndex}>{err}</li>
                       ))}
@@ -365,36 +366,36 @@ export function BulkAddControlForm({
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     {/* DCF ID */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                         DCF ID <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
                         value={control.dcfId}
                         onChange={(e) => updateControl(index, { dcfId: e.target.value })}
-                        className={`block w-full rounded-md text-sm h-9 px-3 py-1 ${
+                        className={`block w-full rounded-md text-sm h-9 px-3 py-1 border-2 ${
                           !control.dcfId 
-                            ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
-                            : 'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500'
-                        }`}
+                            ? 'border-red-300 dark:border-red-700 focus:border-red-500 dark:focus:border-red-400 focus:ring-red-500 dark:focus:ring-red-400' 
+                            : 'border-gray-300 dark:border-gray-700 focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400'
+                        } bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100`}
                         placeholder="e.g. 123"
                       />
                     </div>
                   
                     {/* Title */}
                     <div className="md:col-span-2">
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Title <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
                         value={control.title}
                         onChange={(e) => updateControl(index, { title: e.target.value })}
-                        className={`block w-full rounded-md text-sm h-9 px-3 py-1 ${
+                        className={`block w-full rounded-md text-sm h-9 px-3 py-1 border-2 ${
                           !control.title 
-                            ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
-                            : 'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500'
-                        }`}
+                            ? 'border-red-300 dark:border-red-700 focus:border-red-500 dark:focus:border-red-400 focus:ring-red-500 dark:focus:ring-red-400' 
+                            : 'border-gray-300 dark:border-gray-700 focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400'
+                        } bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100`}
                         placeholder="Control title"
                       />
                     </div>
@@ -402,14 +403,14 @@ export function BulkAddControlForm({
                   
                   {/* Explanation */}
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Explanation
                     </label>
                     <textarea
                       value={control.explanation || ''}
                       onChange={(e) => updateControl(index, { explanation: e.target.value })}
                       rows={2}
-                      className="block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 text-sm p-3"
+                      className="block w-full rounded-md border-2 border-gray-300 dark:border-gray-700 focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 text-sm p-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                       placeholder="Explanation of the control"
                     />
                   </div>
@@ -418,13 +419,13 @@ export function BulkAddControlForm({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {/* Technician */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Assignee
                       </label>
                       <select
                         value={control.technician || ""}
                         onChange={(e) => updateControl(index, { technician: e.target.value || null })}
-                        className="block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 text-sm h-9"
+                        className="block w-full rounded-md border-2 border-gray-300 dark:border-gray-700 focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 text-sm h-9 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                       >
                         <option value="">-- Unassigned --</option>
                         {technicians.map(tech => (
@@ -435,28 +436,28 @@ export function BulkAddControlForm({
                     
                     {/* Estimated Completion Date */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Est. Completion Date
                       </label>
                       <input
                         type="date"
                         value={control.estimatedCompletionDate || ''}
                         onChange={(e) => updateControl(index, { estimatedCompletionDate: e.target.value || null })}
-                        className="block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 text-sm h-9 px-3 py-1"
+                        className="block w-full rounded-md border-2 border-gray-300 dark:border-gray-700 focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 text-sm h-9 px-3 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                       />
                     </div>
                   </div>
                   
                   {/* External URL */}
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                       External URL
                     </label>
                     <input
                       type="url"
                       value={control.externalUrl || ''}
                       onChange={(e) => updateControl(index, { externalUrl: e.target.value || null })}
-                      className="block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 text-sm h-9 px-3 py-1"
+                      className="block w-full rounded-md border-2 border-gray-300 dark:border-gray-700 focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 text-sm h-9 px-3 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                       placeholder="https://example.com"
                     />
                   </div>
@@ -465,12 +466,12 @@ export function BulkAddControlForm({
             ))}
             
             {extractedControls.length === 0 && (
-              <div className="text-center p-6 bg-gray-50 rounded-lg border border-gray-200">
-                <p className="text-gray-500">No controls found in the text. Try adding a control manually.</p>
+              <div className="text-center p-6 bg-gray-50 dark:bg-gray-900/50 rounded-lg border-2 border-gray-200 dark:border-gray-700">
+                <p className="text-gray-500 dark:text-gray-400">No controls found in the text. Try adding a control manually.</p>
                 <button
                   type="button"
                   onClick={addEmptyControl}
-                  className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-md text-sm hover:bg-indigo-700 inline-flex items-center"
+                  className="mt-4 px-4 py-2 bg-indigo-600 dark:bg-indigo-500 text-white rounded-md text-sm hover:bg-indigo-700 dark:hover:bg-indigo-600 inline-flex items-center"
                 >
                   <svg className="w-4 h-4 mr-1" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                     <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
@@ -483,30 +484,30 @@ export function BulkAddControlForm({
         </div>
         
         {error && (
-          <p className="text-red-600 text-sm p-3 bg-red-50 border border-red-200 rounded my-3">
+          <p className="text-red-600 dark:text-red-400 text-sm p-3 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-500/50 rounded my-3">
             Error: {error}
           </p>
         )}
         
-        <div className="flex justify-end gap-3 pt-4 mt-2 border-t border-gray-200">
+        <div className="flex justify-end gap-3 pt-4 mt-2 border-t border-gray-200 dark:border-gray-700">
           <button 
             type="button" 
             onClick={() => setStep('input')}
-            className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
+            className="px-4 py-2 border-2 border-gray-300 dark:border-gray-700 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
             Back
           </button>
           <button 
             type="button" 
             onClick={onCancel}
-            className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
+            className="px-4 py-2 border-2 border-gray-300 dark:border-gray-700 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
             Cancel
           </button>
           <button 
             type="button" 
             onClick={handleSubmit}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm hover:bg-indigo-700 flex items-center shadow-md"
+            className="px-4 py-2 bg-indigo-600 dark:bg-indigo-400 text-white rounded-md text-sm hover:bg-indigo-700 dark:hover:bg-indigo-500 flex items-center shadow-md transition-colors"
             disabled={isSubmitting || extractedControls.filter(c => c.isValid).length === 0}
           >
             {isSubmitting ? (
@@ -532,7 +533,7 @@ export function BulkAddControlForm({
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-sm text-gray-600 mb-4">
+        <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
           Paste your text below and AI will extract multiple controls. The text can include DCF IDs, titles, 
           explanations, technicians, and due dates in various formats.
         </p>
@@ -541,12 +542,12 @@ export function BulkAddControlForm({
           value={bulkText}
           onChange={(e) => setBulkText(e.target.value)}
           rows={12}
-          className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-4 bg-white"
+          className="block w-full rounded-md border-gray-300 dark:border-gray-700 border-2 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 sm:text-sm p-4 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
           placeholder="Paste your text here (e.g., email with multiple controls, document with multiple requirements)..."
         />
         
         {error && (
-          <p className="text-red-600 text-sm mt-4 p-3 bg-red-50 border border-red-200 rounded">
+          <p className="text-red-600 dark:text-red-400 text-sm mt-4 p-3 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-500/50 rounded">
             Error: {error}
           </p>
         )}
@@ -555,7 +556,7 @@ export function BulkAddControlForm({
           <button 
             type="button" 
             onClick={onCancel}
-            className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
+            className="px-4 py-2 border-2 border-gray-300 dark:border-gray-700 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             disabled={isExtracting}
           >
             Cancel
@@ -563,7 +564,7 @@ export function BulkAddControlForm({
           <button 
             type="button" 
             onClick={handleExtract}
-            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-md text-sm hover:from-purple-700 hover:to-indigo-700 flex items-center shadow-md"
+            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 dark:from-purple-500 dark:to-indigo-400 text-white rounded-md text-sm hover:from-purple-700 hover:to-indigo-700 dark:hover:from-purple-600 dark:hover:to-indigo-500 flex items-center shadow-md"
             disabled={isExtracting || !bulkText.trim()}
           >
             {isExtracting ? (
@@ -584,7 +585,7 @@ export function BulkAddControlForm({
                 </svg>
                 Extract Controls
                 {bulkText.trim() && (
-                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-white bg-opacity-30 rounded-full">
+                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-white dark:bg-gray-700 bg-opacity-30 dark:bg-opacity-30 rounded-full">
                     {bulkText.match(/DCF-\d+|DCF \d+|\(DCF-\d+\)|\(DCF \d+\)/gi)?.length || 0}
                   </span>
                 )}

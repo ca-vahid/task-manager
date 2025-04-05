@@ -17,13 +17,15 @@ export default function RootLayout({
 
   return (
     <html lang="en">
-      <body className="bg-gray-50 dark:bg-dark-background transition-colors duration-200">
+      {/* body tag will have dark class applied by ThemeProvider */}
+      <body>
         <ThemeProvider>
           <AuthProvider>
             {showHeader && <Header />} {/* Conditionally render Header */}
-            <main className="pt-4 pb-8"> {/* Add padding top/bottom */}
-               {/* Content moves below header */}
-               {children}
+            {/* Add dark mode background classes */}
+            <main className="pt-4 pb-8 bg-gray-50 dark:bg-gray-900">
+              {/* Content moves below header */}
+              {children}
             </main>
           </AuthProvider>
         </ThemeProvider>

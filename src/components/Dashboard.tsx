@@ -243,10 +243,10 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
     if (active && payload && payload.length) {
       return (
         <div className="bg-white dark:bg-gray-800 p-3 shadow-md rounded-md border border-gray-200 dark:border-gray-700">
-          <p className="font-medium dark:text-gray-200">{payload[0].name}</p>
-          <p className="text-sm dark:text-gray-300">{`Count: ${payload[0].value}`}</p>
+          <p className="font-medium text-gray-900 dark:text-gray-100">{payload[0].name}</p>
+          <p className="text-sm text-gray-700 dark:text-gray-300">{`Count: ${payload[0].value}`}</p>
           {payload[0].payload && payload[0].payload.percent && (
-            <p className="text-sm dark:text-gray-300">{`Percentage: ${(payload[0].payload.percent * 100).toFixed(1)}%`}</p>
+            <p className="text-sm text-gray-700 dark:text-gray-300">{`Percentage: ${(payload[0].payload.percent * 100).toFixed(1)}%`}</p>
           )}
         </div>
       );
@@ -257,54 +257,54 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
   return (
     <div className="space-y-8 max-w-[1600px] mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-200">Dashboard</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100">Dashboard</h1>
       </div>
       
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-dark-card p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border hover:shadow-md transition-shadow">
+        <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
           <div className="flex justify-between items-center mb-2">
             <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium">Total Controls</h3>
-            <span className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-full">
+            <span className="bg-blue-100 dark:bg-blue-900/50 p-2 rounded-full">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 dark:text-blue-400" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
               </svg>
             </span>
           </div>
-          <p className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-gray-200">{controls.length}</p>
+          <p className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-gray-100">{controls.length}</p>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Total managed compliance controls</p>
         </div>
         
-        <div className="bg-white dark:bg-dark-card p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border hover:shadow-md transition-shadow">
+        <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
           <div className="flex justify-between items-center mb-2">
             <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium">Completion Rate</h3>
-            <span className="bg-emerald-100 dark:bg-emerald-900/30 p-2 rounded-full">
+            <span className="bg-emerald-100 dark:bg-emerald-900/50 p-2 rounded-full">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-emerald-600 dark:text-emerald-400" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
             </span>
           </div>
-          <p className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-gray-200">{completionRate}%</p>
+          <p className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-gray-100">{completionRate}%</p>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Overall completion percentage</p>
         </div>
         
-        <div className="bg-white dark:bg-dark-card p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border hover:shadow-md transition-shadow">
+        <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
           <div className="flex justify-between items-center mb-2">
             <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium">Upcoming Deadlines</h3>
-            <span className="bg-amber-100 dark:bg-amber-900/30 p-2 rounded-full">
+            <span className="bg-amber-100 dark:bg-amber-900/50 p-2 rounded-full">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-600 dark:text-amber-400" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
               </svg>
             </span>
           </div>
-          <p className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-gray-200">{upcomingDeadlinesCount}</p>
+          <p className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-gray-100">{upcomingDeadlinesCount}</p>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Due in the next 7 days</p>
         </div>
         
-        <div className="bg-white dark:bg-dark-card p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border hover:shadow-md transition-shadow">
+        <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
           <div className="flex justify-between items-center mb-2">
             <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium">Overdue Controls</h3>
-            <span className="bg-red-100 dark:bg-red-900/30 p-2 rounded-full">
+            <span className="bg-red-100 dark:bg-red-900/50 p-2 rounded-full">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-600 dark:text-red-400" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
               </svg>
@@ -318,8 +318,8 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Status Distribution Chart */}
-        <div className="bg-white dark:bg-dark-card p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border hover:shadow-md transition-shadow">
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Control Status Distribution</h2>
+        <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">Control Status Distribution</h2>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -360,12 +360,12 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
         </div>
         
         {/* Assignee Workload Chart */}
-        <div className="bg-white dark:bg-dark-card p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border hover:shadow-md transition-shadow">
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Assignee Workload</h2>
+        <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">Assignee Workload</h2>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={assigneeData} layout="vertical" margin={{ left: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                <CartesianGrid strokeDasharray="3 3" opacity={0.3} stroke="#374151" />
                 <XAxis type="number" tickFormatter={(value) => value.toString()} stroke="#9ca3af" />
                 <YAxis 
                   dataKey="name" 
@@ -373,14 +373,14 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
                   width={100}
                   tickLine={false}
                   axisLine={false}
-                  tick={{ fontSize: 12 }}
+                  tick={{ fontSize: 12, fill: '#9ca3af' }}
                 />
                 <Tooltip />
                 <Legend 
                   iconType="circle"
                   iconSize={8}
                   formatter={(value, entry, index) => (
-                    <span className="text-sm text-gray-700">{value}</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">{value}</span>
                   )}
                 />
                 <Bar 
@@ -406,8 +406,8 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
       {/* Additional Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Priority Distribution Chart */}
-        <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Priority Distribution</h2>
+        <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">Priority Distribution</h2>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <RadialBarChart 
@@ -418,7 +418,7 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
                 endAngle={-270}
               >
                 <RadialBar
-                  label={{ fill: '#666', position: 'insideStart' }}
+                  label={{ fill: '#9ca3af', position: 'insideStart' }}
                   background
                   dataKey="value"
                 >
@@ -436,7 +436,7 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
                   align="right" 
                   iconSize={10}
                   formatter={(value, entry, index) => (
-                    <span className="text-sm text-gray-700">{value}</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">{value}</span>
                   )}
                 />
                 <Tooltip content={<CustomTooltip />} />
@@ -446,14 +446,14 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
         </div>
         
         {/* Completion Gauge Chart */}
-        <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Completion Progress</h2>
+        <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">Completion Progress</h2>
           <div className="flex h-72 items-center justify-center">
             <div className="relative w-48 h-48">
               <svg className="w-full h-full" viewBox="0 0 100 100">
                 {/* Background Circle */}
                 <circle
-                  className="text-gray-200"
+                  className="text-gray-200 dark:text-gray-700"
                   strokeWidth="8"
                   stroke="currentColor"
                   fill="transparent"
@@ -463,7 +463,7 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
                 />
                 {/* Progress Circle */}
                 <circle
-                  className="text-emerald-500"
+                  className="text-emerald-500 dark:text-emerald-400"
                   strokeWidth="8"
                   strokeLinecap="round"
                   stroke="currentColor"
@@ -480,14 +480,14 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
                   y="50"
                   dy="0.35em"
                   textAnchor="middle"
-                  className="font-bold text-gray-800 text-2xl"
+                  className="font-bold text-gray-800 dark:text-gray-100 text-2xl"
                 >
                   {completionRate}%
                 </text>
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center">
-                  <p className="mt-12 text-gray-500 text-sm">
+                  <p className="mt-12 text-gray-500 dark:text-gray-400 text-sm">
                     {controls.filter(c => c.status === ControlStatus.Complete).length} of {controls.length} controls
                   </p>
                 </div>
@@ -498,46 +498,46 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
       </div>
       
       {/* Upcoming Deadlines Section - Use filtered list */}
-      <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">Upcoming Deadlines (Next 7 Days)</h2>
+      <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">Upcoming Deadlines (Next 7 Days)</h2>
         {upcomingDeadlinesCount > 0 ? (
           <div className="overflow-x-auto">
-            <table className="min-w-full bg-white">
+            <table className="min-w-full bg-white dark:bg-gray-800">
               <thead>
-                <tr className="bg-gray-50 border-b">
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Control</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assignee</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
+                <tr className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Control</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Assignee</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Due Date</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {upcomingDeadlinesControls.map(control => (
-                  <tr key={control.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={control.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex items-center">
-                        <span className="text-xs bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded mr-2 font-mono">DCF-{control.dcfId}</span>
-                        <span className="text-sm font-medium text-gray-900">{control.title}</span>
+                        <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-1.5 py-0.5 rounded mr-2 font-mono">DCF-{control.dcfId}</span>
+                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{control.title}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         control.status === ControlStatus.InProgress 
-                          ? 'bg-indigo-100 text-indigo-800' 
+                          ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300' 
                           : control.status === ControlStatus.InReview 
-                          ? 'bg-amber-100 text-amber-800' 
-                          : 'bg-gray-100 text-gray-800'
+                          ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300' 
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
                       }`}>
                         {control.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {control.assigneeId 
                         ? (technicians.find(tech => tech.id === control.assigneeId)?.name || 'Unknown')
                         : 'Unassigned'
                       }
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {formatDate(control.estimatedCompletionDate)}
                     </td>
                   </tr>
@@ -546,36 +546,36 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
             </table>
           </div>
         ) : (
-          <div className="bg-gray-50 p-6 rounded-lg text-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="bg-gray-50 dark:bg-gray-700 p-6 rounded-lg text-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400 dark:text-gray-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            <p className="text-gray-500 italic">No upcoming deadlines in the next 7 days.</p>
+            <p className="text-gray-500 dark:text-gray-400 italic">No upcoming deadlines in the next 7 days.</p>
           </div>
         )}
       </div>
       
       {/* Overdue Controls Section - Use filtered list */}
       {overdueControlsCount > 0 && (
-        <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border-2 border-red-200 hover:shadow-md transition-shadow">
+        <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-xl shadow-sm border-2 border-red-200 dark:border-red-800 hover:shadow-md transition-shadow">
           <div className="flex items-center gap-2 mb-4">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-600" viewBox="0 0 20 20" fill="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-600 dark:text-red-400" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
             </svg>
-            <h2 className="text-lg font-semibold text-red-700">Overdue Controls</h2>
+            <h2 className="text-lg font-semibold text-red-700 dark:text-red-400">Overdue Controls</h2>
           </div>
           <div className="overflow-x-auto">
-            <table className="min-w-full bg-white">
+            <table className="min-w-full bg-white dark:bg-gray-800">
               <thead>
-                <tr className="bg-red-50 border-b border-red-100">
-                  <th className="px-4 py-3 text-left text-xs font-medium text-red-500 uppercase tracking-wider">Control</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-red-500 uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-red-500 uppercase tracking-wider">Assignee</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-red-500 uppercase tracking-wider">Due Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-red-500 uppercase tracking-wider">Days Overdue</th>
+                <tr className="bg-red-50 dark:bg-red-900/30 border-b border-red-100 dark:border-red-800/50">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-red-500 dark:text-red-400 uppercase tracking-wider">Control</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-red-500 dark:text-red-400 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-red-500 dark:text-red-400 uppercase tracking-wider">Assignee</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-red-500 dark:text-red-400 uppercase tracking-wider">Due Date</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-red-500 dark:text-red-400 uppercase tracking-wider">Days Overdue</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {overdueControlsList.map(control => {
                   // Calculate days overdue (ensure date is valid first)
                   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -597,35 +597,35 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
                   }
 
                   return (
-                    <tr key={control.id} className="hover:bg-red-50 transition-colors">
+                    <tr key={control.id} className="hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex items-center">
-                          <span className="text-xs bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded mr-2 font-mono">DCF-{control.dcfId}</span>
-                          <span className="text-sm font-medium text-gray-900">{control.title}</span>
+                          <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-1.5 py-0.5 rounded mr-2 font-mono">DCF-{control.dcfId}</span>
+                          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{control.title}</span>
                         </div>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                           control.status === ControlStatus.InProgress 
-                            ? 'bg-indigo-100 text-indigo-800' 
+                            ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300' 
                             : control.status === ControlStatus.InReview 
-                            ? 'bg-amber-100 text-amber-800' 
-                            : 'bg-gray-100 text-gray-800'
+                            ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300' 
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
                         }`}>
                           {control.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         {control.assigneeId 
                           ? (technicians.find(tech => tech.id === control.assigneeId)?.name || 'Unknown')
                           : 'Unassigned'
                         }
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         {formatDate(control.estimatedCompletionDate)}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="text-sm font-medium text-red-600">{daysOverdue !== null ? `${daysOverdue} days` : 'N/A'}</span>
+                        <span className="text-sm font-medium text-red-600 dark:text-red-400">{daysOverdue !== null ? `${daysOverdue} days` : 'N/A'}</span>
                       </td>
                     </tr>
                   );

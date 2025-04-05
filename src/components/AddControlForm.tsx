@@ -32,7 +32,8 @@ export function AddControlForm({
   // States for AI extraction
   const [showAiModal, setShowAiModal] = useState(false);
   const [aiText, setAiText] = useState('');
-  const [isAiProcessing, setIsAiProcessing] = useState(false);
+  const [isProcessingAi, setIsProcessingAi] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   
   // Form reference for event listening
   const formRef = React.useRef<HTMLFormElement>(null);
@@ -129,8 +130,8 @@ export function AddControlForm({
       return;
     }
     
-    setIsAiProcessing(true);
-    setError(null);
+    setIsProcessingAi(true);
+    setAiError(null);
     
     try {
       console.log("Sending text to AI for extraction:", aiText.substring(0, 100) + "...");
@@ -187,19 +188,19 @@ export function AddControlForm({
       
     } catch (err: any) {
       console.error("Failed to extract control information:", err);
-      setError(err.message || "Failed to extract information from the text.");
+      setAiError(err.message || "Failed to extract information from the text.");
     } finally {
-      setIsAiProcessing(false);
+      setIsProcessingAi(false);
     }
   };
 
   // AI Text Extraction Modal
   const aiTextModal = (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+    <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="px-5 py-4 border-b-2 border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="bg-gradient-to-r from-purple-500 to-indigo-600 p-1.5 rounded-md text-white">
+            <div className="bg-gradient-to-r from-purple-500 to-indigo-600 dark:from-purple-400 dark:to-indigo-500 p-1.5 rounded-md text-white">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12 3C7.23 3 3.25 6.4 3.25 10.5C3.25 12.57 4.305 14.425 6 15.677V18C6 18.2652 6.10536 18.5196 6.29289 18.7071C6.48043 18.8946 6.73478 19 7 19H17C17.2652 19 17.5196 18.8946 17.7071 18.7071C17.8946 18.5196 18 18.2652 18 18V15.677C19.695 14.425 20.75 12.57 20.75 10.5C20.75 6.4 16.77 3 12 3ZM17 17H7V16.5C7 16.2348 6.89464 15.9804 6.70711 15.7929C6.51957 15.6054 6.26522 15.5 6 15.5C5.17 15.5 4.5 14.83 4.5 14V11.91C4.22 11.57 4 11.04 4 10.5C4 6.91 7.13 4 12 4C16.87 4 20 6.91 20 10.5C20 11.04 19.78 11.57 19.5 11.91V14C19.5 14.83 18.83 15.5 18 15.5C17.7348 15.5 17.4804 15.6054 17.2929 15.7929C17.1054 15.9804 17 16.2348 17 16.5V17Z" fill="white"/>
                 <path d="M10 10.5C10 9.12 11.12 8 12.5 8C13.88 8 15 9.12 15 10.5C15 11.88 13.88 13 12.5 13C11.12 13 10 11.88 10 10.5Z" fill="white"/>
@@ -208,72 +209,75 @@ export function AddControlForm({
                 <path d="M9 13.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-1z" fill="white" className="animate-pulse" />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold text-gray-800">Extract Control Information with AI</h3>
+            <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100">Extract Control Information with AI</h3>
           </div>
           <button 
-            onClick={() => setShowAiModal(false)}
-            className="text-gray-400 hover:text-gray-600 p-1 rounded-full"
+            onClick={() => setShowAiModal(false)} 
+            className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
             </svg>
           </button>
         </div>
-        
-        <div className="p-6">
-          <p className="text-sm text-gray-600 mb-5">
-            Paste your text below and AI will extract control information. The more detailed your text, the better the results.
+        <div className="p-5">
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+            Paste any text containing control information (emails, tickets, requirements) and AI will extract the relevant details.
           </p>
           
-          <textarea
-            value={aiText}
-            onChange={(e) => setAiText(e.target.value)}
-            rows={12}
-            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-4 bg-white"
-            placeholder="Paste your text here (e.g., email, ticket details, requirements document)..."
-          />
-          
-          {error && (
-            <p className="text-red-600 text-sm mt-4 p-3 bg-red-50 border border-red-200 rounded">
-              Error: {error}
-            </p>
-          )}
-          
-          <div className="flex justify-end gap-3 mt-6">
-            <button 
-              type="button" 
-              onClick={() => setShowAiModal(false)}
-              className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
-              disabled={isAiProcessing}
-            >
-              Cancel
-            </button>
-            <button 
-              type="button" 
-              onClick={handleAiExtract}
-              className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-md text-sm hover:from-purple-700 hover:to-indigo-700 flex items-center shadow-md"
-              disabled={isAiProcessing || !aiText.trim()}
-            >
-              {isAiProcessing ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 3C7.23 3 3.25 6.4 3.25 10.5C3.25 12.57 4.305 14.425 6 15.677V18C6 18.2652 6.10536 18.5196 6.29289 18.7071C6.48043 18.8946 6.73478 19 7 19H17C17.2652 19 17.5196 18.8946 17.7071 18.7071C17.8946 18.5196 18 18.2652 18 18V15.677C19.695 14.425 20.75 12.57 20.75 10.5C20.75 6.4 16.77 3 12 3Z" fill="currentColor"/>
-                    <path d="M10 10.5C10 9.12 11.12 8 12.5 8C13.88 8 15 9.12 15 10.5C15 11.88 13.88 13 12.5 13C11.12 13 10 11.88 10 10.5Z" fill="currentColor"/>
-                    <path d="M8.5 7.5h1.5v1.5h-1.5v-1.5z" fill="currentColor" className="animate-pulse"/>
-                    <path d="M14 7.5h1.5v1.5H14v-1.5z" fill="currentColor" className="animate-pulse"/>
-                  </svg>
-                  Extract with AI
-                </>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="ai-text" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Text to analyze</label>
+              <textarea
+                id="ai-text"
+                value={aiText}
+                onChange={(e) => setAiText(e.target.value)}
+                rows={10}
+                className="block w-full rounded-md border-2 border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 sm:text-sm p-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 dark:placeholder-gray-400"
+                placeholder="Paste email, ticket content, or any text containing control details here. Our AI will extract the relevant information such as title, DCF ID, dates, and more."
+              ></textarea>
+              
+              {aiError && (
+                <p className="text-red-600 dark:text-red-400 text-sm mt-2 p-2 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-500/50 rounded">Error: {aiError}</p>
               )}
-            </button>
+            </div>
+            
+            <div className="flex justify-end gap-3">
+              <button 
+                type="button"
+                onClick={() => setShowAiModal(false)}
+                className="px-4 py-2 border-2 border-gray-300 dark:border-gray-700 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                disabled={isProcessingAi}
+              >
+                Cancel
+              </button>
+              <button 
+                type="button"
+                onClick={handleAiExtract}
+                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 dark:from-purple-500 dark:to-indigo-400 text-white rounded-md text-sm hover:from-purple-700 hover:to-indigo-700 dark:hover:from-purple-600 dark:hover:to-indigo-500 flex items-center shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isProcessingAi || !aiText.trim()}
+              >
+                {isProcessingAi ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 3C7.23 3 3.25 6.4 3.25 10.5C3.25 12.57 4.305 14.425 6 15.677V18C6 18.2652 6.10536 18.5196 6.29289 18.7071C6.48043 18.8946 6.73478 19 7 19H17C17.2652 19 17.5196 18.8946 17.7071 18.7071C17.8946 18.5196 18 18.2652 18 18V15.677C19.695 14.425 20.75 12.57 20.75 10.5C20.75 6.4 16.77 3 12 3Z" fill="white"/>
+                      <path d="M10 10.5C10 9.12 11.12 8 12.5 8C13.88 8 15 9.12 15 10.5C15 11.88 13.88 13 12.5 13C11.12 13 10 11.88 10 10.5Z" fill="white"/>
+                      <path d="M8 8h2v1h-2v-1z" fill="white" className="animate-pulse"/>
+                      <path d="M14 8h2v1h-2v-1z" fill="white" className="animate-pulse"/>
+                    </svg>
+                    Extract Information
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -283,15 +287,15 @@ export function AddControlForm({
   // Company selection component with logos
   const CompanySelector = () => (
     <div>
-      <label htmlFor="company-select" className="block text-xs font-medium text-gray-500 mb-1">
+      <label htmlFor="company-select" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
         Company
       </label>
       <div className="flex flex-wrap gap-2">
         <label 
-          className={`flex items-center p-2 rounded-lg border cursor-pointer transition-colors ${
+          className={`flex items-center p-2 rounded-lg border-2 cursor-pointer transition-colors ${
             company === Company.BGC 
-              ? 'bg-blue-50 border-blue-300 text-blue-700' 
-              : 'bg-white border-gray-300 hover:bg-gray-50'
+              ? 'bg-blue-50 dark:bg-blue-900/40 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300' 
+              : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200'
           }`}
         >
           <input 
@@ -315,10 +319,10 @@ export function AddControlForm({
         </label>
         
         <label 
-          className={`flex items-center p-2 rounded-lg border cursor-pointer transition-colors ${
+          className={`flex items-center p-2 rounded-lg border-2 cursor-pointer transition-colors ${
             company === Company.Cambio 
-              ? 'bg-emerald-50 border-emerald-300 text-emerald-700' 
-              : 'bg-white border-gray-300 hover:bg-gray-50'
+              ? 'bg-emerald-50 dark:bg-emerald-900/40 border-emerald-300 dark:border-emerald-600 text-emerald-700 dark:text-emerald-300' 
+              : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200'
           }`}
         >
           <input 
@@ -342,10 +346,10 @@ export function AddControlForm({
         </label>
         
         <label 
-          className={`flex items-center p-2 rounded-lg border cursor-pointer transition-colors ${
+          className={`flex items-center p-2 rounded-lg border-2 cursor-pointer transition-colors ${
             company === Company.Both 
-              ? 'bg-purple-50 border-purple-300 text-purple-700' 
-              : 'bg-white border-gray-300 hover:bg-gray-50'
+              ? 'bg-purple-50 dark:bg-cyan-900/40 border-purple-300 dark:border-cyan-600 text-purple-700 dark:text-cyan-300' 
+              : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200'
           }`}
         >
           <input 
@@ -397,13 +401,13 @@ export function AddControlForm({
       >
         {/* Row 1: Title (Full Width) */}
         <div>
-          <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">Control Title <span className="text-red-500">*</span></label>
+          <label htmlFor="title" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Control Title <span className="text-red-500">*</span></label>
           <input
             type="text"
             id="title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-9 px-2 py-1 bg-white"
+            className="block w-full rounded-md border-2 border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 sm:text-sm h-9 px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
             required
           />
         </div>
@@ -411,40 +415,40 @@ export function AddControlForm({
         {/* Row 2: DCF ID & External URL */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="md:col-span-1">
-            <label htmlFor="dcfId" className="block text-sm font-medium text-gray-700 mb-1">DCF ID <span className="text-red-500">*</span></label>
+            <label htmlFor="dcfId" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">DCF ID <span className="text-red-500">*</span></label>
             <input
               type="number" // Use type number for better input
               id="dcfId"
               value={dcfId}
               onChange={(e) => setDcfId(e.target.value.slice(0, 3))} // Limit to 3 digits
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-9 px-2 py-1 bg-white"
+              className="block w-full rounded-md border-2 border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 sm:text-sm h-9 px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
               max="999"
               min="0"
               required
             />
           </div>
           <div className="md:col-span-2">
-            <label htmlFor="external-url" className="block text-sm font-medium text-gray-700 mb-1">External URL</label>
+            <label htmlFor="external-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">External URL</label>
             <input
               type="url"
               id="external-url"
               value={externalUrl}
               onChange={(e) => setExternalUrl(e.target.value)}
               placeholder="https://tickets.example.com/ticket/123"
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-9 px-2 py-1 bg-white"
+              className="block w-full rounded-md border-2 border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 sm:text-sm h-9 px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 dark:placeholder-gray-400"
             />
           </div>
         </div>
 
         {/* Row 3: Explanation */}
         <div>
-            <label htmlFor="explanation" className="block text-sm font-medium text-gray-700 mb-1">Explanation</label>
+            <label htmlFor="explanation" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Explanation</label>
             <textarea
               id="explanation"
               value={explanation}
               onChange={(e) => setExplanation(e.target.value)}
               rows={3}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 bg-white"
+              className="block w-full rounded-md border-2 border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 sm:text-sm p-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
             />
           </div>
 
@@ -454,12 +458,12 @@ export function AddControlForm({
         {/* Row 5: Status, Assignee, Date */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
            <div>
-            <label htmlFor="add-status" className="block text-xs font-medium text-gray-500 mb-1">Status</label>
+            <label htmlFor="add-status" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status</label>
             <select
               id="add-status"
               value={status}
               onChange={(e: ChangeEvent<HTMLSelectElement>) => setStatus(e.target.value as ControlStatus)}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-9 px-2 py-1 bg-white"
+              className="block w-full rounded-md border-2 border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 sm:text-sm h-9 px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
             >
               {Object.values(ControlStatus).map(s => (
                 <option key={s} value={s}>{s}</option>
@@ -467,12 +471,12 @@ export function AddControlForm({
             </select>
           </div>
            <div>
-            <label htmlFor="add-assignee" className="block text-xs font-medium text-gray-500 mb-1">Assignee</label>
+            <label htmlFor="add-assignee" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Assignee</label>
             <select
               id="add-assignee"
               value={assigneeId || ""} 
               onChange={(e: ChangeEvent<HTMLSelectElement>) => setAssigneeId(e.target.value || null)}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-9 px-2 py-1 bg-white"
+              className="block w-full rounded-md border-2 border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 sm:text-sm h-9 px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
             >
               <option value="">-- Unassigned --</option>
               {technicians.map(tech => (
@@ -481,20 +485,20 @@ export function AddControlForm({
             </select>
           </div>
           <div>
-            <label htmlFor="add-date" className="block text-xs font-medium text-gray-500 mb-1">Est. Completion</label>
+            <label htmlFor="add-date" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Est. Completion</label>
             <input
               type="date"
               id="add-date"
               value={estimatedCompletionDate}
               onChange={(e: ChangeEvent<HTMLInputElement>) => setEstimatedCompletionDate(e.target.value)}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-9 px-2 py-1 bg-white"
+              className="block w-full rounded-md border-2 border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 sm:text-sm h-9 px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
             />
           </div>
         </div>
 
         {/* Error Display */}
         {error && (
-            <p className="text-red-600 text-sm mt-2 p-2 bg-red-50 border border-red-200 rounded">Error: {error}</p>
+            <p className="text-red-600 dark:text-red-400 text-sm mt-2 p-2 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-500/50 rounded">Error: {error}</p>
         )}
 
         {/* Action Buttons */}
@@ -502,14 +506,14 @@ export function AddControlForm({
             <button 
               type="button" 
               onClick={onCancel}
-              className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2"
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:focus-visible:ring-indigo-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-800 disabled:pointer-events-none disabled:opacity-50 border-2 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 h-9 px-4 py-2"
             >
                 Cancel
             </button>
              <button 
               type="submit" 
               disabled={isSubmitting || !dcfId.trim() || !title.trim()}
-              className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-indigo-600 text-white hover:bg-indigo-700 h-9 px-4 py-2"
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:focus-visible:ring-indigo-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-800 disabled:pointer-events-none disabled:opacity-50 bg-indigo-600 dark:bg-indigo-400 text-white hover:bg-indigo-700 dark:hover:bg-indigo-500 h-9 px-4 py-2"
             >
                 {isSubmitting ? 'Saving...' : 'Save Control'}
             </button>

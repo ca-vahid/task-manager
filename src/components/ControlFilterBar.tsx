@@ -243,7 +243,7 @@ export function ControlFilterBar({
   ].filter(Boolean).length;
 
   return (
-    <div className="bg-white rounded-lg shadow-md mb-6 overflow-hidden border border-gray-200">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md mb-6 overflow-hidden border border-gray-200 dark:border-gray-700">
       {/* Search Bar Always Visible */}
       <div className="p-4 flex flex-col gap-4">
         <div className="flex items-center gap-2">
@@ -252,13 +252,13 @@ export function ControlFilterBar({
               ref={searchInputRef}
               type="text"
               placeholder="Search controls by title, ID, description, or tags..."
-              className="border border-gray-300 rounded-md px-10 py-2 w-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="border border-gray-300 dark:border-gray-600 rounded-md px-10 py-2 w-full focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
               value={filters.search || ''}
               onChange={(e) => updateFilter('search', e.target.value)}
             />
             <svg 
               xmlns="http://www.w3.org/2000/svg" 
-              className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" 
+              className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" 
               fill="none" 
               viewBox="0 0 24 24" 
               stroke="currentColor"
@@ -269,7 +269,7 @@ export function ControlFilterBar({
             {filters.search && (
               <button
                 onClick={() => updateFilter('search', '')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -280,11 +280,11 @@ export function ControlFilterBar({
           
           <button 
             onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2 px-4 py-2 rounded-md border border-gray-300 hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
             <svg 
               xmlns="http://www.w3.org/2000/svg" 
-              className="h-5 w-5 text-gray-500" 
+              className="h-5 w-5 text-gray-500 dark:text-gray-400" 
               fill="none" 
               viewBox="0 0 24 24" 
               stroke="currentColor"
@@ -293,7 +293,7 @@ export function ControlFilterBar({
             </svg>
             Filters
             {activeFilterCount > 0 && (
-              <span className="bg-indigo-100 text-indigo-800 text-xs font-medium px-2 py-0.5 rounded-full">
+              <span className="bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-300 text-xs font-medium px-2 py-0.5 rounded-full">
                 {activeFilterCount}
               </span>
             )}
@@ -302,11 +302,11 @@ export function ControlFilterBar({
           {onBatchSelectionChange && (
             <button
               onClick={toggleAllSelection}
-              className="flex items-center gap-2 px-4 py-2 rounded-md border border-gray-300 hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             >
               <svg 
                 xmlns="http://www.w3.org/2000/svg" 
-                className="h-5 w-5 text-gray-500" 
+                className="h-5 w-5 text-gray-500 dark:text-gray-400" 
                 fill="none" 
                 viewBox="0 0 24 24" 
                 stroke="currentColor"
@@ -320,7 +320,7 @@ export function ControlFilterBar({
           {(activeFilterCount > 0 || filters.search) && (
             <button 
               onClick={clearFilters}
-              className="text-gray-600 hover:text-gray-900"
+              className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
             >
               Clear All
             </button>
@@ -329,10 +329,10 @@ export function ControlFilterBar({
         
         {/* Filter Chips */}
         {showFilters && (
-          <div className="pt-2 border-t border-gray-200">
+          <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
             {/* Company Filter Chips */}
             <div className="mb-4">
-              <span className="block text-sm font-medium text-gray-700 mb-2">Company:</span>
+              <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Company:</span>
               <div className="flex flex-wrap gap-2">
                 {Object.values(Company).map(company => {
                   const isActive = filters.company?.includes(company) || false;
@@ -341,20 +341,20 @@ export function ControlFilterBar({
                   
                   switch(company) {
                     case Company.BGC:
-                      bgColor = isActive ? "bg-blue-200" : "bg-blue-50 hover:bg-blue-100";
-                      textColor = isActive ? "text-blue-800" : "text-blue-600";
+                      bgColor = isActive ? "bg-blue-200 dark:bg-blue-700" : "bg-blue-50 dark:bg-blue-900/50 hover:bg-blue-100 dark:hover:bg-blue-800/60";
+                      textColor = isActive ? "text-blue-800 dark:text-blue-100" : "text-blue-600 dark:text-blue-300";
                       break;
                     case Company.Cambio:
-                      bgColor = isActive ? "bg-emerald-200" : "bg-emerald-50 hover:bg-emerald-100";
-                      textColor = isActive ? "text-emerald-800" : "text-emerald-600";
+                      bgColor = isActive ? "bg-emerald-200 dark:bg-emerald-700" : "bg-emerald-50 dark:bg-emerald-900/50 hover:bg-emerald-100 dark:hover:bg-emerald-800/60";
+                      textColor = isActive ? "text-emerald-800 dark:text-emerald-100" : "text-emerald-600 dark:text-emerald-300";
                       break;
                     case Company.Both:
-                      bgColor = isActive ? "bg-purple-200" : "bg-purple-50 hover:bg-purple-100";
-                      textColor = isActive ? "text-purple-800" : "text-purple-600";
+                      bgColor = isActive ? "bg-purple-200 dark:bg-cyan-700" : "bg-purple-50 dark:bg-cyan-900/50 hover:bg-purple-100 dark:hover:bg-cyan-800/60";
+                      textColor = isActive ? "text-purple-800 dark:text-cyan-100" : "text-purple-600 dark:text-cyan-300";
                       break;
                     default:
-                      bgColor = isActive ? "bg-gray-200" : "bg-gray-100 hover:bg-gray-200";
-                      textColor = isActive ? "text-gray-800" : "text-gray-600";
+                      bgColor = isActive ? "bg-gray-200 dark:bg-gray-600" : "bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600";
+                      textColor = isActive ? "text-gray-800 dark:text-gray-100" : "text-gray-600 dark:text-gray-300";
                   }
                   
                   chipClass += `${bgColor} ${textColor}`;
@@ -424,7 +424,7 @@ export function ControlFilterBar({
             
             {/* Status Filter Chips */}
             <div className="mb-4">
-              <span className="block text-sm font-medium text-gray-700 mb-2">Status:</span>
+              <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status:</span>
               <div className="flex flex-wrap gap-2">
                 {Object.values(ControlStatus).map(status => {
                   const isActive = filters.status?.includes(status) || false;
@@ -432,16 +432,16 @@ export function ControlFilterBar({
                   
                   switch(status) {
                     case ControlStatus.InProgress:
-                      chipClass += isActive ? "bg-indigo-200 text-indigo-800" : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100";
+                      chipClass += isActive ? "bg-indigo-200 dark:bg-indigo-700 text-indigo-800 dark:text-indigo-100" : "bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-800/60";
                       break;
                     case ControlStatus.InReview:
-                      chipClass += isActive ? "bg-amber-200 text-amber-800" : "bg-amber-50 text-amber-600 hover:bg-amber-100";
+                      chipClass += isActive ? "bg-amber-200 dark:bg-amber-700 text-amber-800 dark:text-amber-100" : "bg-amber-50 dark:bg-amber-900/50 text-amber-600 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-800/60";
                       break;
                     case ControlStatus.Complete:
-                      chipClass += isActive ? "bg-emerald-200 text-emerald-800" : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100";
+                      chipClass += isActive ? "bg-emerald-200 dark:bg-emerald-700 text-emerald-800 dark:text-emerald-100" : "bg-emerald-50 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-800/60";
                       break;
                     default:
-                      chipClass += isActive ? "bg-gray-200 text-gray-800" : "bg-gray-100 text-gray-600 hover:bg-gray-200";
+                      chipClass += isActive ? "bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-100" : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600";
                   }
                   
                   return (
@@ -459,10 +459,10 @@ export function ControlFilterBar({
             
             {/* Assignee Filter Section */}
             <div className="mb-4">
-              <span className="block text-sm font-medium text-gray-700 mb-2">Assignee:</span>
+              <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Assignee:</span>
               <div>
                 <select
-                  className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent dark:bg-gray-700 dark:text-gray-300"
                   onChange={(e) => {
                     if (e.target.value === "all") {
                       updateFilter('assignee', null);
@@ -489,12 +489,12 @@ export function ControlFilterBar({
                       return (
                         <span 
                           key={id} 
-                          className="bg-indigo-100 text-indigo-800 text-xs font-medium px-2 py-1 rounded-md flex items-center gap-1"
+                          className="bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 text-xs font-medium px-2 py-1 rounded-md flex items-center gap-1"
                         >
                           {name}
                           <button 
                             onClick={() => toggleAssigneeFilter(id)}
-                            className="text-indigo-600 hover:text-indigo-800"
+                            className="text-indigo-600 dark:text-indigo-300 hover:text-indigo-800 dark:hover:text-indigo-100"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
