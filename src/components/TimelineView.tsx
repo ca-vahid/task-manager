@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Control, Technician, ControlStatus, PriorityLevel, ViewDensity, Company } from '@/lib/types';
 import { Timestamp } from 'firebase/firestore';
+import Image from 'next/image';
 
 interface TimelineViewProps {
   controls: Control[];
@@ -24,6 +25,17 @@ export function TimelineView({
   onUpdateControl, 
   onDeleteControl 
 }: TimelineViewProps) {
+  
+  // Add state to track collapsed groups
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  
+  // Toggle group collapse state
+  const toggleGroupCollapse = (groupTitle: string) => {
+    setCollapsedGroups(prev => ({
+      ...prev,
+      [groupTitle]: !prev[groupTitle]
+    }));
+  };
   
   // Group controls by time period
   const timelineGroups = useMemo(() => {
@@ -215,28 +227,61 @@ export function TimelineView({
     return baseStyle;
   };
   
-  // Helper function to render company indicator
-  const renderCompanyIndicator = (company: Company | undefined) => {
+  // Helper function to render company logo instead of text badge
+  const renderCompanyLogo = (company: Company | undefined) => {
     if (!company) return null;
     
-    const getCompanyColor = (company: Company) => {
-      switch(company) {
-        case Company.BGC:
-          return 'bg-blue-100 text-blue-800 border-blue-200';
-        case Company.Cambio:
-          return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-        case Company.Both:
-          return 'bg-purple-100 text-purple-800 border-purple-200';
-        default:
-          return 'bg-gray-100 text-gray-800 border-gray-200';
-      }
-    };
-    
-    return (
-      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs border ${getCompanyColor(company)}`}>
-        {company}
-      </span>
-    );
+    switch(company) {
+      case Company.BGC:
+        return (
+          <div className="w-5 h-5 flex items-center justify-center bg-blue-50 rounded-full border border-blue-200">
+            <Image 
+              src="/logos/bgc-logo.png" 
+              alt="BGC Logo" 
+              width={16}
+              height={16}
+              className="object-contain"
+            />
+          </div>
+        );
+      case Company.Cambio:
+        return (
+          <div className="w-5 h-5 flex items-center justify-center bg-emerald-50 rounded-full border border-emerald-200">
+            <Image 
+              src="/logos/cambio-logo.png" 
+              alt="Cambio Logo" 
+              width={16}
+              height={16}
+              className="object-contain"
+            />
+          </div>
+        );
+      case Company.Both:
+        return (
+          <div className="w-5 h-5 flex flex-col items-center justify-center bg-purple-50 rounded-full border border-purple-200 overflow-hidden">
+            <div className="w-full h-2.5 flex items-center justify-center">
+              <Image 
+                src="/logos/bgc-logo.png" 
+                alt="BGC Logo" 
+                width={8}
+                height={8}
+                className="object-contain"
+              />
+            </div>
+            <div className="w-full h-2.5 flex items-center justify-center">
+              <Image 
+                src="/logos/cambio-logo.png" 
+                alt="Cambio Logo" 
+                width={8}
+                height={8}
+                className="object-contain"
+              />
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
   };
   
   // Format date for display
@@ -298,21 +343,25 @@ export function TimelineView({
     <div className={getSpacingClass()}>
       {timelineGroups.map((group, index) => (
         <div key={group.title} className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200 hover:shadow-lg transition-shadow duration-200">
-          <div className={`px-4 py-3 flex justify-between items-center ${
-            group.title === 'Completed' 
-              ? 'bg-gradient-to-r from-emerald-50 to-emerald-100 text-emerald-800 border-b border-emerald-200'
-              : group.title === 'Overdue' 
-              ? 'bg-gradient-to-r from-red-50 to-red-100 text-red-800 border-b border-red-200' 
-              : group.title === 'Today' 
-              ? 'bg-gradient-to-r from-amber-50 to-amber-100 text-amber-800 border-b border-amber-200'
-              : group.title === 'This Week'
-              ? 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-800 border-b border-blue-200'
-              : group.title === 'This Month'
-              ? 'bg-gradient-to-r from-indigo-50 to-indigo-100 text-indigo-800 border-b border-indigo-200'
-              : group.title === 'Future'
-              ? 'bg-gradient-to-r from-purple-50 to-purple-100 text-purple-800 border-b border-purple-200'
-              : 'bg-gradient-to-r from-gray-50 to-gray-100 text-gray-800 border-b border-gray-200'
-          }`}>
+          {/* Sticky Group Header */}
+          <div 
+            className={`sticky top-0 z-10 px-4 py-3 flex justify-between items-center cursor-pointer ${
+              group.title === 'Completed' 
+                ? 'bg-gradient-to-r from-emerald-50 to-emerald-100 text-emerald-800 border-b border-emerald-200'
+                : group.title === 'Overdue' 
+                ? 'bg-gradient-to-r from-red-50 to-red-100 text-red-800 border-b border-red-200' 
+                : group.title === 'Today' 
+                ? 'bg-gradient-to-r from-amber-50 to-amber-100 text-amber-800 border-b border-amber-200'
+                : group.title === 'This Week'
+                ? 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-800 border-b border-blue-200'
+                : group.title === 'This Month'
+                ? 'bg-gradient-to-r from-indigo-50 to-indigo-100 text-indigo-800 border-b border-indigo-200'
+                : group.title === 'Future'
+                ? 'bg-gradient-to-r from-purple-50 to-purple-100 text-purple-800 border-b border-purple-200'
+                : 'bg-gradient-to-r from-gray-50 to-gray-100 text-gray-800 border-b border-gray-200'
+            }`}
+            onClick={() => toggleGroupCollapse(group.title)}
+          >
             <h3 className="font-semibold flex items-center gap-2">
               {/* Time period icon */}
               {group.title === 'Completed' && (
@@ -356,150 +405,167 @@ export function TimelineView({
                 {group.controls.length}
               </span>
             </h3>
+            
+            {/* Add collapse/expand arrow */}
+            <button className="p-1 rounded-full hover:bg-white/30 transition-colors">
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                fill="none" 
+                viewBox="0 0 24 24" 
+                strokeWidth={2} 
+                stroke="currentColor" 
+                className={`w-4 h-4 transition-transform ${collapsedGroups[group.title] ? 'rotate-180' : ''}`}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+              </svg>
+            </button>
           </div>
           
-          <div className="divide-y divide-gray-100">
-            {group.controls.map(control => (
-              <div key={control.id} className={getTimelineItemStyle(control)}>
-                {/* Adjust content based on density */}
-                {viewDensity === 'compact' ? (
-                  <div className="flex items-center justify-between gap-2 bg-white rounded-md p-1 hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center min-w-0 gap-2">
-                      <span className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${
-                        Object.values(ControlStatus).includes(control.status as ControlStatus) ?
-                          (control.status === ControlStatus.Complete ? 'bg-emerald-500' : 
-                          control.status === ControlStatus.InProgress ? 'bg-indigo-500' : 
-                          control.status === ControlStatus.InReview ? 'bg-amber-500' : 'bg-gray-500')
-                        : 'bg-gray-500' // Fallback for obsolete status values
-                      }`} title={control.status} />
-                      <span className="text-xs font-mono bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded flex-shrink-0">
-                        {control.dcfId}
-                      </span>
-                      <span className="font-medium text-sm truncate">
-                        {control.title}
-                      </span>
-                      {control.company && (
-                        <span className="ml-1">
-                          {renderCompanyIndicator(control.company)}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 text-xs flex-shrink-0">
-                      {control.priorityLevel && (
-                        <span className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 ${
-                          control.priorityLevel === PriorityLevel.Critical ? 'bg-red-100 text-red-700' : 
-                          control.priorityLevel === PriorityLevel.High ? 'bg-orange-100 text-orange-700' : 
-                          control.priorityLevel === PriorityLevel.Medium ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
-                        }`}>
-                          <span className={`rounded-full h-1.5 w-1.5 flex-shrink-0 ${
-                            control.priorityLevel === PriorityLevel.Critical ? 'bg-red-500' : 
-                            control.priorityLevel === PriorityLevel.High ? 'bg-orange-500' : 
-                            control.priorityLevel === PriorityLevel.Medium ? 'bg-blue-500' : 'bg-green-500'
-                          }`} />
-                          <span className="text-xs">{control.priorityLevel}</span>
-                        </span>
-                      )}
-                      <span className="text-gray-500 whitespace-nowrap">
-                        {formatDate(control.estimatedCompletionDate)}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-white rounded-md px-2 py-2 mb-1 shadow-sm hover:shadow transition-shadow">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {/* Status badge */}
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+          {/* Collapsible Content */}
+          {!collapsedGroups[group.title] && (
+            <div className="divide-y divide-gray-100">
+              {group.controls.map(control => (
+                <div key={control.id} className={getTimelineItemStyle(control)}>
+                  {/* Adjust content based on density */}
+                  {viewDensity === 'compact' ? (
+                    <div className="flex items-center justify-between gap-2 bg-white rounded-md p-1 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center min-w-0 gap-2">
+                        <span className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${
                           Object.values(ControlStatus).includes(control.status as ControlStatus) ?
-                            (control.status === ControlStatus.Complete 
-                              ? 'bg-emerald-100 text-emerald-800' 
-                              : control.status === ControlStatus.InProgress 
-                              ? 'bg-indigo-100 text-indigo-800' 
-                              : control.status === ControlStatus.InReview
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-gray-100 text-gray-800')
-                            : 'bg-gray-100 text-gray-800' // Fallback for obsolete status values
-                        }`}>
-                          {Object.values(ControlStatus).includes(control.status as ControlStatus) 
-                            ? control.status 
-                            : 'Unknown Status'}
-                        </span>
-                        
-                        {/* Company badge */}
-                        {control.company && renderCompanyIndicator(control.company)}
-                        
-                        {/* Priority badge */}
-                        {control.priorityLevel && (
-                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                            control.priorityLevel === PriorityLevel.Critical 
-                              ? 'bg-red-100 text-red-800' 
-                              : control.priorityLevel === PriorityLevel.High 
-                              ? 'bg-orange-100 text-orange-800' 
-                              : control.priorityLevel === PriorityLevel.Medium 
-                              ? 'bg-blue-100 text-blue-800'
-                              : 'bg-green-100 text-green-800'
-                          }`}>
-                            {control.priorityLevel}
-                          </span>
-                        )}
-                        
-                        {/* DCF ID */}
-                        <span className="text-xs font-mono bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded">
+                            (control.status === ControlStatus.Complete ? 'bg-emerald-500' : 
+                            control.status === ControlStatus.InProgress ? 'bg-indigo-500' : 
+                            control.status === ControlStatus.InReview ? 'bg-amber-500' : 'bg-gray-500')
+                          : 'bg-gray-500' // Fallback for obsolete status values
+                        }`} title={control.status} />
+                        <span className="text-xs font-mono bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded flex-shrink-0">
                           {control.dcfId}
                         </span>
+                        <span className="font-medium text-sm truncate">
+                          {control.title}
+                        </span>
+                        {control.company && (
+                          <span className="ml-1">
+                            {renderCompanyLogo(control.company)}
+                          </span>
+                        )}
                       </div>
-                      
-                      <div className="text-sm text-gray-500 font-medium">
-                        {formatDate(control.estimatedCompletionDate)}
+                      <div className="flex items-center gap-2 text-xs flex-shrink-0">
+                        {control.priorityLevel && (
+                          <span className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 ${
+                            control.priorityLevel === PriorityLevel.Critical ? 'bg-red-100 text-red-700' : 
+                            control.priorityLevel === PriorityLevel.High ? 'bg-orange-100 text-orange-700' : 
+                            control.priorityLevel === PriorityLevel.Medium ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                          }`}>
+                            <span className={`rounded-full h-1.5 w-1.5 flex-shrink-0 ${
+                              control.priorityLevel === PriorityLevel.Critical ? 'bg-red-500' : 
+                              control.priorityLevel === PriorityLevel.High ? 'bg-orange-500' : 
+                              control.priorityLevel === PriorityLevel.Medium ? 'bg-blue-500' : 'bg-green-500'
+                            }`} />
+                            <span className="text-xs">{control.priorityLevel}</span>
+                          </span>
+                        )}
+                        <span className="text-gray-500 whitespace-nowrap">
+                          {formatDate(control.estimatedCompletionDate)}
+                        </span>
                       </div>
                     </div>
-                    
-                    <h4 className="font-medium text-md text-gray-800">{control.title}</h4>
-                    
-                    <div className="flex justify-between items-center mt-2">
-                      {(viewDensity === 'medium' || viewDensity === 'full') && (
-                        <div className="text-sm text-gray-500 flex items-center gap-2">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                          </svg>
-                          {getTechnicianName(control.assigneeId)}
+                  ) : (
+                    <div className="bg-white rounded-md px-2 py-2 mb-1 shadow-sm hover:shadow transition-shadow">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {/* Status badge */}
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                            Object.values(ControlStatus).includes(control.status as ControlStatus) ?
+                              (control.status === ControlStatus.Complete 
+                                ? 'bg-emerald-100 text-emerald-800' 
+                                : control.status === ControlStatus.InProgress 
+                                ? 'bg-indigo-100 text-indigo-800' 
+                                : control.status === ControlStatus.InReview
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-gray-100 text-gray-800')
+                              : 'bg-gray-100 text-gray-800' // Fallback for obsolete status values
+                          }`}>
+                            {Object.values(ControlStatus).includes(control.status as ControlStatus) 
+                              ? control.status 
+                              : 'Unknown Status'}
+                          </span>
+                          
+                          {/* Company logo instead of badge */}
+                          {control.company && renderCompanyLogo(control.company)}
+                          
+                          {/* Priority badge */}
+                          {control.priorityLevel && (
+                            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                              control.priorityLevel === PriorityLevel.Critical 
+                                ? 'bg-red-100 text-red-800' 
+                                : control.priorityLevel === PriorityLevel.High 
+                                ? 'bg-orange-100 text-orange-800' 
+                                : control.priorityLevel === PriorityLevel.Medium 
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-green-100 text-green-800'
+                            }`}>
+                              {control.priorityLevel}
+                            </span>
+                          )}
+                          
+                          {/* DCF ID */}
+                          <span className="text-xs font-mono bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded">
+                            {control.dcfId}
+                          </span>
+                        </div>
+                        
+                        <div className="text-sm text-gray-500 font-medium">
+                          {formatDate(control.estimatedCompletionDate)}
+                        </div>
+                      </div>
+                      
+                      <h4 className="font-medium text-md text-gray-800">{control.title}</h4>
+                      
+                      <div className="flex justify-between items-center mt-2">
+                        {(viewDensity === 'medium' || viewDensity === 'full') && (
+                          <div className="text-sm text-gray-500 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                            {getTechnicianName(control.assigneeId)}
+                          </div>
+                        )}
+                        
+                        {viewDensity === 'full' && (
+                          <button 
+                            onClick={() => {/* Could add functionality to view details */}}
+                            className="text-xs text-indigo-600 hover:text-indigo-800 px-2 py-1 rounded border border-indigo-200 hover:bg-indigo-50 transition-colors"
+                          >
+                            View Details
+                          </button>
+                        )}
+                      </div>
+                      
+                      {/* Progress bar for controls with progress */}
+                      {control.progress !== undefined && control.progress > 0 && (
+                        <div className="w-full h-1.5 bg-gray-200 rounded-full mt-2 overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full ${
+                              control.progress >= 100 
+                                ? 'bg-emerald-500' 
+                                : control.progress >= 75 
+                                ? 'bg-indigo-500' 
+                                : control.progress >= 50 
+                                ? 'bg-amber-500'
+                                : control.progress >= 25
+                                ? 'bg-orange-500'
+                                : 'bg-red-500'
+                            }`}
+                            style={{ width: `${control.progress}%` }}
+                          />
                         </div>
                       )}
-                      
-                      {viewDensity === 'full' && (
-                        <button 
-                          onClick={() => {/* Could add functionality to view details */}}
-                          className="text-xs text-indigo-600 hover:text-indigo-800 px-2 py-1 rounded border border-indigo-200 hover:bg-indigo-50 transition-colors"
-                        >
-                          View Details
-                        </button>
-                      )}
                     </div>
-                    
-                    {/* Progress bar for controls with progress */}
-                    {control.progress !== undefined && control.progress > 0 && (
-                      <div className="w-full h-1.5 bg-gray-200 rounded-full mt-2 overflow-hidden">
-                        <div 
-                          className={`h-full rounded-full ${
-                            control.progress >= 100 
-                              ? 'bg-emerald-500' 
-                              : control.progress >= 75 
-                              ? 'bg-indigo-500' 
-                              : control.progress >= 50 
-                              ? 'bg-amber-500'
-                              : control.progress >= 25
-                              ? 'bg-orange-500'
-                              : 'bg-red-500'
-                          }`}
-                          style={{ width: `${control.progress}%` }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ))}
       
