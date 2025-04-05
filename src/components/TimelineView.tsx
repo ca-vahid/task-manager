@@ -2,6 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { Control, Technician, ControlStatus, PriorityLevel, ViewDensity } from '@/lib/types';
+import { Timestamp } from 'firebase/firestore';
 
 interface TimelineViewProps {
   controls: Control[];
@@ -64,7 +65,46 @@ export function TimelineView({
         return;
       }
       
-      const dueDate = control.estimatedCompletionDate.toDate();
+      // Add safe handling for different timestamp formats
+      let dueDate: Date;
+      try {
+        if (control.estimatedCompletionDate instanceof Timestamp) {
+          // It's a proper Firestore Timestamp
+          dueDate = control.estimatedCompletionDate.toDate();
+        } 
+        else if (typeof control.estimatedCompletionDate === 'object' && 
+                 control.estimatedCompletionDate !== null &&
+                 'seconds' in control.estimatedCompletionDate) {
+          // It's an object with seconds/nanoseconds but not a true Timestamp instance
+          const { seconds, nanoseconds } = control.estimatedCompletionDate as any;
+          if (typeof seconds === 'number' && !isNaN(seconds)) {
+            // Create a proper Date object from seconds
+            dueDate = new Date(seconds * 1000);
+          } else {
+            // Invalid seconds value
+            groups[6].controls.push(control);
+            return;
+          }
+        } 
+        else if (typeof control.estimatedCompletionDate === 'string') {
+          // It's a string representation of a date
+          dueDate = new Date(control.estimatedCompletionDate);
+          if (isNaN(dueDate.getTime())) {
+            // Invalid date string
+            groups[6].controls.push(control);
+            return;
+          }
+        } 
+        else {
+          // Unrecognized format
+          groups[6].controls.push(control);
+          return;
+        }
+      } catch (error) {
+        console.error("Error processing date:", error, control.estimatedCompletionDate);
+        groups[6].controls.push(control);
+        return;
+      }
       
       if (dueDate < today) {
         groups[1].controls.push(control);
@@ -86,9 +126,44 @@ export function TimelineView({
         if (!a.estimatedCompletionDate) return 1;
         if (!b.estimatedCompletionDate) return -1;
         
-        // Sort by date
-        return a.estimatedCompletionDate.toDate().getTime() - 
-               b.estimatedCompletionDate.toDate().getTime();
+        // Get Date objects safely from timestamps
+        let dateA: Date, dateB: Date;
+        
+        try {
+          // Handle first timestamp
+          if (a.estimatedCompletionDate instanceof Timestamp) {
+            dateA = a.estimatedCompletionDate.toDate();
+          } else if (typeof a.estimatedCompletionDate === 'object' && 
+                    a.estimatedCompletionDate !== null &&
+                    'seconds' in a.estimatedCompletionDate) {
+            const { seconds } = a.estimatedCompletionDate as any;
+            dateA = new Date(seconds * 1000);
+          } else if (typeof a.estimatedCompletionDate === 'string') {
+            dateA = new Date(a.estimatedCompletionDate);
+          } else {
+            return 1; // Invalid format for A, sort to end
+          }
+          
+          // Handle second timestamp
+          if (b.estimatedCompletionDate instanceof Timestamp) {
+            dateB = b.estimatedCompletionDate.toDate();
+          } else if (typeof b.estimatedCompletionDate === 'object' && 
+                    b.estimatedCompletionDate !== null &&
+                    'seconds' in b.estimatedCompletionDate) {
+            const { seconds } = b.estimatedCompletionDate as any;
+            dateB = new Date(seconds * 1000);
+          } else if (typeof b.estimatedCompletionDate === 'string') {
+            dateB = new Date(b.estimatedCompletionDate);
+          } else {
+            return -1; // Invalid format for B, sort to beginning
+          }
+          
+          // Sort by time
+          return dateA.getTime() - dateB.getTime();
+        } catch (error) {
+          console.error("Error comparing dates for sorting:", error);
+          return 0; // Keep original order on error
+        }
       });
     });
     
@@ -145,7 +220,27 @@ export function TimelineView({
     if (!timestamp) return 'No date set';
     
     try {
-      const date = timestamp.toDate();
+      let date: Date;
+      
+      // Handle different timestamp formats
+      if (timestamp instanceof Timestamp) {
+        date = timestamp.toDate();
+      } else if (typeof timestamp === 'object' && 
+                timestamp !== null &&
+                'seconds' in timestamp) {
+        const { seconds } = timestamp as any;
+        date = new Date(seconds * 1000);
+      } else if (typeof timestamp === 'string') {
+        date = new Date(timestamp);
+      } else {
+        return 'Invalid date format';
+      }
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return 'Invalid date';
+      }
+      
       return date.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
