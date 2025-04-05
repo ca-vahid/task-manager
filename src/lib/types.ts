@@ -18,6 +18,12 @@ export enum PriorityLevel {
   Critical = "Critical",
 }
 
+export enum Company {
+  BGC = "BGC",
+  Cambio = "Cambio",
+  Both = "Both"
+}
+
 export interface Control {
   id: string;
   dcfId: string; // e.g., "DCF-441"
@@ -32,6 +38,7 @@ export interface Control {
   progress: number; // Percentage complete (0-100)
   lastUpdated: Timestamp | null; // When the control was last modified
   externalUrl: string | null; // URL to external ticketing system
+  company: Company; // Company the control is associated with
 }
 
 // Interface for search and filter options
@@ -41,6 +48,7 @@ export interface ControlFilters {
   priority: PriorityLevel[] | null;
   assignee: string[] | null;
   tags: string[] | null;
+  company: Company[] | null; // Add company filter
   dateRange: {
     start: Timestamp | null;
     end: Timestamp | null;

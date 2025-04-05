@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Control, Technician, ControlStatus, ViewMode, BatchOperation, ViewDensity } from '@/lib/types'; // Assuming alias
+import { Control, Technician, ControlStatus, ViewMode, BatchOperation, ViewDensity, PriorityLevel, Company } from '@/lib/types'; // Assuming alias
 import { ControlCard } from './ControlCard'; 
 import { Timestamp } from 'firebase/firestore'; // Correct import path for Timestamp
 import { ControlFilterBar } from './ControlFilterBar';
@@ -25,6 +25,8 @@ import { CollapsibleGroup } from './CollapsibleGroup';
 import { BatchOperationsToolbar } from './BatchOperationsToolbar';
 import { Modal } from './Modal'; // Import the Modal component
 import { BulkAddControlForm } from './BulkAddControlForm'; // Import the new bulk add form component
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase/firebase';
 
 export function ControlList() {
   const [controls, setControls] = useState<Control[]>([]);
@@ -51,8 +53,25 @@ export function ControlList() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
+    
     try {
-      // Fetch controls and technicians in parallel
+      // First fetch one control directly from Firestore for debugging
+      try {
+        // Get the first control document to inspect raw data
+        const controlsRef = collection(db, 'controls');
+        const controlsSnapshot = await getDocs(controlsRef);
+        if (!controlsSnapshot.empty) {
+          const firstDoc = controlsSnapshot.docs[0];
+          const rawData = firstDoc.data();
+          console.log("Raw control from Firestore:", firstDoc.id, rawData);
+          console.log("Raw company field:", rawData.company, typeof rawData.company);
+        }
+      } catch (debugError) {
+        console.error("Debug fetch error:", debugError);
+        // Continue with normal fetch
+      }
+      
+      // Fetch controls and technicians in parallel using the API
       const [controlsResponse, techniciansResponse] = await Promise.all([
         fetch('/api/controls'), 
         fetch('/api/technicians')
@@ -61,68 +80,30 @@ export function ControlList() {
       if (!controlsResponse.ok) {
         throw new Error(`Failed to fetch controls: ${controlsResponse.statusText}`);
       }
+
       if (!techniciansResponse.ok) {
         throw new Error(`Failed to fetch technicians: ${techniciansResponse.statusText}`);
       }
 
-      const controlsData: any[] = await controlsResponse.json();
+      // Get data from API responses
+      const controlsApiData = await controlsResponse.json();
       const techniciansData: Technician[] = await techniciansResponse.json();
-
-      // Ensure controls are properly typed with validated dates
-      const typedControls = controlsData.map((c: any): Control => {
-        let validatedTimestamp = null;
-        
-        // Validate the estimatedCompletionDate
-        if (c.estimatedCompletionDate) {
-          try {
-            if (typeof c.estimatedCompletionDate === 'string') {
-              // Convert ISO string to Date, then to Timestamp
-              const date = new Date(c.estimatedCompletionDate);
-              if (!isNaN(date.getTime())) {
-                validatedTimestamp = Timestamp.fromDate(date);
-              } else {
-                console.warn(`Invalid date string in control ${c.id}:`, c.estimatedCompletionDate);
-              }
-            } else if (c.estimatedCompletionDate && c.estimatedCompletionDate.seconds !== undefined) {
-              // It's a Timestamp-like object
-              const { seconds, nanoseconds } = c.estimatedCompletionDate;
-              if (typeof seconds === 'number' && !isNaN(seconds) && 
-                  typeof nanoseconds === 'number' && !isNaN(nanoseconds)) {
-                validatedTimestamp = new Timestamp(seconds, nanoseconds);
-                
-                // Verify it creates a valid date
-                try {
-                  const date = validatedTimestamp.toDate();
-                  if (isNaN(date.getTime())) {
-                    console.warn(`Invalid date from timestamp in control ${c.id}:`, validatedTimestamp);
-                    validatedTimestamp = null;
-                  }
-                } catch (error) {
-                  console.error(`Error converting timestamp to date in control ${c.id}:`, error);
-                  validatedTimestamp = null;
-                }
-              } else {
-                console.warn(`Invalid timestamp values in control ${c.id}:`, c.estimatedCompletionDate);
-              }
-            }
-          } catch (error) {
-            console.error(`Error processing estimatedCompletionDate in control ${c.id}:`, error);
-          }
+      
+      // Debug API response data
+      console.log("API controls data - first item:", controlsApiData[0]);
+      console.log("API company field:", controlsApiData[0]?.company, typeof controlsApiData[0]?.company);
+      
+      // Ensure company field is properly set
+      const processedControls = controlsApiData.map((control: any) => {
+        // Ensure the control has a company field
+        if (!control.company) {
+          console.warn(`Control ${control.id} is missing company field, setting default`);
+          control.company = Company.Both; // Set default
         }
-        
-        // Log the externalUrl for debugging
-        console.log(`Control ${c.id} externalUrl:`, c.externalUrl);
-        
-        return { 
-          ...c, 
-          // Use validated timestamp or null
-          estimatedCompletionDate: validatedTimestamp,
-          // Explicitly preserve externalUrl from the API response
-          externalUrl: c.externalUrl
-        };
+        return control;
       });
-
-      setControls(typedControls);
+      
+      setControls(processedControls);
       setTechnicians(techniciansData);
 
     } catch (err: any) {

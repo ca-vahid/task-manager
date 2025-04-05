@@ -12,6 +12,7 @@ export function Header() {
     { href: '/', label: 'Controls' },
     { href: '/dashboard', label: 'Dashboard' },
     { href: '/technicians', label: 'Technicians' },
+    { href: '/analytics', label: 'Analytics' },
     // Add more links as needed
   ];
 

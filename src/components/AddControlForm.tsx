@@ -2,7 +2,8 @@
 
 import React, { useState, FormEvent, ChangeEvent } from 'react';
 import { Timestamp } from 'firebase/firestore';
-import { ControlStatus, Technician, Control } from '@/lib/types';
+import { ControlStatus, Technician, Control, Company } from '@/lib/types';
+import Image from 'next/image';
 
 interface AddControlFormProps {
   technicians: Technician[];
@@ -24,6 +25,7 @@ export function AddControlForm({
   const [assigneeId, setAssigneeId] = useState<string | null>(null);
   const [estimatedCompletionDate, setEstimatedCompletionDate] = useState<string>(''); // Store as string YYYY-MM-DD
   const [externalUrl, setExternalUrl] = useState<string>(''); // Add state for external URL
+  const [company, setCompany] = useState<Company>(Company.Both); // Default to Both
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -103,7 +105,8 @@ export function AddControlForm({
       tags: [],
       progress: 0,
       lastUpdated: Timestamp.now(),
-      externalUrl: processedUrl // Add the external URL
+      externalUrl: processedUrl, // Add the external URL
+      company // Add the company field
     };
 
     try {
@@ -277,6 +280,112 @@ export function AddControlForm({
     </div>
   );
 
+  // Company selection component with logos
+  const CompanySelector = () => (
+    <div>
+      <label htmlFor="company-select" className="block text-xs font-medium text-gray-500 mb-1">
+        Company
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <label 
+          className={`flex items-center p-2 rounded-lg border cursor-pointer transition-colors ${
+            company === Company.BGC 
+              ? 'bg-blue-50 border-blue-300 text-blue-700' 
+              : 'bg-white border-gray-300 hover:bg-gray-50'
+          }`}
+        >
+          <input 
+            type="radio" 
+            name="company" 
+            value={Company.BGC} 
+            checked={company === Company.BGC} 
+            onChange={() => setCompany(Company.BGC)} 
+            className="sr-only"
+          />
+          <div className="w-6 h-6 relative mr-2 flex items-center justify-center">
+            <Image 
+              src="/logos/bgc-logo.png" 
+              alt="BGC Logo" 
+              width={24}
+              height={24}
+              className="object-contain"
+            />
+          </div>
+          <span className="text-sm font-medium">BGC</span>
+        </label>
+        
+        <label 
+          className={`flex items-center p-2 rounded-lg border cursor-pointer transition-colors ${
+            company === Company.Cambio 
+              ? 'bg-emerald-50 border-emerald-300 text-emerald-700' 
+              : 'bg-white border-gray-300 hover:bg-gray-50'
+          }`}
+        >
+          <input 
+            type="radio" 
+            name="company" 
+            value={Company.Cambio} 
+            checked={company === Company.Cambio} 
+            onChange={() => setCompany(Company.Cambio)} 
+            className="sr-only"
+          />
+          <div className="w-6 h-6 relative mr-2 flex items-center justify-center">
+            <Image 
+              src="/logos/cambio-logo.png" 
+              alt="Cambio Logo" 
+              width={24}
+              height={24}
+              className="object-contain"
+            />
+          </div>
+          <span className="text-sm font-medium">Cambio</span>
+        </label>
+        
+        <label 
+          className={`flex items-center p-2 rounded-lg border cursor-pointer transition-colors ${
+            company === Company.Both 
+              ? 'bg-purple-50 border-purple-300 text-purple-700' 
+              : 'bg-white border-gray-300 hover:bg-gray-50'
+          }`}
+        >
+          <input 
+            type="radio" 
+            name="company" 
+            value={Company.Both} 
+            checked={company === Company.Both} 
+            onChange={() => setCompany(Company.Both)} 
+            className="sr-only"
+          />
+          <div className="w-6 h-6 relative mr-2">
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-6 h-6 relative">
+                <div className="absolute top-0 left-0 w-6 h-3 overflow-hidden flex items-center justify-center">
+                  <Image 
+                    src="/logos/bgc-logo.png" 
+                    alt="BGC Logo" 
+                    width={20}
+                    height={20}
+                    className="object-contain"
+                  />
+                </div>
+                <div className="absolute bottom-0 left-0 w-6 h-3 overflow-hidden flex items-center justify-center">
+                  <Image 
+                    src="/logos/cambio-logo.png" 
+                    alt="Cambio Logo" 
+                    width={20}
+                    height={20}
+                    className="object-contain"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          <span className="text-sm font-medium">Both</span>
+        </label>
+      </div>
+    </div>
+  );
+
   return (
     <>
       {showAiModal && aiTextModal}
@@ -339,7 +448,10 @@ export function AddControlForm({
             />
           </div>
 
-        {/* Row 4: Status, Assignee, Date */}
+        {/* Row 4: Company Selection */}
+        <CompanySelector />
+
+        {/* Row 5: Status, Assignee, Date */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
            <div>
             <label htmlFor="add-status" className="block text-xs font-medium text-gray-500 mb-1">Status</label>
@@ -399,7 +511,7 @@ export function AddControlForm({
               disabled={isSubmitting || !dcfId.trim() || !title.trim()}
               className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-indigo-600 text-white hover:bg-indigo-700 h-9 px-4 py-2"
             >
-               {isSubmitting ? 'Adding...' : 'Add Control'}
+                {isSubmitting ? 'Saving...' : 'Save Control'}
             </button>
         </div>
       </form>

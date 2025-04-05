@@ -156,17 +156,49 @@ export function TechnicianManager() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: originalEditingName.trim() }), // Use originalEditingName for the API call
       });
+      
       if (!response.ok) {
-        const errorData = await response.json();
-        setTechnicians(originalTechnicians); // Rollback UI
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        // Handle non-JSON responses properly
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const responseText = await response.text();
+          try {
+            // Try to parse as JSON first
+            const errorData = JSON.parse(responseText);
+            errorMessage = errorData.message || errorMessage;
+          } catch (parseError) {
+            // If not JSON, use text or fallback message
+            console.error("Error response was not valid JSON:", responseText);
+            if (responseText && responseText.length < 200) {
+              errorMessage = responseText;
+            } else {
+              errorMessage = `Failed to update technician. Server responded unexpectedly (status: ${response.status})`;
+            }
+          }
+        } catch (err) {
+          errorMessage = `Failed to update technician (status: ${response.status})`;
+        }
+        
+        // Rollback UI
+        setTechnicians(originalTechnicians);
+        throw new Error(errorMessage);
       }
-      // API call successful, UI already updated optimistically
-      // const updatedTechnician: Technician = await response.json();
-      // setTechnicians(technicians.map(tech => 
-      //   tech.id === id ? { ...tech, name: updatedTechnician.name } : tech
-      // ));
-      // cancelEditing(); // Exit editing mode
+      
+      // Parse the response
+      let updatedTechnician: Technician;
+      try {
+        updatedTechnician = await response.json();
+      } catch (jsonError) {
+        console.error("Failed to parse response as JSON:", jsonError);
+        setError("Server returned an invalid response format");
+        setTechnicians(originalTechnicians); // Rollback UI
+        return;
+      }
+      
+      // Update the UI with the server's response
+      setTechnicians(technicians.map(tech => 
+        tech.id === id ? { ...tech, name: updatedTechnician.name } : tech
+      ));
     } catch (err: any) {
       console.error("Failed to update technician:", err);
       setError(err.message || "Failed to update technician.");

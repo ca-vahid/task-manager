@@ -26,8 +26,9 @@ const nextConfig = {
   },
   async rewrites() {
     return [
+      // Exclude technicians and other app-specific API routes
       {
-        source: "/api/:path*",
+        source: "/api/openai/:path*",
         destination: "https://api.openai.com/:path*",
       },
     ];

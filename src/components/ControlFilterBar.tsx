@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Control, ControlStatus, Technician, PriorityLevel, ControlFilters } from '@/lib/types';
+import { Control, ControlStatus, Technician, PriorityLevel, ControlFilters, Company } from '@/lib/types';
+import Image from 'next/image';
 
 interface ControlFilterBarProps {
   technicians: Technician[];
@@ -22,6 +23,7 @@ export function ControlFilterBar({
     priority: null, // Keep in the state but don't expose in UI
     assignee: null,
     tags: null,
+    company: null, // Add company filter
     dateRange: null
   });
 
@@ -86,6 +88,18 @@ export function ControlFilterBar({
       });
     }
     
+    // Company filter
+    if (filterState.company && filterState.company.length > 0) {
+      filtered = filtered.filter(control => {
+        // Company.Both should match all companies
+        if (control.company === Company.Both) {
+          return true;
+        }
+        
+        return filterState.company?.includes(control.company);
+      });
+    }
+    
     // Tags filter
     if (filterState.tags && filterState.tags.length > 0) {
       filtered = filtered.filter(control => {
@@ -128,6 +142,7 @@ export function ControlFilterBar({
       priority: null,
       assignee: null,
       tags: null,
+      company: null,
       dateRange: null
     };
     
@@ -153,6 +168,25 @@ export function ControlFilterBar({
     const newFilters = {
       ...filters,
       status: newStatus.length > 0 ? newStatus : null
+    };
+    
+    // Update state
+    setFilters(newFilters);
+    
+    // Apply filters immediately with new state
+    applyFiltersWithState(newFilters);
+  };
+  
+  // Toggle a company filter with immediate apply
+  const toggleCompanyFilter = (company: Company) => {
+    const currentCompany = filters.company || [];
+    const newCompany = currentCompany.includes(company)
+      ? currentCompany.filter(c => c !== company)
+      : [...currentCompany, company];
+    
+    const newFilters = {
+      ...filters,
+      company: newCompany.length > 0 ? newCompany : null
     };
     
     // Update state
@@ -203,6 +237,7 @@ export function ControlFilterBar({
   const activeFilterCount = [
     filters.status && filters.status.length > 0,
     filters.assignee && filters.assignee.length > 0,
+    filters.company && filters.company.length > 0,
     filters.tags && filters.tags.length > 0,
     filters.dateRange && (filters.dateRange.start || filters.dateRange.end)
   ].filter(Boolean).length;
@@ -295,6 +330,98 @@ export function ControlFilterBar({
         {/* Filter Chips */}
         {showFilters && (
           <div className="pt-2 border-t border-gray-200">
+            {/* Company Filter Chips */}
+            <div className="mb-4">
+              <span className="block text-sm font-medium text-gray-700 mb-2">Company:</span>
+              <div className="flex flex-wrap gap-2">
+                {Object.values(Company).map(company => {
+                  const isActive = filters.company?.includes(company) || false;
+                  let chipClass = "flex items-center px-3 py-1 rounded-md text-xs font-medium cursor-pointer transition-colors ";
+                  let bgColor, textColor;
+                  
+                  switch(company) {
+                    case Company.BGC:
+                      bgColor = isActive ? "bg-blue-200" : "bg-blue-50 hover:bg-blue-100";
+                      textColor = isActive ? "text-blue-800" : "text-blue-600";
+                      break;
+                    case Company.Cambio:
+                      bgColor = isActive ? "bg-emerald-200" : "bg-emerald-50 hover:bg-emerald-100";
+                      textColor = isActive ? "text-emerald-800" : "text-emerald-600";
+                      break;
+                    case Company.Both:
+                      bgColor = isActive ? "bg-purple-200" : "bg-purple-50 hover:bg-purple-100";
+                      textColor = isActive ? "text-purple-800" : "text-purple-600";
+                      break;
+                    default:
+                      bgColor = isActive ? "bg-gray-200" : "bg-gray-100 hover:bg-gray-200";
+                      textColor = isActive ? "text-gray-800" : "text-gray-600";
+                  }
+                  
+                  chipClass += `${bgColor} ${textColor}`;
+                  
+                  return (
+                    <button
+                      key={company}
+                      className={chipClass}
+                      onClick={() => toggleCompanyFilter(company)}
+                    >
+                      {company === Company.BGC && (
+                        <div className="w-4 h-4 mr-1 relative flex items-center justify-center">
+                          <Image 
+                            src="/logos/bgc-logo.png" 
+                            alt="BGC Logo" 
+                            width={16}
+                            height={16}
+                            className="object-contain"
+                          />
+                        </div>
+                      )}
+                      
+                      {company === Company.Cambio && (
+                        <div className="w-4 h-4 mr-1 relative flex items-center justify-center">
+                          <Image 
+                            src="/logos/cambio-logo.png" 
+                            alt="Cambio Logo" 
+                            width={16}
+                            height={16}
+                            className="object-contain"
+                          />
+                        </div>
+                      )}
+                      
+                      {company === Company.Both && (
+                        <div className="w-4 h-4 mr-1 relative">
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="w-4 h-4 relative">
+                              <div className="absolute top-0 left-0 w-4 h-2 overflow-hidden flex items-center justify-center">
+                                <Image 
+                                  src="/logos/bgc-logo.png" 
+                                  alt="BGC Logo" 
+                                  width={14}
+                                  height={14}
+                                  className="object-contain"
+                                />
+                              </div>
+                              <div className="absolute bottom-0 left-0 w-4 h-2 overflow-hidden flex items-center justify-center">
+                                <Image 
+                                  src="/logos/cambio-logo.png" 
+                                  alt="Cambio Logo" 
+                                  width={14}
+                                  height={14}
+                                  className="object-contain"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {company}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            
             {/* Status Filter Chips */}
             <div className="mb-4">
               <span className="block text-sm font-medium text-gray-700 mb-2">Status:</span>

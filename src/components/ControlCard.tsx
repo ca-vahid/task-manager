@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState, ChangeEvent, FocusEvent, useEffect } from 'react';
-import { Control, ControlStatus, Technician, ViewDensity, PriorityLevel } from '@/lib/types'; // Add ViewDensity import
+import { Control, ControlStatus, Technician, ViewDensity, PriorityLevel, Company } from '@/lib/types'; // Add Company to imports
 import { Timestamp } from 'firebase/firestore';
+import Image from 'next/image';
 
 interface ControlCardProps {
   control: Control;
@@ -132,6 +133,36 @@ function getStatusStyles(status: ControlStatus): { color: string; background: st
   }
 }
 
+// Add this function before the ControlCard component
+function getCompanyStyles(company: Company): { bgColor: string, textColor: string, borderColor: string } {
+  switch (company) {
+    case Company.BGC:
+      return {
+        bgColor: 'bg-blue-50',
+        textColor: 'text-blue-700',
+        borderColor: 'border-blue-200'
+      };
+    case Company.Cambio:
+      return {
+        bgColor: 'bg-emerald-50',
+        textColor: 'text-emerald-700',
+        borderColor: 'border-emerald-200'
+      };
+    case Company.Both:
+      return {
+        bgColor: 'bg-purple-50',
+        textColor: 'text-purple-700',
+        borderColor: 'border-purple-200'
+      };
+    default:
+      return {
+        bgColor: 'bg-gray-50',
+        textColor: 'text-gray-700',
+        borderColor: 'border-gray-200'
+      };
+  }
+}
+
 export function ControlCard({ 
   control, 
   technicians, 
@@ -139,6 +170,8 @@ export function ControlCard({
   onDeleteControl,
   viewDensity = 'medium' // Default to medium density
 }: ControlCardProps) {
+  console.log("ControlCard rendering with company:", control.company);
+  
   const [isEditingExplanation, setIsEditingExplanation] = useState(false);
   const [explanationDraft, setExplanationDraft] = useState(control.explanation);
   const [updateError, setUpdateError] = useState<string | null>(null);
@@ -152,8 +185,20 @@ export function ControlCard({
   const [isEditingUrl, setIsEditingUrl] = useState(false);
   const [urlDraft, setUrlDraft] = useState(control.externalUrl || '');
   
+  // Add company state for editing
+  const [isEditingCompany, setIsEditingCompany] = useState(false);
+  const [companyDraft, setCompanyDraft] = useState<Company>(() => {
+    console.log("Initial company state set to:", control.company || Company.Both);
+    return control.company || Company.Both;
+  });
+  
+  // Add a menuButtonRef to capture the position of the three dots button
   const menuRef = React.useRef<HTMLDivElement>(null);
+  const menuButtonRef = React.useRef<HTMLButtonElement>(null);
   const detailsRef = React.useRef<HTMLDetailsElement>(null);
+  
+  // Add state to track menu position
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   
   // Calculate time remaining
   const timeRemaining = getTimeRemaining(control.estimatedCompletionDate, control.status);
@@ -161,10 +206,12 @@ export function ControlCard({
   // Get status styling
   const statusStyles = getStatusStyles(control.status);
   
-  // State for explanation dialog
+  // Add state for new modal dialogs
   const [showExplanationDialog, setShowExplanationDialog] = useState(false);
-  // State for URL dialog
   const [showUrlDialog, setShowUrlDialog] = useState(false);
+  const [showStatusDialog, setShowStatusDialog] = useState(false);
+  const [showAssigneeDialog, setShowAssigneeDialog] = useState(false);
+  const [showDateDialog, setShowDateDialog] = useState(false);
   
   // Close menu when clicking outside
   useEffect(() => {
@@ -179,6 +226,30 @@ export function ControlCard({
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  // Initialize component state from control props when first mounted
+  useEffect(() => {
+    // This runs once on mount and whenever control changes
+    if (control) {
+      console.log("Control loaded:", { id: control.id, company: control.company });
+      
+      // Initialize all draft states from the control prop
+      setTitleDraft(control.title);
+      setDcfIdDraft(control.dcfId);
+      setExplanationDraft(control.explanation);
+      setUrlDraft(control.externalUrl || '');
+      
+      // Initialize company state - ensure it's not null or undefined
+      if (control.company) {
+        console.log("Setting company from control:", control.company);
+        setCompanyDraft(control.company);
+      } else {
+        // If company is missing, set a default
+        console.log("Company missing, setting default");
+        setCompanyDraft(Company.Both);
+      }
+    }
+  }, [control]); // Only run when control object reference changes
 
   // Check if the timestamp is valid, normalize to null if invalid to avoid endless console errors
   useEffect(() => {
@@ -220,6 +291,13 @@ export function ControlCard({
   useEffect(() => {
     setExplanationDraft(control.explanation);
   }, [control.explanation]);
+
+  // Update companyDraft when control.company changes (e.g., after page refresh)
+  useEffect(() => {
+    if (control.company) {
+      setCompanyDraft(control.company);
+    }
+  }, [control.company]);
 
   // Generic handler for simple field updates (status, assignee, date)
   const handleFieldUpdate = async (fieldName: keyof Control, value: any) => {
@@ -371,9 +449,19 @@ export function ControlCard({
     }
   };
 
-  // Toggle the menu
+  // Toggle the menu with position calculation
   const toggleMenu = (e: React.MouseEvent) => {
     e.stopPropagation();
+    
+    if (!menuOpen && menuButtonRef.current) {
+      const rect = menuButtonRef.current.getBoundingClientRect();
+      // Position menu below the button, aligned to the right
+      setMenuPosition({
+        top: rect.bottom + window.scrollY + 5, // Add a small gap
+        left: rect.right - 180, // Menu width is approximately 180px
+      });
+    }
+    
     setMenuOpen(!menuOpen);
   };
 
@@ -394,6 +482,29 @@ export function ControlCard({
   
   // Check if control is high priority
   const isHighPriority = control.priorityLevel === PriorityLevel.High || control.priorityLevel === PriorityLevel.Critical;
+
+  // Add handler for saving the company
+  const handleSaveCompany = (newCompany: Company) => {
+    console.log("Saving company:", newCompany);
+    
+    // Validate it's a valid Company enum value
+    if (!Object.values(Company).includes(newCompany)) {
+      console.error("Invalid company value:", newCompany);
+      return;
+    }
+    
+    // Update local state
+    setCompanyDraft(newCompany);
+    
+    // Send to server - handle as a separate step for better debugging
+    try {
+      console.log("Sending company update to server:", { id: control.id, company: newCompany });
+      onUpdateControl(control.id, { company: newCompany });
+    } catch (error) {
+      console.error("Error saving company:", error);
+      setUpdateError("Failed to save company selection.");
+    }
+  };
 
   // Define a helper function to render the delete confirmation modal consistently
   const renderDeleteConfirmationModal = () => {
@@ -436,6 +547,102 @@ export function ControlCard({
             </button>
           </div>
         </div>
+      </div>
+    );
+  };
+
+  // Add a company display component
+  const renderCompanyBadge = () => {
+    const companyStyles = getCompanyStyles(control.company);
+    
+    return (
+      <div className="flex items-center space-x-1">
+        {isEditingCompany ? (
+          <div className="flex items-center space-x-2">
+            <select
+              value={companyDraft}
+              onChange={(e) => setCompanyDraft(e.target.value as Company)}
+              className="block rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-xs py-1 px-2"
+            >
+              {Object.values(Company).map(companyValue => (
+                <option key={companyValue} value={companyValue}>{companyValue}</option>
+              ))}
+            </select>
+            <button onClick={() => handleSaveCompany(companyDraft)} className="text-green-600 hover:text-green-800 text-xs">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            </button>
+            <button onClick={() => setIsEditingCompany(false)} className="text-gray-500 hover:text-gray-700 text-xs">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+        ) : (
+          <div 
+            className={`flex items-center px-2 py-0.5 rounded-full ${companyStyles.bgColor} ${companyStyles.textColor} ${companyStyles.borderColor} border text-xs cursor-pointer`}
+            onClick={() => setIsEditingCompany(true)}
+            title="Click to change company"
+          >
+            {control.company === Company.BGC && (
+              <div className="flex items-center">
+                <div className="w-4 h-4 mr-1 relative">
+                  <Image 
+                    src="/logos/bgc-logo.png" 
+                    alt="BGC Logo" 
+                    width={16}
+                    height={16}
+                  />
+                </div>
+                <span>BGC</span>
+              </div>
+            )}
+            
+            {control.company === Company.Cambio && (
+              <div className="flex items-center">
+                <div className="w-4 h-4 mr-1 relative flex items-center justify-center">
+                  <Image 
+                    src="/logos/cambio-logo.png" 
+                    alt="Cambio Logo" 
+                    width={14}
+                    height={14}
+                    className="object-contain"
+                  />
+                </div>
+                <span>Cambio</span>
+              </div>
+            )}
+            
+            {control.company === Company.Both && (
+              <div className="flex items-center">
+                <div className="w-3.5 h-3.5 relative overflow-hidden">
+                  <div className="flex flex-col items-center justify-center w-full h-full">
+                    <div className="w-3.5 h-1.75 flex items-center justify-center">
+                      <Image 
+                        src="/logos/bgc-logo.png" 
+                        alt="BGC Logo" 
+                        width={9}
+                        height={9}
+                        className="object-contain"
+                      />
+                    </div>
+                    <div className="w-3.5 h-1.75 flex items-center justify-center">
+                      <Image 
+                        src="/logos/cambio-logo.png" 
+                        alt="Cambio Logo" 
+                        width={9}
+                        height={9}
+                        className="object-contain"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <span>Both</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   };
@@ -488,6 +695,56 @@ export function ControlCard({
             
             {/* Right side: Compact indicators */}
             <div className="flex items-center gap-1.5 text-xs flex-shrink-0">
+              {/* Company indicator - compact view */}
+              {control.company && (
+                <div className="flex items-center" title={`Company: ${control.company}`}>
+                  {control.company === Company.BGC && (
+                    <div className="w-3.5 h-3.5 relative">
+                      <Image 
+                        src="/logos/bgc-logo.png" 
+                        alt="BGC Logo" 
+                        width={14}
+                        height={14}
+                        className="object-contain"
+                      />
+                    </div>
+                  )}
+                  {control.company === Company.Cambio && (
+                    <div className="w-3.5 h-3.5 relative">
+                      <Image 
+                        src="/logos/cambio-logo.png" 
+                        alt="Cambio Logo" 
+                        width={14}
+                        height={14}
+                        className="object-contain"
+                      />
+                    </div>
+                  )}
+                  {control.company === Company.Both && (
+                    <div className="w-3.5 h-3.5 relative overflow-hidden">
+                      <div className="absolute inset-0 top-0 h-1.75 flex items-center justify-center">
+                        <Image 
+                          src="/logos/bgc-logo.png" 
+                          alt="BGC Logo" 
+                          width={9}
+                          height={9}
+                          className="object-contain"
+                        />
+                      </div>
+                      <div className="absolute inset-0 top-1.75 h-1.75 flex items-center justify-center">
+                        <Image 
+                          src="/logos/cambio-logo.png" 
+                          alt="Cambio Logo" 
+                          width={9}
+                          height={9}
+                          className="object-contain"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Priority indicator dot */}
               {control.priorityLevel && (
                 <span className={`rounded-full h-1.5 w-1.5 flex-shrink-0 ${
@@ -544,38 +801,38 @@ export function ControlCard({
     return (
       <>
         <div className={`rounded-lg border shadow-md mb-2 overflow-hidden transition-all duration-200 hover:shadow-lg ${statusStyles.border} ${statusStyles.background}`}>
-          {/* Efficient Status/Badges Header */}
+          {/* Efficient Header with Icons */}
           <div className="flex items-center justify-between px-3 py-1.5 border-b border-opacity-50">
-            <div className="flex items-center gap-1.5 min-w-0 flex-grow">
-              <span className={`h-2 w-2 rounded-full flex-shrink-0 ${
-                control.status === ControlStatus.Complete ? 'bg-emerald-500' : 
-                control.status === ControlStatus.InProgress ? 'bg-indigo-500' : 
-                control.status === ControlStatus.InReview ? 'bg-amber-500' : 'bg-gray-500'
-              }`} />
+            <div className="flex items-center gap-2 min-w-0 flex-grow">
+              {/* Status dot with tooltip */}
+              <span 
+                className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${
+                  control.status === ControlStatus.Complete ? 'bg-emerald-500' : 
+                  control.status === ControlStatus.InProgress ? 'bg-indigo-500' : 
+                  control.status === ControlStatus.InReview ? 'bg-amber-500' : 'bg-gray-500'
+                }`} 
+                title={control.status}
+              />
               
-              <div className="flex flex-wrap gap-1">
-                <span className={`inline-flex items-center rounded-full ${
-                  control.status === ControlStatus.Complete 
-                    ? 'bg-emerald-100 text-emerald-800' 
-                    : control.status === ControlStatus.InProgress 
-                    ? 'bg-indigo-100 text-indigo-800' 
-                    : control.status === ControlStatus.InReview
-                    ? 'bg-amber-100 text-amber-800'
-                    : 'bg-gray-100 text-gray-800'
-                } px-2 py-0.5 text-xs font-medium`}>
-                  {control.status}
-                </span>
+              <div className="flex flex-wrap gap-1.5">
+                {/* Company badge - medium view */}
+                {control.company && renderCompanyBadge()}
                 
+                {/* Due date tag */}
                 {timeRemaining.text && (
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
                     timeRemaining.overdue ? 'bg-red-100 text-red-800' : 
                     timeRemaining.urgent ? 'bg-amber-100 text-amber-800' : 
                     'bg-gray-100 text-gray-800'
                   }`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
                     {timeRemaining.text}
                   </span>
                 )}
                 
+                {/* Priority level if exists */}
                 {control.priorityLevel && (
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
                     control.priorityLevel === PriorityLevel.Critical 
@@ -586,13 +843,20 @@ export function ControlCard({
                       ? 'bg-blue-100 text-blue-800'
                       : 'bg-green-100 text-green-800'
                   }`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                    </svg>
                     {control.priorityLevel}
                   </span>
                 )}
               </div>
             </div>
             
-            <span className="text-xs font-medium text-gray-700 flex-shrink-0">
+            {/* Assignee with icon */}
+            <span className="text-xs font-medium text-gray-700 flex-shrink-0 flex items-center gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
               {assigneeName}
             </span>
           </div>
@@ -687,9 +951,9 @@ export function ControlCard({
       <div className={`rounded-lg border shadow-md mb-3 overflow-hidden transition-all duration-200 hover:shadow-lg ${statusStyles.border} ${statusStyles.background}`}>
         {/* Top header with DCF ID, Status indicator and menu */}
         <div className="flex items-center justify-between border-b px-3 py-1.5 border-opacity-50">
-          <div className="flex items-center">
+          <div className="flex items-center space-x-3">
             {/* DCF ID */}
-          {isDcfIdEditing ? (
+            {isDcfIdEditing ? (
               <input
                 type="text"
                 value={dcfIdDraft}
@@ -699,94 +963,145 @@ export function ControlCard({
                 onBlur={handleSaveDcfId}
                 onKeyDown={(e) => e.key === 'Enter' && handleSaveDcfId()}
               />
-          ) : (
-            <span 
-                className="text-xs font-mono bg-black/5 text-gray-700 px-1 py-0.5 rounded-sm mr-1.5 flex-shrink-0 cursor-pointer hover:bg-black/10"
-              onClick={() => setIsDcfIdEditing(true)}
-              title="Click to edit DCF ID"
-            >
+            ) : (
+              <span 
+                className="text-xs font-mono bg-black/5 text-gray-700 px-1 py-0.5 rounded-sm flex-shrink-0 cursor-pointer hover:bg-black/10"
+                onClick={() => setIsDcfIdEditing(true)}
+                title="Click to edit DCF ID"
+              >
                 DCF-{control.dcfId}
-            </span>
-          )}
+              </span>
+            )}
+            
+            {/* Assignee badge - moved to top header */}
+            <div className="flex items-center gap-1 bg-white rounded-full px-2 py-0.5 shadow-sm border border-gray-100">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              <span className="text-xs">
+                {assigneeName}
+              </span>
+            </div>
+          </div>
           
-            {/* Status indicator */}
-            <span className={`h-2 w-2 rounded-full mx-1 flex-shrink-0 ${
-              control.status === ControlStatus.Complete ? 'bg-emerald-500' : 
-              control.status === ControlStatus.InProgress ? 'bg-indigo-500' : 
-              control.status === ControlStatus.InReview ? 'bg-amber-500' : 'bg-gray-500'
-            }`} title={control.status}></span>
-        </div>
-        
-          {/* Status badge & Menu */}
-          <div className="flex items-center gap-1.5">
-            <span className={`inline-flex items-center rounded-full ${
-              control.status === ControlStatus.Complete 
-                ? 'bg-emerald-100 text-emerald-800' 
-                : control.status === ControlStatus.InProgress 
-                ? 'bg-indigo-100 text-indigo-800' 
-                : control.status === ControlStatus.InReview
-                ? 'bg-amber-100 text-amber-800'
-                : 'bg-gray-100 text-gray-800'
-            } px-2 py-0.5 text-xs font-medium`}>
-              {control.status}
-            </span>
+          <div className="flex items-center space-x-2">
+            {/* Info button - moved to top header */}
+            <button 
+              onClick={() => setShowExplanationDialog(true)}
+              className="text-xs text-gray-500 hover:text-indigo-600 flex items-center gap-1 bg-white rounded-full px-2 py-0.5 shadow-sm border border-gray-100"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>Info</span>
+            </button>
             
             {/* Menu button */}
             <div className="relative" ref={menuRef}>
-            <button
-              onClick={toggleMenu}
+              <button
+                ref={menuButtonRef}
+                onClick={toggleMenu}
                 className="text-gray-400 hover:text-gray-700 p-1 rounded-md"
-              aria-label="More options"
-            >
+                aria-label="More options"
+              >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                   <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
-              </svg>
-            </button>
-            
-            {menuOpen && (
-              <div className="absolute right-0 mt-1 bg-white rounded-md shadow-lg z-10 border border-gray-200 py-1 w-44">
-                <button 
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setMenuOpen(false);
-                    setIsEditingTitle(true);
+                </svg>
+              </button>
+              
+              {/* Menu Portal - Fixed Position */}
+              {menuOpen && (
+                <div 
+                  className="fixed bg-white rounded-md shadow-lg z-50 border border-gray-200 py-1 w-44"
+                  style={{ 
+                    top: `${menuPosition.top}px`, 
+                    left: `${menuPosition.left}px` 
                   }}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
-                  </svg>
-                  Edit Title
-                </button>
-                <button 
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setMenuOpen(false);
-                    setIsDcfIdEditing(true);
-                  }}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
-                  </svg>
-                  Edit DCF ID
-                </button>
+                  <button 
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuOpen(false);
+                      setIsEditingTitle(true);
+                    }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+                    </svg>
+                    Edit Title
+                  </button>
+                  <button 
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuOpen(false);
+                      setIsDcfIdEditing(true);
+                    }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+                    </svg>
+                    Edit DCF ID
+                  </button>
+                  {/* Status update option */}
+                  <button 
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuOpen(false);
+                      setShowStatusDialog(true);
+                    }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                    Update Status
+                  </button>
+                  {/* Assignee update option */}
+                  <button 
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuOpen(false);
+                      setShowAssigneeDialog(true);
+                    }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
+                    </svg>
+                    Change Assignee
+                  </button>
+                  {/* Date update option */}
+                  <button 
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuOpen(false);
+                      setShowDateDialog(true);
+                    }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+                    </svg>
+                    Set Completion Date
+                  </button>
                   {/* External URL option */}
-                <button 
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setMenuOpen(false);
+                  <button 
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuOpen(false);
                       setShowUrlDialog(true);
                       setIsEditingUrl(true);
-                  }}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
+                    }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
-                  </svg>
+                    </svg>
                     {control.externalUrl ? 'Edit Link' : 'Add Link'}
-                </button>
-            <button 
+                  </button>
+                  <button 
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -796,40 +1111,40 @@ export function ControlCard({
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+                    </svg>
                     View Explanation
-            </button>
+                  </button>
                   {/* Delete option in menu */}
-              <button 
+                  <button 
                     className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center"
                     onClick={(e) => {
                       e.stopPropagation();
                       setMenuOpen(false);
                       handleDeleteClick(e);
                     }}
-                disabled={isDeleting}
+                    disabled={isDeleting}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 mr-2">
                       <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
                     </svg>
                     Delete
-              </button>
+                  </button>
+                </div>
+              )}
             </div>
-          )}
-            </div>
+          </div>
         </div>
-      </div>
 
         {/* Title Section - Full width and clear visibility */}
-        <div className="px-3 py-1.5 border-b border-opacity-20">
-          <div className="flex items-center">
+        <div className="px-3 py-2 border-b border-opacity-20">
+          <div className="flex items-center justify-between">
             {isEditingTitle ? (
               <input
                 type="text"
                 value={titleDraft}
                 onChange={(e) => setTitleDraft(e.target.value)}
                 className="text-sm border border-gray-300 rounded px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              autoFocus
+                autoFocus
                 onBlur={handleSaveTitle}
                 onKeyDown={(e) => e.key === 'Enter' && handleSaveTitle()}
               />
@@ -852,6 +1167,8 @@ export function ControlCard({
                   )}
                 </h4>
                 
+                {/* Removed Assignee badge from here - moved to top header */}
+                
                 {/* External link - full view */}
                 {control.externalUrl && (
                   <a 
@@ -871,69 +1188,48 @@ export function ControlCard({
                 )}
               </>
             )}
-            </div>
           </div>
+        </div>
 
-        {/* Badge bar for additional info */}
-        <div className="flex flex-wrap items-center gap-1 px-3 py-1 border-b border-opacity-20 bg-gray-50/50">
-          {/* Assignee badge */}
-          <div className="flex items-center gap-1">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-            <span className="text-xs text-gray-700">
-              {assigneeName}
+        {/* Info Badges & Status Row */}
+        <div className="flex flex-wrap items-center gap-1.5 px-3 py-2 bg-gray-50/50">
+          {/* Status badge - with indicator */}
+          <div className="flex items-center gap-1 bg-white rounded-full px-2 py-0.5 shadow-sm border border-gray-100">
+            <span className={`h-2 w-2 rounded-full flex-shrink-0 ${
+              control.status === ControlStatus.Complete ? 'bg-emerald-500' : 
+              control.status === ControlStatus.InProgress ? 'bg-indigo-500' : 
+              control.status === ControlStatus.InReview ? 'bg-amber-500' : 'bg-gray-500'
+            }`} title={control.status}></span>
+            <span className="text-xs font-medium">
+              {control.status}
             </span>
           </div>
           
-          {/* Time remaining badge - only if not empty */}
-          {timeRemaining.text && (
-            <div className="flex items-center gap-1">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          {/* Company badge - full view */}
+          {control.company && renderCompanyBadge()}
+          
+          {/* Time remaining badge - only if not empty and not Complete status */}
+          {timeRemaining.text && control.status !== ControlStatus.Complete && (
+            <div className={`flex items-center gap-1 rounded-full px-2 py-0.5 shadow-sm border border-gray-100 bg-white ${
+              timeRemaining.overdue ? 'text-red-700' : 
+              timeRemaining.urgent ? 'text-amber-700' : 
+              'text-gray-700'
+            }`}>
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <span className={`text-xs ${
-                timeRemaining.overdue ? 'text-red-600' : 
-                timeRemaining.urgent ? 'text-amber-600' : 
-                'text-gray-700'
-              }`}>
+              <span className="text-xs">
                 {timeRemaining.text}
-              </span>
-          </div>
-        )}
-          
-          {/* Priority badge - only if exists */}
-          {control.priorityLevel && (
-            <div className="flex items-center gap-1">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-              </svg>
-              <span className={`text-xs ${
-                control.priorityLevel === PriorityLevel.Critical ? 'text-red-600' : 
-                control.priorityLevel === PriorityLevel.High ? 'text-orange-600' : 
-                control.priorityLevel === PriorityLevel.Medium ? 'text-blue-600' : 
-                'text-green-600'
-              }`}>
-                {control.priorityLevel}
               </span>
             </div>
           )}
           
-          {/* Explanation button */}
-          <button 
-            onClick={() => setShowExplanationDialog(true)}
-            className="ml-auto text-xs text-gray-500 hover:text-indigo-600 flex items-center gap-1"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span>Info</span>
-          </button>
+          {/* Removed Info button from here - it's now in the top header */}
         </div>
 
-        {/* Progress bar - if present */}
+        {/* Progress bar for controls with progress */}
         {control.progress !== undefined && control.progress > 0 && (
-          <div className="w-full h-1 bg-gray-200 overflow-hidden">
+          <div className="w-full h-1.5 bg-gray-200 overflow-hidden">
             <div 
               className={`h-full ${
                 control.progress >= 100 
@@ -951,64 +1247,97 @@ export function ControlCard({
           </div>
         )}
 
-        {/* Status, Assignee, Date Row - 3-column grid */}
-        <div className="grid grid-cols-3 gap-2 text-xs p-2">
-        {/* Status Dropdown */}
-        <div>
-            <label htmlFor={`status-${control.id}`} className="block text-[10px] font-medium text-gray-500 mb-0.5">Status</label>
-          <select
-            id={`status-${control.id}`}
-            value={control.status}
-            onChange={(e: ChangeEvent<HTMLSelectElement>) => handleFieldUpdate('status', e.target.value as ControlStatus)}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-xs h-7 px-1.5 py-0 bg-white"
-          >
-            {Object.values(ControlStatus).map(status => (
-              <option key={status} value={status}>{status}</option>
-            ))}
-          </select>
+        {/* Main Content Section */}
+        <div className="p-2 grid gap-2">
+          {/* Just keep Company Selection */}
+          <div className="flex items-center space-x-2">
+            <label className="text-xs font-medium text-gray-500">Company</label>
+            <div className="flex items-center space-x-2 overflow-visible">
+              {/* BGC Icon */}
+              <button 
+                type="button"
+                onClick={() => handleSaveCompany(Company.BGC)}
+                className={`relative rounded-full w-16 h-8 flex items-center justify-center ${
+                  control.company === Company.BGC 
+                    ? 'bg-blue-100 ring-2 ring-blue-500 ring-offset-1' 
+                    : 'bg-white border border-gray-300 hover:bg-gray-50'
+                }`}
+                title="BGC"
+              >
+                <div className="w-12 h-6 flex items-center justify-center">
+                  <Image 
+                    src="/logos/bgc-logo.png" 
+                    alt="BGC Logo" 
+                    width={32}
+                    height={28}
+                    className="object-contain max-w-full max-h-full"
+                  />
+                </div>
+              </button>
+
+              {/* Cambio Icon */}
+              <button 
+                type="button"
+                onClick={() => handleSaveCompany(Company.Cambio)}
+                className={`relative rounded-full w-16 h-8 flex items-center justify-center ${
+                  control.company === Company.Cambio 
+                    ? 'bg-emerald-100 ring-2 ring-emerald-500 ring-offset-1' 
+                    : 'bg-white border border-gray-300 hover:bg-gray-50'
+                }`}
+                title="Cambio"
+              >
+                <div className="w-12 h-6 flex items-center justify-center">
+                  <Image 
+                    src="/logos/cambio-logo.png" 
+                    alt="Cambio Logo" 
+                    width={32}
+                    height={28}
+                    className="object-contain max-w-full max-h-full"
+                  />
+                </div>
+              </button>
+
+              {/* Both Icon */}
+              <button 
+                type="button"
+                onClick={() => handleSaveCompany(Company.Both)}
+                className={`relative rounded-full w-16 h-8 flex items-center justify-center overflow-hidden ${
+                  control.company === Company.Both 
+                    ? 'bg-purple-100 ring-2 ring-purple-500 ring-offset-1' 
+                    : 'bg-white border border-gray-300 hover:bg-gray-50'
+                }`}
+                title="Both"
+              >
+                <div className="flex flex-col items-center justify-center w-full h-full">
+                  <div className="w-12 h-3 flex items-center justify-center">
+                    <Image 
+                      src="/logos/bgc-logo.png" 
+                      alt="BGC Logo" 
+                      width={28} 
+                      height={14}
+                      className="object-contain max-w-full max-h-full"
+                    />
+                  </div>
+                  <div className="w-12 h-3 flex items-center justify-center">
+                    <Image 
+                      src="/logos/cambio-logo.png" 
+                      alt="Cambio Logo" 
+                      width={28}
+                      height={14}
+                      className="object-contain max-w-full max-h-full"
+                    />
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Assignee Dropdown */}
-        <div>
-            <label htmlFor={`assignee-${control.id}`} className="block text-[10px] font-medium text-gray-500 mb-0.5">Assignee</label>
-          <select
-            id={`assignee-${control.id}`}
-              value={control.assigneeId || ""}
-            onChange={(e: ChangeEvent<HTMLSelectElement>) => handleFieldUpdate('assigneeId', e.target.value)}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-xs h-7 px-1.5 py-0 bg-white"
-          >
-              <option value="">Unassigned</option>
-            {technicians.map(tech => (
-              <option key={tech.id} value={tech.id}>{tech.name}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Estimated Completion Date */}
-        <div>
-            <label htmlFor={`date-${control.id}`} className="block text-[10px] font-medium text-gray-500 mb-0.5">Est. Completion</label>
-          <input
-            type="date"
-            id={`date-${control.id}`}
-            value={(() => {
-              if (!control.estimatedCompletionDate) return '';
-                try {
-                  return formatDateForInput(control.estimatedCompletionDate);
-              } catch (error) {
-                  return '';
-              }
-            })()}
-            onChange={(e: ChangeEvent<HTMLInputElement>) => handleFieldUpdate('estimatedCompletionDate', e.target.value)}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-xs h-7 px-1.5 py-0 bg-white"
-          />
-        </div>
-      </div>
-
-      {/* Update Error Message */}
-      {updateError && (
+        {/* Update Error Message */}
+        {updateError && (
           <p className="text-red-500 text-xs p-2 text-center">{updateError}</p>
-      )}
-    </div>
+        )}
+      </div>
 
       {/* Delete confirmation and Explanation dialogs */}
       {isConfirmingDelete && renderDeleteConfirmationModal()}
@@ -1152,6 +1481,162 @@ export function ControlCard({
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Status Dialog */}
+      {showStatusDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="font-semibold text-gray-800">Update Status</h3>
+              <button 
+                onClick={() => setShowStatusDialog(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="p-4">
+              <div className="mb-4">
+                <label htmlFor={`status-dialog-${control.id}`} className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select
+                  id={`status-dialog-${control.id}`}
+                  value={control.status}
+                  onChange={(e: ChangeEvent<HTMLSelectElement>) => handleFieldUpdate('status', e.target.value as ControlStatus)}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm p-2"
+                  autoFocus
+                >
+                  {Object.values(ControlStatus).map(status => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="flex justify-end">
+                <button 
+                  onClick={() => setShowStatusDialog(false)}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm hover:bg-indigo-700"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assignee Dialog */}
+      {showAssigneeDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="font-semibold text-gray-800">Change Assignee</h3>
+              <button 
+                onClick={() => setShowAssigneeDialog(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="p-4">
+              <div className="mb-4">
+                <label htmlFor={`assignee-dialog-${control.id}`} className="block text-sm font-medium text-gray-700 mb-1">Assignee</label>
+                <select
+                  id={`assignee-dialog-${control.id}`}
+                  value={control.assigneeId || ""}
+                  onChange={(e: ChangeEvent<HTMLSelectElement>) => handleFieldUpdate('assigneeId', e.target.value)}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm p-2"
+                  autoFocus
+                >
+                  <option value="">Unassigned</option>
+                  {technicians.map(tech => (
+                    <option key={tech.id} value={tech.id}>{tech.name}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="flex justify-end">
+                <button 
+                  onClick={() => setShowAssigneeDialog(false)}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm hover:bg-indigo-700"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Date Dialog */}
+      {showDateDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="font-semibold text-gray-800">Set Completion Date</h3>
+              <button 
+                onClick={() => setShowDateDialog(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="p-4">
+              <div className="mb-4">
+                <label htmlFor={`date-dialog-${control.id}`} className="block text-sm font-medium text-gray-700 mb-1">Estimated Completion Date</label>
+                <input
+                  type="date"
+                  id={`date-dialog-${control.id}`}
+                  value={(() => {
+                    if (!control.estimatedCompletionDate) return '';
+                    try {
+                      // Check if it's a Firestore Timestamp
+                      if (control.estimatedCompletionDate instanceof Timestamp) {
+                        return formatDateForInput(control.estimatedCompletionDate);
+                      }
+                      // Handle object with seconds/nanoseconds but not a Timestamp instance
+                      else if (typeof control.estimatedCompletionDate === 'object' && 
+                               control.estimatedCompletionDate !== null &&
+                               'seconds' in control.estimatedCompletionDate) {
+                        // Create a new Timestamp from the raw data
+                        const { seconds, nanoseconds } = control.estimatedCompletionDate as any;
+                        if (typeof seconds === 'number' && !isNaN(seconds)) {
+                          const timestamp = new Timestamp(seconds, nanoseconds || 0);
+                          return formatDateForInput(timestamp);
+                        }
+                      }
+                      return '';
+                    } catch (error) {
+                      return '';
+                    }
+                  })()}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => handleFieldUpdate('estimatedCompletionDate', e.target.value)}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm p-2"
+                  autoFocus
+                />
+                <p className="mt-2 text-xs text-gray-500">Clear the field to remove the date</p>
+              </div>
+              
+              <div className="flex justify-end">
+                <button 
+                  onClick={() => setShowDateDialog(false)}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm hover:bg-indigo-700"
+                >
+                  Done
+                </button>
+              </div>
             </div>
           </div>
         </div>

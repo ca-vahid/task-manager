@@ -66,7 +66,8 @@ export async function GET() {
         tags: data.tags || [],
         progress: data.progress || 0,
         lastUpdated: data.lastUpdated || null,
-        externalUrl: data.externalUrl || null
+        externalUrl: data.externalUrl || null,
+        company: data.company || "Both" // Explicitly ensure company field is included and has default
       } as Control; 
     });
 
@@ -178,7 +179,8 @@ export async function POST(request: Request) {
       tags: [],
       progress: 0,
       lastUpdated: serverTimestamp(),
-      externalUrl: body.externalUrl || null
+      externalUrl: body.externalUrl || null,
+      company: body.company || "Both" // Add company field to Firestore data with default
     };
 
     const docRef = await addDoc(collection(db, CONTROLS_COLLECTION), newControlData);
@@ -225,7 +227,8 @@ export async function POST(request: Request) {
       tags: newControlData.tags,
       progress: newControlData.progress,
       lastUpdated: null, // We don't need to send the server timestamp back
-      externalUrl: newControlData.externalUrl
+      externalUrl: newControlData.externalUrl,
+      company: body.company || "Both" // Add company field to response with default
     };
 
     return NextResponse.json(responseControl, { status: 201 });

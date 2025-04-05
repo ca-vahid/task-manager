@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { updateDoc, doc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
+import { Company, ControlStatus, PriorityLevel, Control } from '@/lib/types'; // Import Company enum and Control type
 
 const CONTROLS_COLLECTION = 'controls';
 
@@ -15,110 +16,96 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Control ID is required' }, { status: 400 });
     }
 
-    // Handle externalUrl - ensure it's properly formatted or null
+    // Prepare the data object for Firestore update
+    const dataToUpdate: Record<string, any> = {};
+
+    // Map known fields explicitly to ensure type safety and handle specific logic
+    const knownFields: (keyof Control)[] = [
+      'title',
+      'explanation',
+      'status',
+      'assigneeId',
+      'progress',
+      'tags',
+      'company' // Make sure company is in known fields
+      // Add other updatable fields here if needed
+    ];
+
+    knownFields.forEach((field: keyof Control) => {
+      // Check if the field exists in the incoming updates object
+      if (field in updates) {
+        const value = updates[field as keyof typeof updates]; // Extract the value using type assertion
+
+        if (field === 'assigneeId') {
+          // Handle unassigned case
+          dataToUpdate[field] = value === '' || value === null ? null : value;
+        } else if (field === 'company') {
+          // Validate company value against the enum
+          if (Object.values(Company).includes(value as Company)) {
+            console.log("Updating company field to:", value);
+            dataToUpdate[field] = value;
+          } else {
+            console.warn(`Invalid company value received: ${value}, skipping update.`);
+          }
+        } else {
+          // For other known fields, assign the value directly
+          dataToUpdate[field] = value;
+        }
+      }
+    });
+
+    // Handle externalUrl separately
     if (updates.externalUrl !== undefined) {
       if (updates.externalUrl === null || updates.externalUrl === '') {
-        // Allow explicit null or empty string to clear the URL
-        updates.externalUrl = null;
+        dataToUpdate.externalUrl = null;
       } else if (typeof updates.externalUrl === 'string') {
-        // Ensure URL starts with http:// or https://
         const trimmedUrl = updates.externalUrl.trim();
         if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
-          updates.externalUrl = 'https://' + trimmedUrl;
+          dataToUpdate.externalUrl = 'https://' + trimmedUrl;
         } else {
-          updates.externalUrl = trimmedUrl;
+          dataToUpdate.externalUrl = trimmedUrl;
         }
       } else {
-        // Invalid type, remove from updates
         console.warn("Invalid externalUrl format received:", updates.externalUrl);
-        delete updates.externalUrl;
       }
     }
 
     // Convert date strings to Firestore compatible format if needed
     if (updates.estimatedCompletionDate !== undefined) {
       const dateValue = updates.estimatedCompletionDate;
-      
-      // If explicitly null or empty string, keep it null
       if (dateValue === null || dateValue === '') {
-        updates.estimatedCompletionDate = null;
+        dataToUpdate.estimatedCompletionDate = null;
       } else {
         try {
-          // Handle different data formats
-          if (typeof dateValue === 'string') {
-            // If it's a date string (YYYY-MM-DD format from date input)
-            if (dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
-              // This is a date input string like "2023-07-15"
-              const [year, month, day] = dateValue.split('-').map(num => parseInt(num, 10));
-              
-              // Create a JavaScript Date object at UTC midnight
-              // Month is 0-indexed in JS Date
-              const jsDate = new Date(Date.UTC(year, month - 1, day));
-              
-              // Convert to seconds since epoch (what Firestore uses internally)
-              const seconds = Math.floor(jsDate.getTime() / 1000);
-              const nanoseconds = 0;
-              
-              // Store these values directly as they're what Firestore uses under the hood
-              updates.estimatedCompletionDate = {
-                seconds: seconds,
-                nanoseconds: nanoseconds
-              };
-            }
-            // If it's a complete ISO string
-            else if (dateValue.includes('T')) {
-              const jsDate = new Date(dateValue);
-              if (!isNaN(jsDate.getTime())) {
-                const seconds = Math.floor(jsDate.getTime() / 1000);
-                updates.estimatedCompletionDate = {
-                  seconds: seconds,
-                  nanoseconds: 0
-                };
-              } else {
-                console.warn("Invalid ISO string received:", dateValue);
-                delete updates.estimatedCompletionDate;
-              }
-            } 
-            // Any other string format
-            else {
-              const jsDate = new Date(dateValue);
-              if (!isNaN(jsDate.getTime())) {
-                const seconds = Math.floor(jsDate.getTime() / 1000);
-                updates.estimatedCompletionDate = {
-                  seconds: seconds,
-                  nanoseconds: 0
-                };
-              } else {
-                console.warn("Invalid date string received:", dateValue);
-                delete updates.estimatedCompletionDate;
-              }
-            }
-          } 
-          // Handle Timestamp-like objects - we now avoid sending these from the client
-          else {
-            console.warn("Non-string date value received:", dateValue);
-            delete updates.estimatedCompletionDate;
+          // Simplified date handling: client sends ISO string or YYYY-MM-DD
+          const jsDate = new Date(dateValue);
+          if (!isNaN(jsDate.getTime())) {
+            // Convert valid JS Date to Firestore Timestamp
+            dataToUpdate.estimatedCompletionDate = Timestamp.fromDate(jsDate);
+          } else {
+            console.warn("Invalid date value received:", dateValue);
           }
         } catch (error) {
           console.error("Date conversion error:", error);
-          console.warn("Skipping update of estimatedCompletionDate due to error");
-          // Don't update this field
-          delete updates.estimatedCompletionDate;
         }
       }
     }
 
+    // Add lastUpdated timestamp
+    dataToUpdate.lastUpdated = Timestamp.now();
+
     const controlRef = doc(db, CONTROLS_COLLECTION, id);
-    await updateDoc(controlRef, updates);
+    await updateDoc(controlRef, dataToUpdate); // Use the explicitly constructed data object
 
     return NextResponse.json({ 
       message: `Control ${id} updated successfully`,
       id,
-      ...updates
+      ...dataToUpdate // Return the data that was actually updated
     }, { status: 200 }); 
 
   } catch (error) {
     console.error(`Error updating control:`, error);
-    return NextResponse.json({ message: `Failed to update control: ${error}` }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ message: `Failed to update control: ${errorMessage}` }, { status: 500 });
   }
 } 
