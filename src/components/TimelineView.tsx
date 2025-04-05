@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { Control, Technician, ControlStatus, PriorityLevel, ViewDensity } from '@/lib/types';
+import { Control, Technician, ControlStatus, PriorityLevel, ViewDensity, Company } from '@/lib/types';
 import { Timestamp } from 'firebase/firestore';
 
 interface TimelineViewProps {
@@ -174,7 +174,7 @@ export function TimelineView({
   // Get timeline item color based on priority and status
   const getTimelineItemStyle = (control: Control) => {
     // Base style with density adjustments
-    let baseStyle = "border-l-4 pl-4 transition-all duration-200 hover:bg-gray-50 ";
+    let baseStyle = "border-l-4 pl-4 transition-all duration-200 hover:bg-gray-50 relative ";
     
     // Add padding based on density
     if (viewDensity === 'compact') {
@@ -213,6 +213,30 @@ export function TimelineView({
     }
     
     return baseStyle;
+  };
+  
+  // Helper function to render company indicator
+  const renderCompanyIndicator = (company: Company | undefined) => {
+    if (!company) return null;
+    
+    const getCompanyColor = (company: Company) => {
+      switch(company) {
+        case Company.BGC:
+          return 'bg-blue-100 text-blue-800 border-blue-200';
+        case Company.Cambio:
+          return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+        case Company.Both:
+          return 'bg-purple-100 text-purple-800 border-purple-200';
+        default:
+          return 'bg-gray-100 text-gray-800 border-gray-200';
+      }
+    };
+    
+    return (
+      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs border ${getCompanyColor(company)}`}>
+        {company}
+      </span>
+    );
   };
   
   // Format date for display
@@ -273,7 +297,7 @@ export function TimelineView({
   return (
     <div className={getSpacingClass()}>
       {timelineGroups.map((group, index) => (
-        <div key={group.title} className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
+        <div key={group.title} className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200 hover:shadow-lg transition-shadow duration-200">
           <div className={`px-4 py-3 flex justify-between items-center ${
             group.title === 'Completed' 
               ? 'bg-gradient-to-r from-emerald-50 to-emerald-100 text-emerald-800 border-b border-emerald-200'
@@ -292,37 +316,37 @@ export function TimelineView({
             <h3 className="font-semibold flex items-center gap-2">
               {/* Time period icon */}
               {group.title === 'Completed' && (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               )}
               {group.title === 'Overdue' && (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
               )}
               {group.title === 'Today' && (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               )}
               {group.title === 'This Week' && (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
               )}
               {group.title === 'This Month' && (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
               )}
               {group.title === 'Future' && (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 11l7-7 7 7M5 19l7-7 7 7" />
                 </svg>
               )}
               {group.title === 'No Due Date' && (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                 </svg>
               )}
@@ -339,29 +363,41 @@ export function TimelineView({
               <div key={control.id} className={getTimelineItemStyle(control)}>
                 {/* Adjust content based on density */}
                 {viewDensity === 'compact' ? (
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center justify-between gap-2 bg-white rounded-md p-1 hover:bg-gray-50 transition-colors">
                     <div className="flex items-center min-w-0 gap-2">
-                      <span className={`h-2 w-2 rounded-full flex-shrink-0 ${
+                      <span className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${
                         Object.values(ControlStatus).includes(control.status as ControlStatus) ?
                           (control.status === ControlStatus.Complete ? 'bg-emerald-500' : 
                           control.status === ControlStatus.InProgress ? 'bg-indigo-500' : 
                           control.status === ControlStatus.InReview ? 'bg-amber-500' : 'bg-gray-500')
                         : 'bg-gray-500' // Fallback for obsolete status values
-                      }`} />
+                      }`} title={control.status} />
                       <span className="text-xs font-mono bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded flex-shrink-0">
                         {control.dcfId}
                       </span>
                       <span className="font-medium text-sm truncate">
                         {control.title}
                       </span>
+                      {control.company && (
+                        <span className="ml-1">
+                          {renderCompanyIndicator(control.company)}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 text-xs flex-shrink-0">
                       {control.priorityLevel && (
-                        <span className={`rounded-full h-2 w-2 flex-shrink-0 ${
-                          control.priorityLevel === PriorityLevel.Critical ? 'bg-red-500' : 
-                          control.priorityLevel === PriorityLevel.High ? 'bg-orange-500' : 
-                          control.priorityLevel === PriorityLevel.Medium ? 'bg-blue-500' : 'bg-green-500'
-                        }`} />
+                        <span className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 ${
+                          control.priorityLevel === PriorityLevel.Critical ? 'bg-red-100 text-red-700' : 
+                          control.priorityLevel === PriorityLevel.High ? 'bg-orange-100 text-orange-700' : 
+                          control.priorityLevel === PriorityLevel.Medium ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                        }`}>
+                          <span className={`rounded-full h-1.5 w-1.5 flex-shrink-0 ${
+                            control.priorityLevel === PriorityLevel.Critical ? 'bg-red-500' : 
+                            control.priorityLevel === PriorityLevel.High ? 'bg-orange-500' : 
+                            control.priorityLevel === PriorityLevel.Medium ? 'bg-blue-500' : 'bg-green-500'
+                          }`} />
+                          <span className="text-xs">{control.priorityLevel}</span>
+                        </span>
                       )}
                       <span className="text-gray-500 whitespace-nowrap">
                         {formatDate(control.estimatedCompletionDate)}
@@ -369,9 +405,9 @@ export function TimelineView({
                     </div>
                   </div>
                 ) : (
-                  <>
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
+                  <div className="bg-white rounded-md px-2 py-2 mb-1 shadow-sm hover:shadow transition-shadow">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         {/* Status badge */}
                         <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                           Object.values(ControlStatus).includes(control.status as ControlStatus) ?
@@ -388,6 +424,9 @@ export function TimelineView({
                             ? control.status 
                             : 'Unknown Status'}
                         </span>
+                        
+                        {/* Company badge */}
+                        {control.company && renderCompanyIndicator(control.company)}
                         
                         {/* Priority badge */}
                         {control.priorityLevel && (
@@ -410,21 +449,32 @@ export function TimelineView({
                         </span>
                       </div>
                       
-                      <div className="text-sm text-gray-500">
+                      <div className="text-sm text-gray-500 font-medium">
                         {formatDate(control.estimatedCompletionDate)}
                       </div>
                     </div>
                     
-                    <h4 className="font-medium text-md">{control.title}</h4>
+                    <h4 className="font-medium text-md text-gray-800">{control.title}</h4>
                     
-                    {viewDensity === 'full' && (
-                      <div className="text-sm text-gray-500 mt-1 flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                        </svg>
-                        {getTechnicianName(control.assigneeId)}
-                      </div>
-                    )}
+                    <div className="flex justify-between items-center mt-2">
+                      {(viewDensity === 'medium' || viewDensity === 'full') && (
+                        <div className="text-sm text-gray-500 flex items-center gap-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                          {getTechnicianName(control.assigneeId)}
+                        </div>
+                      )}
+                      
+                      {viewDensity === 'full' && (
+                        <button 
+                          onClick={() => {/* Could add functionality to view details */}}
+                          className="text-xs text-indigo-600 hover:text-indigo-800 px-2 py-1 rounded border border-indigo-200 hover:bg-indigo-50 transition-colors"
+                        >
+                          View Details
+                        </button>
+                      )}
+                    </div>
                     
                     {/* Progress bar for controls with progress */}
                     {control.progress !== undefined && control.progress > 0 && (
@@ -445,7 +495,7 @@ export function TimelineView({
                         />
                       </div>
                     )}
-                  </>
+                  </div>
                 )}
               </div>
             ))}
