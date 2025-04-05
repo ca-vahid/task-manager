@@ -22,35 +22,85 @@ interface DashboardProps {
   technicians: Technician[];
 }
 
-// Helper function to get upcoming deadlines
-const getUpcomingDeadlines = (controls: Control[], days: number = 7) => {
+// Helper to safely convert timestamp to Date (reuse from TimelineView or define here)
+const safeToDate = (timestamp: any): Date | null => {
+  try {
+    if (timestamp instanceof Timestamp) {
+      return timestamp.toDate();
+    } else if (typeof timestamp === 'object' && timestamp !== null && 'seconds' in timestamp) {
+      const { seconds } = timestamp as any;
+      if (typeof seconds === 'number' && !isNaN(seconds)) {
+        return new Date(seconds * 1000);
+      }
+    } else if (typeof timestamp === 'string') {
+      const date = new Date(timestamp);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+    }
+    console.warn("Could not convert timestamp to Date:", timestamp);
+    return null;
+  } catch (error) {
+    console.error("Error converting timestamp:", error);
+    return null;
+  }
+};
+
+// Updated formatDate to be more robust
+const formatDate = (timestamp: Timestamp | null | undefined): string => {
+  if (!timestamp) return 'N/A';
+
+  const date = safeToDate(timestamp);
+
+  if (!date) return 'Invalid Date';
+
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
+// Helper function to get upcoming deadlines (returns controls, not just count)
+const getUpcomingDeadlines = (controls: Control[]): Control[] => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  
-  return controls
-    .filter(control => {
-      // Skip completed controls
-      if (control.status === ControlStatus.Complete) return false;
-      
-      // Skip controls without a deadline
-      if (!control.estimatedCompletionDate) return false;
-      
-      try {
-        const deadlineDate = control.estimatedCompletionDate.toDate();
-        const diffTime = deadlineDate.getTime() - today.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
-        // Return true if the deadline is within the specified number of days
-        return diffDays >= 0 && diffDays <= days;
-      } catch (error) {
-        console.error("Error calculating deadline:", error);
-        return false;
-      }
-    })
-    .sort((a, b) => {
-      if (!a.estimatedCompletionDate || !b.estimatedCompletionDate) return 0;
-      return a.estimatedCompletionDate.toDate().getTime() - b.estimatedCompletionDate.toDate().getTime();
-    });
+  const nextWeek = new Date(today);
+  nextWeek.setDate(today.getDate() + 7);
+
+  return controls.filter(control => {
+    if (control.status === ControlStatus.Complete) return false;
+
+    const deadlineDate = safeToDate(control.estimatedCompletionDate);
+    if (!deadlineDate) return false;
+
+    deadlineDate.setHours(0, 0, 0, 0);
+    return deadlineDate >= today && deadlineDate < nextWeek;
+  }).sort((a, b) => {
+    const dateA = safeToDate(a.estimatedCompletionDate);
+    const dateB = safeToDate(b.estimatedCompletionDate);
+    if (!dateA) return 1;
+    if (!dateB) return -1;
+    return dateA.getTime() - dateB.getTime();
+  });
+};
+
+// Helper function to get overdue controls (returns controls, not just count)
+const getOverdueControls = (controls: Control[]): Control[] => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return controls.filter(control => {
+    if (control.status === ControlStatus.Complete) return false;
+
+    const deadlineDate = safeToDate(control.estimatedCompletionDate);
+    if (!deadlineDate) return false;
+
+    deadlineDate.setHours(0, 0, 0, 0);
+    return deadlineDate < today;
+  }).sort((a, b) => {
+    const dateA = safeToDate(a.estimatedCompletionDate);
+    const dateB = safeToDate(b.estimatedCompletionDate);
+    if (!dateA) return 1;
+    if (!dateB) return -1;
+    return dateA.getTime() - dateB.getTime();
+  });
 };
 
 export function Dashboard({ controls, technicians }: DashboardProps) {
@@ -164,36 +214,13 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
     return Math.round((completedCount / controls.length) * 100);
   }, [controls]);
   
-  // Get upcoming deadlines
-  const upcomingDeadlines = useMemo(() => getUpcomingDeadlines(controls), [controls]);
-  
-  // Get overdue controls
-  const overdueControls = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    return controls
-      .filter(control => {
-        // Skip completed controls
-        if (control.status === ControlStatus.Complete) return false;
-        
-        // Skip controls without a deadline
-        if (!control.estimatedCompletionDate) return false;
-        
-        try {
-          const deadlineDate = control.estimatedCompletionDate.toDate();
-          return deadlineDate < today;
-        } catch (error) {
-          console.error("Error calculating overdue:", error);
-          return false;
-        }
-      })
-      .sort((a, b) => {
-        if (!a.estimatedCompletionDate || !b.estimatedCompletionDate) return 0;
-        // Sort oldest first
-        return a.estimatedCompletionDate.toDate().getTime() - b.estimatedCompletionDate.toDate().getTime();
-      });
-  }, [controls]);
+  // Get filtered lists of controls
+  const upcomingDeadlinesControls = useMemo(() => getUpcomingDeadlines(controls), [controls]);
+  const overdueControlsList = useMemo(() => getOverdueControls(controls), [controls]);
+
+  // Calculate counts from the filtered lists
+  const upcomingDeadlinesCount = upcomingDeadlinesControls.length;
+  const overdueControlsCount = overdueControlsList.length;
   
   // COLORS for charts
   const STATUS_COLORS: Record<string, string> = {
@@ -211,16 +238,6 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
     'None': '#9ca3af' // gray-400
   };
   
-  // Format date for display
-  const formatDate = (timestamp: Timestamp) => {
-    try {
-      const date = timestamp.toDate();
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    } catch (error) {
-      return 'Invalid date';
-    }
-  };
-
   // Custom tooltip for charts
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -280,7 +297,7 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
               </svg>
             </span>
           </div>
-          <p className="text-3xl md:text-4xl font-bold text-gray-800">{upcomingDeadlines.length}</p>
+          <p className="text-3xl md:text-4xl font-bold text-gray-800">{upcomingDeadlinesCount}</p>
           <p className="text-xs text-gray-500 mt-2">Due in the next 7 days</p>
         </div>
         
@@ -293,7 +310,7 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
               </svg>
             </span>
           </div>
-          <p className="text-3xl md:text-4xl font-bold text-red-600">{overdueControls.length}</p>
+          <p className="text-3xl md:text-4xl font-bold text-red-600">{overdueControlsCount}</p>
           <p className="text-xs text-gray-500 mt-2">Past deadline, requiring attention</p>
         </div>
       </div>
@@ -480,10 +497,10 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
         </div>
       </div>
       
-      {/* Upcoming Deadlines Section */}
+      {/* Upcoming Deadlines Section - Use filtered list */}
       <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
         <h2 className="text-lg font-semibold text-gray-800 mb-4">Upcoming Deadlines (Next 7 Days)</h2>
-        {upcomingDeadlines.length > 0 ? (
+        {upcomingDeadlinesCount > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full bg-white">
               <thead>
@@ -495,7 +512,7 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {upcomingDeadlines.map(control => (
+                {upcomingDeadlinesControls.map(control => (
                   <tr key={control.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex items-center">
@@ -521,7 +538,7 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
                       }
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                      {control.estimatedCompletionDate && formatDate(control.estimatedCompletionDate)}
+                      {formatDate(control.estimatedCompletionDate)}
                     </td>
                   </tr>
                 ))}
@@ -538,8 +555,8 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
         )}
       </div>
       
-      {/* Overdue Controls Section */}
-      {overdueControls.length > 0 && (
+      {/* Overdue Controls Section - Use filtered list */}
+      {overdueControlsCount > 0 && (
         <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border-2 border-red-200 hover:shadow-md transition-shadow">
           <div className="flex items-center gap-2 mb-4">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-600" viewBox="0 0 20 20" fill="currentColor">
@@ -559,14 +576,26 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {overdueControls.map(control => {
-                  // Calculate days overdue
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0);
-                  const dueDate = control.estimatedCompletionDate?.toDate() || today;
-                  const diffTime = today.getTime() - dueDate.getTime();
-                  const daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                  
+                {overdueControlsList.map(control => {
+                  // Calculate days overdue (ensure date is valid first)
+                  const today = new Date(); today.setHours(0, 0, 0, 0);
+                  const dueDate = safeToDate(control.estimatedCompletionDate);
+                  let daysOverdue = null;
+                  if(dueDate) {
+                      dueDate.setHours(0, 0, 0, 0);
+                      const diffTime = today.getTime() - dueDate.getTime();
+                      // Only calculate if truly overdue (diffTime > 0)
+                      if (diffTime > 0) {
+                          daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                      }
+                  }
+
+                  // We already filtered for overdue, so we should have daysOverdue unless date was invalid
+                  if (daysOverdue === null && !dueDate) {
+                    console.warn(`Control ${control.id} listed as overdue but has invalid date.`);
+                    // Optionally skip rendering this row or show 'N/A' for days overdue
+                  }
+
                   return (
                     <tr key={control.id} className="hover:bg-red-50 transition-colors">
                       <td className="px-4 py-3 whitespace-nowrap">
@@ -593,10 +622,10 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
                         }
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {control.estimatedCompletionDate && formatDate(control.estimatedCompletionDate)}
+                        {formatDate(control.estimatedCompletionDate)}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="text-sm font-medium text-red-600">{daysOverdue} days</span>
+                        <span className="text-sm font-medium text-red-600">{daysOverdue !== null ? `${daysOverdue} days` : 'N/A'}</span>
                       </td>
                     </tr>
                   );

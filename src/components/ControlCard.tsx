@@ -455,9 +455,9 @@ export function ControlCard({
     
     if (!menuOpen && menuButtonRef.current) {
       const rect = menuButtonRef.current.getBoundingClientRect();
-      // Position menu below the button, aligned to the right
+      // Position menu directly below the button
       setMenuPosition({
-        top: rect.bottom + window.scrollY + 5, // Add a small gap
+        top: rect.bottom + 5, // Add a small gap (5px) from the bottom of the button
         left: rect.right - 180, // Menu width is approximately 180px
       });
     }
@@ -1015,7 +1015,8 @@ export function ControlCard({
                   className="fixed bg-white rounded-md shadow-lg z-50 border border-gray-200 py-1 w-44"
                   style={{ 
                     top: `${menuPosition.top}px`, 
-                    left: `${menuPosition.left}px` 
+                    left: `${menuPosition.left}px`,
+                    position: 'fixed'
                   }}
                 >
                   <button 

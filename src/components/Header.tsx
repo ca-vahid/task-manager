@@ -1,57 +1,77 @@
 'use client';
 
+import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
+import Image from 'next/image';
 
 export function Header() {
-  const { user, signOut } = useAuth();
-  const pathname = usePathname();
-
-  const navItems = [
-    { href: '/', label: 'Controls' },
-    { href: '/dashboard', label: 'Dashboard' },
-    { href: '/technicians', label: 'Technicians' },
-    { href: '/analytics', label: 'Analytics' },
-    // Add more links as needed
-  ];
+  const { user, loading, signOut } = useAuth();
 
   return (
-    <header className="bg-white shadow-sm sticky top-0 z-10">
-      <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-        {/* Logo/Title */}
-        <Link href="/" className="text-xl font-bold text-indigo-600">
-          ISO Tracker
-        </Link>
-
-        {/* Navigation Links */}
-        <nav className="flex gap-4 md:gap-6">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`text-sm font-medium transition-colors ${
-                pathname === item.href
-                  ? 'text-indigo-600'
-                  : 'text-gray-600 hover:text-indigo-600'
-              }`}
-            >
-              {item.label}
+    <header className="bg-white shadow-sm border-b border-gray-200">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-16">
+          {/* Left side: Title and Logos */}
+          <div className="flex items-center space-x-2">
+            <Link href="/" className="text-xl font-bold text-indigo-600 hover:text-indigo-800 transition-colors">
+              ISO 27001:2022
             </Link>
-          ))}
-        </nav>
+            {/* Add Company Logos */}
+            <div className="flex items-center space-x-1">
+              <Image
+                src="/logos/bgc-logo.png"
+                alt="BGC Logo"
+                width={60}
+                height={60}
+                className="object-contain"
+              />
+              <Image
+                src="/logos/cambio-logo.png"
+                alt="Cambio Logo"
+                width={60}
+                height={60}
+                className="object-contain"
+              />
+            </div>
+          </div>
 
-        {/* User Info & Sign Out */}
-        <div className="flex items-center gap-3">
-          {user && (
-            <span className="text-sm text-gray-500 hidden sm:inline">{user.email}</span>
-          )}
-          <button 
-            onClick={signOut}
-            className="rounded bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1"
-          >
-            Sign Out
-          </button>
+          {/* Middle: Navigation */}
+          <nav className="hidden md:flex space-x-8">
+            <Link href="/" className="text-sm font-medium text-gray-500 hover:text-gray-900">
+              Controls
+            </Link>
+            <Link href="/dashboard" className="text-sm font-medium text-gray-500 hover:text-gray-900">
+              Dashboard
+            </Link>
+            <Link href="/technicians" className="text-sm font-medium text-gray-500 hover:text-gray-900">
+              Technicians
+            </Link>
+            <Link href="/analytics" className="text-sm font-medium text-gray-500 hover:text-gray-900">
+              Analytics
+            </Link>
+          </nav>
+
+          {/* Right side: User info and Sign Out */}
+          <div className="flex items-center">
+            {loading ? (
+              <span className="text-sm text-gray-500">Loading...</span>
+            ) : user ? (
+              <div className="flex items-center space-x-4">
+                <span className="text-sm text-gray-500">{user.email}</span>
+                <button
+                  onClick={signOut}
+                  className="px-3 py-1.5 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-md hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  Sign Out
+                </button>
+              </div>
+            ) : (
+              <Link href="/signin" className="text-sm font-medium text-indigo-600 hover:text-indigo-500">
+                Sign In
+              </Link>
+            )}
+          </div>
         </div>
       </div>
     </header>
