@@ -104,61 +104,85 @@ function getTimeRemaining(timestamp: Timestamp | null | any, status?: ControlSta
 }
 
 // Get status color and background
-function getStatusStyles(status: ControlStatus): { color: string; background: string; border: string } {
+function getStatusStyles(status: ControlStatus): { color: string; background: string; border: string; darkColor: string; darkBackground: string; darkBorder: string } {
   switch (status) {
     case ControlStatus.InProgress:
       return { 
         color: 'text-indigo-700', 
         background: 'bg-gradient-to-r from-indigo-50 to-indigo-100', 
-        border: 'border-indigo-200' 
+        border: 'border-indigo-200',
+        darkColor: 'dark:text-indigo-300',
+        darkBackground: 'dark:bg-gradient-to-r dark:from-indigo-950/60 dark:to-indigo-900/60',
+        darkBorder: 'dark:border-indigo-800'
       };
     case ControlStatus.InReview:
       return { 
         color: 'text-amber-700', 
         background: 'bg-gradient-to-r from-amber-50 to-amber-100', 
-        border: 'border-amber-200' 
+        border: 'border-amber-200',
+        darkColor: 'dark:text-amber-300',
+        darkBackground: 'dark:bg-gradient-to-r dark:from-amber-950/60 dark:to-amber-900/60',
+        darkBorder: 'dark:border-amber-800'
       };
     case ControlStatus.Complete:
       return { 
         color: 'text-emerald-700', 
         background: 'bg-gradient-to-r from-emerald-50 to-emerald-100', 
-        border: 'border-emerald-200' 
+        border: 'border-emerald-200',
+        darkColor: 'dark:text-emerald-300',
+        darkBackground: 'dark:bg-gradient-to-r dark:from-emerald-950/60 dark:to-emerald-900/60',
+        darkBorder: 'dark:border-emerald-800' 
       };
     default:
       return { 
         color: 'text-gray-700', 
         background: 'bg-gradient-to-r from-gray-50 to-gray-100', 
-        border: 'border-gray-200' 
+        border: 'border-gray-200',
+        darkColor: 'dark:text-gray-300',
+        darkBackground: 'dark:bg-gradient-to-r dark:from-gray-800 dark:to-gray-900',
+        darkBorder: 'dark:border-gray-700'
       };
   }
 }
 
 // Add this function before the ControlCard component
-function getCompanyStyles(company: Company): { bgColor: string, textColor: string, borderColor: string } {
+function getCompanyStyles(company: Company): { bgColor: string, textColor: string, borderColor: string, darkBgColor: string, darkTextColor: string, darkBorderColor: string } {
   switch (company) {
     case Company.BGC:
       return {
         bgColor: 'bg-blue-50',
         textColor: 'text-blue-700',
-        borderColor: 'border-blue-200'
+        borderColor: 'border-blue-200',
+        darkBgColor: 'dark:bg-blue-900/30',
+        darkTextColor: 'dark:text-blue-300',
+        darkBorderColor: 'dark:border-blue-800'
       };
     case Company.Cambio:
       return {
         bgColor: 'bg-emerald-50',
         textColor: 'text-emerald-700',
-        borderColor: 'border-emerald-200'
+        borderColor: 'border-emerald-200',
+        darkBgColor: 'dark:bg-emerald-900/30',
+        darkTextColor: 'dark:text-emerald-300',
+        darkBorderColor: 'dark:border-emerald-800'
       };
     case Company.Both:
       return {
         bgColor: 'bg-purple-50',
         textColor: 'text-purple-700',
-        borderColor: 'border-purple-200'
+        borderColor: 'border-purple-200',
+        darkBgColor: 'dark:bg-purple-900/30',
+        darkTextColor: 'dark:text-purple-300',
+        darkBorderColor: 'dark:border-purple-800'
       };
     default:
       return {
         bgColor: 'bg-gray-50',
         textColor: 'text-gray-700',
-        borderColor: 'border-gray-200'
+        borderColor: 'border-gray-200',
+        darkBgColor: 'dark:bg-gray-800',
+        darkTextColor: 'dark:text-gray-300',
+        darkBorderColor: 'dark:border-gray-700'
       };
   }
 }
@@ -553,97 +577,107 @@ export function ControlCard({
 
   // Add a company display component
   const renderCompanyBadge = () => {
-    const companyStyles = getCompanyStyles(control.company);
-    
-    return (
-      <div className="flex items-center space-x-1">
-        {isEditingCompany ? (
-          <div className="flex items-center space-x-2">
-            <select
-              value={companyDraft}
-              onChange={(e) => setCompanyDraft(e.target.value as Company)}
-              className="block rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-xs py-1 px-2"
-            >
-              {Object.values(Company).map(companyValue => (
-                <option key={companyValue} value={companyValue}>{companyValue}</option>
-              ))}
-            </select>
-            <button onClick={() => handleSaveCompany(companyDraft)} className="text-green-600 hover:text-green-800 text-xs">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-              </svg>
-            </button>
-            <button onClick={() => setIsEditingCompany(false)} className="text-gray-500 hover:text-gray-700 text-xs">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-            </button>
-          </div>
-        ) : (
-          <div 
-            className={`flex items-center px-2 py-0.5 rounded-full ${companyStyles.bgColor} ${companyStyles.textColor} ${companyStyles.borderColor} border text-xs cursor-pointer`}
-            onClick={() => setIsEditingCompany(true)}
-            title="Click to change company"
+    if (isEditingCompany) {
+      return (
+        <div className="ml-2 mt-2 flex gap-2">
+          <button
+            onClick={() => handleSaveCompany(Company.BGC)}
+            className={`flex items-center justify-center rounded-full px-3 py-1.5 text-xs font-medium 
+              ${companyDraft === Company.BGC 
+                ? 'bg-blue-100 text-blue-800 border border-blue-300 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700' 
+                : 'bg-gray-50 text-gray-800 border border-gray-200 hover:bg-blue-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-blue-900/30'}`}
           >
-            {control.company === Company.BGC && (
-              <div className="flex items-center">
-                <div className="w-4 h-4 mr-1 relative">
-                  <Image 
-                    src="/logos/bgc-logo.png" 
-                    alt="BGC Logo" 
-                    width={16}
-                    height={16}
-                  />
-                </div>
-                <span>BGC</span>
-              </div>
-            )}
-            
-            {control.company === Company.Cambio && (
-              <div className="flex items-center">
-                <div className="w-4 h-4 mr-1 relative flex items-center justify-center">
-                  <Image 
-                    src="/logos/cambio-logo.png" 
-                    alt="Cambio Logo" 
-                    width={14}
-                    height={14}
-                    className="object-contain"
-                  />
-                </div>
-                <span>Cambio</span>
-              </div>
-            )}
-            
-            {control.company === Company.Both && (
-              <div className="flex items-center">
-                <div className="w-3.5 h-3.5 relative overflow-hidden">
-                  <div className="flex flex-col items-center justify-center w-full h-full">
-                    <div className="w-3.5 h-1.75 flex items-center justify-center">
-                      <Image 
-                        src="/logos/bgc-logo.png" 
-                        alt="BGC Logo" 
-                        width={9}
-                        height={9}
-                        className="object-contain"
-                      />
-                    </div>
-                    <div className="w-3.5 h-1.75 flex items-center justify-center">
-                      <Image 
-                        src="/logos/cambio-logo.png" 
-                        alt="Cambio Logo" 
-                        width={9}
-                        height={9}
-                        className="object-contain"
-                      />
-                    </div>
-                  </div>
-                </div>
-                <span>Both</span>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+            <span className="flex items-center">
+              <Image
+                src="/logos/bgc-logo.png"
+                alt="BGC"
+                width={16}
+                height={16}
+                className="mr-1"
+              />
+              BGC
+            </span>
+          </button>
+          
+          <button
+            onClick={() => handleSaveCompany(Company.Cambio)}
+            className={`flex items-center justify-center rounded-full px-3 py-1.5 text-xs font-medium 
+              ${companyDraft === Company.Cambio 
+                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-900 dark:text-emerald-200 dark:border-emerald-700' 
+                : 'bg-gray-50 text-gray-800 border border-gray-200 hover:bg-emerald-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-emerald-900/30'}`}
+          >
+            <span className="flex items-center">
+              <Image
+                src="/logos/cambio-logo.png"
+                alt="Cambio"
+                width={16}
+                height={16}
+                className="mr-1"
+              />
+              Cambio
+            </span>
+          </button>
+          
+          <button
+            onClick={() => handleSaveCompany(Company.Both)}
+            className={`flex items-center justify-center rounded-full px-3 py-1.5 text-xs font-medium 
+              ${companyDraft === Company.Both 
+                ? 'bg-purple-100 text-purple-800 border border-purple-300 dark:bg-purple-900 dark:text-purple-200 dark:border-purple-700' 
+                : 'bg-gray-50 text-gray-800 border border-gray-200 hover:bg-purple-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-purple-900/30'}`}
+          >
+            <span className="flex items-center gap-1">
+              <Image
+                src="/logos/bgc-logo.png"
+                alt="BGC"
+                width={16}
+                height={16}
+              />
+              <Image
+                src="/logos/cambio-logo.png"
+                alt="Cambio"
+                width={16}
+                height={16}
+              />
+              Both
+            </span>
+          </button>
+        </div>
+      );
+    }
+    
+    // Get company-specific styles
+    const company = control.company || Company.Both;
+    const styles = getCompanyStyles(company);
+    
+    // Create the badge for display
+    return (
+      <button
+        onClick={() => setIsEditingCompany(true)}
+        className={`ml-2 mt-2 flex items-center justify-center rounded-full px-3 py-1.5 text-xs font-medium 
+          ${styles.bgColor} ${styles.textColor} border ${styles.borderColor} 
+          ${styles.darkBgColor} ${styles.darkTextColor} ${styles.darkBorderColor}
+          transition-colors`}
+      >
+        <span className="flex items-center gap-1">
+          {(company === Company.BGC || company === Company.Both) && (
+            <Image
+              src="/logos/bgc-logo.png"
+              alt="BGC"
+              width={16}
+              height={16}
+            />
+          )}
+          {(company === Company.Cambio || company === Company.Both) && (
+            <Image
+              src="/logos/cambio-logo.png"
+              alt="Cambio"
+              width={16}
+              height={16}
+            />
+          )}
+          {company === Company.BGC ? 'BGC' : company === Company.Cambio ? 'Cambio' : 'Both'}
+        </span>
+      </button>
     );
   };
 
@@ -651,7 +685,13 @@ export function ControlCard({
   if (viewDensity === 'compact') {
     return (
       <>
-        <div className={`rounded-lg border shadow-sm mb-1.5 overflow-hidden transition-all duration-200 ${statusStyles.border}`}>
+        <div 
+          className={`mb-4 overflow-hidden rounded-lg border shadow-sm transition-all
+            ${viewDensity === 'compact' ? 'p-3' : 'p-4'} 
+            bg-white dark:bg-dark-card
+            border-gray-200 dark:border-dark-border
+            hover:shadow-md dark:hover:shadow-lg dark:hover:shadow-gray-900/10`}
+        >
           <div className="flex items-center justify-between p-1.5 gap-1.5">
             {/* Left side: Status, Title */}
             <div className="flex items-center min-w-0 flex-grow">
@@ -800,7 +840,13 @@ export function ControlCard({
   if (viewDensity === 'medium') {
     return (
       <>
-        <div className={`rounded-lg border shadow-md mb-2 overflow-hidden transition-all duration-200 hover:shadow-lg ${statusStyles.border} ${statusStyles.background}`}>
+        <div 
+          className={`mb-4 overflow-hidden rounded-lg border shadow-md transition-all
+            ${viewDensity === 'medium' ? 'p-4' : 'p-5'} 
+            bg-white dark:bg-dark-card
+            border-gray-200 dark:border-dark-border
+            hover:shadow-lg dark:hover:shadow-xl dark:hover:shadow-gray-900/10`}
+        >
           {/* Efficient Header with Icons */}
           <div className="flex items-center justify-between px-3 py-1.5 border-b border-opacity-50">
             <div className="flex items-center gap-2 min-w-0 flex-grow">
@@ -948,7 +994,13 @@ export function ControlCard({
   // Render full view (default)
   return (
     <>
-      <div className={`rounded-lg border shadow-md mb-3 overflow-hidden transition-all duration-200 hover:shadow-lg ${statusStyles.border} ${statusStyles.background}`}>
+      <div 
+        className={`mb-4 overflow-hidden rounded-lg border shadow-md transition-all
+          ${viewDensity === 'medium' ? 'p-4' : 'p-5'} 
+          bg-white dark:bg-dark-card
+          border-gray-200 dark:border-dark-border
+          hover:shadow-lg dark:hover:shadow-xl dark:hover:shadow-gray-900/10`}
+      >
         {/* Top header with DCF ID, Status indicator and menu */}
         <div className="flex items-center justify-between border-b px-3 py-1.5 border-opacity-50">
           <div className="flex items-center space-x-3">

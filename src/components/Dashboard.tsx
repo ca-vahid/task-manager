@@ -242,11 +242,11 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-white p-3 shadow-md rounded-md border border-gray-200">
-          <p className="font-medium">{payload[0].name}</p>
-          <p className="text-sm">{`Count: ${payload[0].value}`}</p>
+        <div className="bg-white dark:bg-gray-800 p-3 shadow-md rounded-md border border-gray-200 dark:border-gray-700">
+          <p className="font-medium dark:text-gray-200">{payload[0].name}</p>
+          <p className="text-sm dark:text-gray-300">{`Count: ${payload[0].value}`}</p>
           {payload[0].payload && payload[0].payload.percent && (
-            <p className="text-sm">{`Percentage: ${(payload[0].payload.percent * 100).toFixed(1)}%`}</p>
+            <p className="text-sm dark:text-gray-300">{`Percentage: ${(payload[0].payload.percent * 100).toFixed(1)}%`}</p>
           )}
         </div>
       );
@@ -257,69 +257,69 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
   return (
     <div className="space-y-8 max-w-[1600px] mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Dashboard</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-200">Dashboard</h1>
       </div>
       
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+        <div className="bg-white dark:bg-dark-card p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border hover:shadow-md transition-shadow">
           <div className="flex justify-between items-center mb-2">
-            <h3 className="text-gray-500 text-sm font-medium">Total Controls</h3>
-            <span className="bg-blue-100 p-2 rounded-full">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
+            <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium">Total Controls</h3>
+            <span className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 dark:text-blue-400" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
               </svg>
             </span>
           </div>
-          <p className="text-3xl md:text-4xl font-bold text-gray-800">{controls.length}</p>
-          <p className="text-xs text-gray-500 mt-2">Total managed compliance controls</p>
+          <p className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-gray-200">{controls.length}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Total managed compliance controls</p>
         </div>
         
-        <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+        <div className="bg-white dark:bg-dark-card p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border hover:shadow-md transition-shadow">
           <div className="flex justify-between items-center mb-2">
-            <h3 className="text-gray-500 text-sm font-medium">Completion Rate</h3>
-            <span className="bg-emerald-100 p-2 rounded-full">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-emerald-600" viewBox="0 0 20 20" fill="currentColor">
+            <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium">Completion Rate</h3>
+            <span className="bg-emerald-100 dark:bg-emerald-900/30 p-2 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-emerald-600 dark:text-emerald-400" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
             </span>
           </div>
-          <p className="text-3xl md:text-4xl font-bold text-gray-800">{completionRate}%</p>
-          <p className="text-xs text-gray-500 mt-2">Overall completion percentage</p>
+          <p className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-gray-200">{completionRate}%</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Overall completion percentage</p>
         </div>
         
-        <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+        <div className="bg-white dark:bg-dark-card p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border hover:shadow-md transition-shadow">
           <div className="flex justify-between items-center mb-2">
-            <h3 className="text-gray-500 text-sm font-medium">Upcoming Deadlines</h3>
-            <span className="bg-amber-100 p-2 rounded-full">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-600" viewBox="0 0 20 20" fill="currentColor">
+            <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium">Upcoming Deadlines</h3>
+            <span className="bg-amber-100 dark:bg-amber-900/30 p-2 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-600 dark:text-amber-400" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
               </svg>
             </span>
           </div>
-          <p className="text-3xl md:text-4xl font-bold text-gray-800">{upcomingDeadlinesCount}</p>
-          <p className="text-xs text-gray-500 mt-2">Due in the next 7 days</p>
+          <p className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-gray-200">{upcomingDeadlinesCount}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Due in the next 7 days</p>
         </div>
         
-        <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+        <div className="bg-white dark:bg-dark-card p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border hover:shadow-md transition-shadow">
           <div className="flex justify-between items-center mb-2">
-            <h3 className="text-gray-500 text-sm font-medium">Overdue Controls</h3>
-            <span className="bg-red-100 p-2 rounded-full">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-600" viewBox="0 0 20 20" fill="currentColor">
+            <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium">Overdue Controls</h3>
+            <span className="bg-red-100 dark:bg-red-900/30 p-2 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-600 dark:text-red-400" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
               </svg>
             </span>
           </div>
-          <p className="text-3xl md:text-4xl font-bold text-red-600">{overdueControlsCount}</p>
-          <p className="text-xs text-gray-500 mt-2">Past deadline, requiring attention</p>
+          <p className="text-3xl md:text-4xl font-bold text-red-600 dark:text-red-400">{overdueControlsCount}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Past deadline, requiring attention</p>
         </div>
       </div>
       
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Status Distribution Chart */}
-        <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Control Status Distribution</h2>
+        <div className="bg-white dark:bg-dark-card p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border hover:shadow-md transition-shadow">
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Control Status Distribution</h2>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -351,7 +351,7 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
                   iconType="circle"
                   iconSize={10}
                   formatter={(value, entry, index) => (
-                    <span className="text-sm text-gray-700">{value}</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">{value}</span>
                   )}
                 />
               </PieChart>
@@ -360,13 +360,13 @@ export function Dashboard({ controls, technicians }: DashboardProps) {
         </div>
         
         {/* Assignee Workload Chart */}
-        <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Assignee Workload</h2>
+        <div className="bg-white dark:bg-dark-card p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border hover:shadow-md transition-shadow">
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Assignee Workload</h2>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={assigneeData} layout="vertical" margin={{ left: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis type="number" tickFormatter={(value) => value.toString()} />
+                <XAxis type="number" tickFormatter={(value) => value.toString()} stroke="#9ca3af" />
                 <YAxis 
                   dataKey="name" 
                   type="category" 
