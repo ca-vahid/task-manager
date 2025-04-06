@@ -91,10 +91,48 @@ function stripHtml(html: string): string {
   }
 }
 
+// Helper to safely convert any date/timestamp format to a Date object
+function safeGetDate(dateValue: any): Date | null {
+  if (!dateValue) return null;
+  
+  try {
+    // If it's a Firestore Timestamp with toDate method
+    if (dateValue instanceof Timestamp || (typeof dateValue === 'object' && dateValue !== null && 'toDate' in dateValue && typeof dateValue.toDate === 'function')) {
+      return dateValue.toDate();
+    }
+    // If it's a date object already
+    else if (dateValue instanceof Date) {
+      return dateValue;
+    }
+    // If it has seconds (like Firestore timestamp data)
+    else if (typeof dateValue === 'object' && dateValue !== null && 'seconds' in dateValue) {
+      return new Date(dateValue.seconds * 1000);
+    }
+    // If it's a string
+    else if (typeof dateValue === 'string') {
+      const parsedDate = new Date(dateValue);
+      return !isNaN(parsedDate.getTime()) ? parsedDate : null;
+    }
+    // If it's a number (timestamp)
+    else if (typeof dateValue === 'number') {
+      return new Date(dateValue);
+    }
+  } catch (error) {
+    console.error("Error converting date:", error);
+  }
+  
+  return null;
+}
+
 // Format date in a readable format
-function formatDate(date: Date): string {
-  if (!date || isNaN(date.getTime())) return '';
-  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+function formatDate(date: Date | null | any): string {
+  if (!date) return '';
+  
+  // Convert to Date object if it's not already
+  const dateObj = date instanceof Date ? date : safeGetDate(date);
+  
+  if (!dateObj || isNaN(dateObj.getTime())) return '';
+  return dateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 // Get CSS classes for company badges
@@ -1259,9 +1297,9 @@ please tell me what evidence do i need to provide to satisfy this control.`
               </svg>
               {control.estimatedCompletionDate ? (
                 isOverdue ? (
-                  <span className="text-red-600 dark:text-red-400">{formatDate(control.estimatedCompletionDate.toDate())} ({remainingDays})</span>
+                  <span className="text-red-600 dark:text-red-400">{formatDate(control.estimatedCompletionDate)} ({remainingDays})</span>
                 ) : (
-                  <span>{formatDate(control.estimatedCompletionDate.toDate())} ({remainingDays})</span>
+                  <span>{formatDate(control.estimatedCompletionDate)} ({remainingDays})</span>
                 )
               ) : (
                 <span className="opacity-60">Set due date</span>
