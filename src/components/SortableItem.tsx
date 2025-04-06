@@ -13,6 +13,7 @@ interface SortableItemProps {
   onUpdateControl: (id: string, updates: Partial<Omit<Control, 'id'>>) => Promise<void>;
   onDeleteControl: (id: string) => Promise<void>;
   viewDensity?: ViewDensity;
+  disabled?: boolean;
 }
 
 export function SortableItem({
@@ -21,7 +22,8 @@ export function SortableItem({
   technicians,
   onUpdateControl,
   onDeleteControl,
-  viewDensity = 'medium'
+  viewDensity = 'medium',
+  disabled = false
 }: SortableItemProps) {
   const {
     attributes,
@@ -30,7 +32,10 @@ export function SortableItem({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id });
+  } = useSortable({ 
+    id,
+    disabled
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -50,7 +55,7 @@ export function SortableItem({
       <div 
         {...attributes} 
         {...listeners}
-        className="absolute left-0 top-0 bottom-0 w-8 flex items-center justify-center cursor-grab opacity-0 group-hover:opacity-70 transition-opacity touch-manipulation"
+        className={`absolute left-0 top-0 bottom-0 w-8 flex items-center justify-center ${disabled ? 'cursor-not-allowed opacity-0' : 'cursor-grab opacity-0 group-hover:opacity-70'} transition-opacity touch-manipulation`}
         aria-label="Drag to reorder"
       >
         <div className="w-6 h-10 flex flex-col items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 transition-colors">

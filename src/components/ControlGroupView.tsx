@@ -273,23 +273,74 @@ export function ControlGroupView({
     }
   };
 
-  // Get all control IDs for drag context
-  const allControlIds = useMemo(() => controls.map(c => c.id), [controls]);
-
+  // Track which group the dragging is happening in to limit scope
+  const [activeGroup, setActiveGroup] = useState<string | null>(null);
+  
+  // Memoize the control IDs by group to prevent re-renders
+  const controlIdsByGroup = useMemo(() => {
+    const result: Record<string, string[]> = {};
+    Object.keys(groups).forEach(groupName => {
+      result[groupName] = groups[groupName].map(control => control.id);
+    });
+    return result;
+  }, [groups]);
+  
   // Handle drag start
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
-    const draggedControl = controls.find(c => c.id === active.id);
+    const draggedId = active.id as string;
+    
+    // Find which group contains this control
+    let foundGroup = null;
+    for (const [groupName, groupControls] of Object.entries(groups)) {
+      if (groupControls.some(control => control.id === draggedId)) {
+        foundGroup = groupName;
+        break;
+      }
+    }
+    
+    setActiveGroup(foundGroup);
+    
+    // Find the control object to use in the overlay
+    const draggedControl = controls.find(c => c.id === draggedId);
     if (draggedControl) {
       setActiveControl(draggedControl);
     }
   };
-
-  // Handle drag end and reset state
+  
+  // Handle drag end
   const handleDragEnd = (event: DragEndEvent) => {
+    // Only process the drag end if we have an active group
+    if (activeGroup) {
+      const { active, over } = event;
+      
+      // Find if the target is in the same group
+      if (over && active.id !== over.id) {
+        const activeId = active.id as string;
+        const overId = over.id as string;
+        
+        // Only allow drag within the same group
+        const isInSameGroup = groups[activeGroup]?.some(control => control.id === overId);
+        
+        if (isInSameGroup) {
+          onDragEnd(event);
+        }
+      }
+    }
+    
+    // Reset state regardless
     setActiveControl(null);
-    onDragEnd(event);
+    setActiveGroup(null);
   };
+  
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      // Ensure any lingering state is cleared when component unmounts
+      setActiveControl(null);
+      setActiveGroup(null);
+    };
+  }, []);
 
   return (
     <div className="relative px-16">
@@ -395,7 +446,7 @@ export function ControlGroupView({
                           
                           {/* Column Content */}
                           <SortableContext 
-                            items={allControlIds} 
+                            items={groups[groupName].map(control => control.id)} 
                             strategy={verticalListSortingStrategy}
                           >
                             <div className={`${ 
@@ -414,6 +465,7 @@ export function ControlGroupView({
                                   onUpdateControl={onUpdateControl}
                                   onDeleteControl={onDeleteControl}
                                   viewDensity={viewDensity}
+                                  disabled={activeGroup !== null && activeGroup !== groupName}
                                 />
                               ))}
                               
@@ -448,9 +500,9 @@ export function ControlGroupView({
         </div> {/* End of overflow-hidden container */} 
 
         {/* Drag Overlay for the currently dragged item */}
-        <DragOverlay adjustScale={true}>
+        <DragOverlay adjustScale={false}>
           {activeControl ? (
-            <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 shadow-lg rounded-lg opacity-90 w-full max-w-md">
+            <div className="bg-white dark:bg-gray-800 shadow-lg rounded-lg opacity-90 w-full max-w-md">
               <ControlCard
                 control={activeControl}
                 technicians={technicians}
