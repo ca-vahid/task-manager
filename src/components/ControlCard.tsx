@@ -1124,7 +1124,9 @@ please tell me what evidence do i need to provide to satisfy this control.`
                 </button>
               </span>
             )}
-            <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-800/60 rounded-full px-2.5 py-0.5 shadow-sm"> 
+            <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-800/60 rounded-full px-2.5 py-0.5 shadow-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/60" 
+                 onClick={() => setShowAssigneeDialog(true)}
+                 title="Click to change assignee"> 
               <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg> 
               <span className="text-xs text-gray-700 dark:text-gray-300">{assigneeName}</span>
             </div>
@@ -1156,38 +1158,26 @@ please tell me what evidence do i need to provide to satisfy this control.`
             ) : (
               <button 
                 onClick={(e) => { e.stopPropagation(); setIsCreatingTicket(true); handleCreateTicket(); }} 
-                className="px-2.5 py-1 text-xs rounded-full bg-gray-50 dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/70 flex items-center"
+                className="p-1.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-800/40 transition-colors focus:outline-none"
                 disabled={isCreatingTicket}
+                title="Create Support Ticket"
               >
                 {isCreatingTicket ? 
-                  <>
-                    <svg className="animate-spin mr-1.5 h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Creating Ticket...
-                  </> : 
-                  <>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 mr-1.5 text-indigo-500 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
-                    </svg>
-                    Create Ticket
-                  </>
+                  <svg className="animate-spin h-5 w-5 text-indigo-600 dark:text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                   : 
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+                  </svg>
                 }
               </button>
             )}
-            <div className="relative">
+            <div className="relative" ref={menuRef}>
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const button = e.currentTarget;
-                  const rect = button.getBoundingClientRect();
-                  setMenuPosition({
-                    top: rect.bottom + window.scrollY,
-                    left: rect.left + window.scrollX
-                  });
-                  setMenuOpen(!menuOpen);
-                }}
+                ref={menuButtonRef}
+                onClick={toggleMenu}
                 className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700/50 text-gray-500 dark:text-gray-400"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
@@ -1339,12 +1329,146 @@ please tell me what evidence do i need to provide to satisfy this control.`
         </div>
       </div>
       
+      {/* Properly implement the menu content */}
+      {menuOpen && (
+        <div
+          className="absolute z-10 right-0 mt-1 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700"
+          style={{ 
+            position: 'fixed',
+            top: `${menuPosition.top}px`, 
+            left: `${menuPosition.left - 160}px` 
+          }}
+        >
+          <div className="py-1 rounded-md overflow-hidden">
+            <button 
+              onClick={(e) => { e.stopPropagation(); setMenuOpen(false); handleDeleteClick(e); }} 
+              className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Delete Control
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Company selector popup */}
+      {isEditingCompany && (
+        <div 
+          className="absolute z-10 left-1/2 transform -translate-x-1/2 mt-1 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 w-36"
+          style={{ top: menuPosition.top + 20 }}
+        >
+          <div className="py-1">
+            {Object.values(Company).map(companyValue => (
+              <button 
+                key={companyValue}
+                onClick={(e) => { e.stopPropagation(); handleSaveCompany(companyValue); setIsEditingCompany(false); }} 
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+              >
+                {getCompanyIcon(companyValue)}
+                <span className="ml-2">{companyValue}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Status dialog */}
+      {showStatusDialog && (
+        <div 
+          className="absolute z-10 left-1/2 transform -translate-x-1/2 mt-1 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 w-36"
+          style={{ top: menuPosition.top + 20 }}
+        >
+          <div className="py-1">
+            {Object.values(ControlStatus).map(statusValue => (
+              <button 
+                key={statusValue}
+                onClick={(e) => { e.stopPropagation(); handleFieldUpdate('status', statusValue); setShowStatusDialog(false); }} 
+                className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+                style={{
+                  color: statusValue === ControlStatus.Complete ? '#047857' :
+                         statusValue === ControlStatus.InProgress ? '#4338ca' :
+                         statusValue === ControlStatus.InReview ? '#b45309' : '#374151'
+                }}
+              >
+                <span className={`h-2 w-2 rounded-full mr-2 ${
+                  statusValue === ControlStatus.Complete ? 'bg-emerald-500' : 
+                  statusValue === ControlStatus.InProgress ? 'bg-indigo-500' : 
+                  statusValue === ControlStatus.InReview ? 'bg-amber-500' : 'bg-gray-500'
+                }`} />
+                {statusValue}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Assignee dialog */}
+      {showAssigneeDialog && (
+        <div 
+          className="absolute z-10 left-1/2 transform -translate-x-1/2 mt-1 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 w-48"
+          style={{ top: menuPosition.top + 20 }}
+        >
+          <div className="py-1 max-h-52 overflow-y-auto">
+            <button 
+              onClick={(e) => { e.stopPropagation(); handleFieldUpdate('assigneeId', null); setShowAssigneeDialog(false); }} 
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+              Unassigned
+            </button>
+            
+            <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+            
+            {technicians.map(tech => (
+              <button 
+                key={tech.id}
+                onClick={(e) => { e.stopPropagation(); handleFieldUpdate('assigneeId', tech.id); setShowAssigneeDialog(false); }} 
+                className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center ${tech.id === control.assigneeId ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300' : 'text-gray-700 dark:text-gray-300'}`}
+              >
+                <span className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 flex items-center justify-center mr-2 text-xs font-medium">
+                  {tech.name.split(' ').map(n => n[0]).join('')}
+                </span>
+                {tech.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Date dialog */}
+      {showDateDialog && (
+        <div 
+          className="absolute z-10 left-1/2 transform -translate-x-1/2 mt-1 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 w-64 p-3"
+          style={{ top: menuPosition.top + 20 }}
+        >
+          <input 
+            type="date" 
+            value={formatDateForInput(control.estimatedCompletionDate)} 
+            onChange={(e) => handleFieldUpdate('estimatedCompletionDate', e.target.value)} 
+            className="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 [color-scheme:dark]" 
+          />
+          <div className="flex justify-between mt-3">
+            <button 
+              onClick={(e) => { e.stopPropagation(); handleFieldUpdate('estimatedCompletionDate', null); setShowDateDialog(false); }} 
+              className="px-3 py-1 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+            >
+              Clear
+            </button>
+            <button 
+              onClick={(e) => { e.stopPropagation(); setShowDateDialog(false); }} 
+              className="px-3 py-1 text-xs bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 rounded-md hover:bg-indigo-200 dark:hover:bg-indigo-800/40"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Keep existing modals and dialogs */}
-      {menuOpen && renderMenuContent()}
-      {isEditingCompany && renderCompanySelector()}
-      {showStatusDialog && renderStatusDialog()}
-      {showAssigneeDialog && renderAssigneeDialog()}
-      {showDateDialog && renderDateDialog()}
       {showUrlDialog && renderUrlDialog()}
       {showExplanationDialog && renderExplanationDialog()} 
       {isConfirmingDelete && renderDeleteConfirmationModal()}
@@ -1355,10 +1479,5 @@ please tell me what evidence do i need to provide to satisfy this control.`
 }
 
 // Placeholder implementations for missing functions to fix linter errors
-const renderMenuContent = () => null;
-const renderCompanySelector = () => null;
-const renderStatusDialog = () => null;
-const renderAssigneeDialog = () => null;
-const renderDateDialog = () => null;
 const renderUrlDialog = () => null;
 const renderExplanationDialog = () => null;
