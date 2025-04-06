@@ -228,7 +228,9 @@ export async function POST(request: Request) {
       progress: newControlData.progress,
       lastUpdated: null, // We don't need to send the server timestamp back
       externalUrl: newControlData.externalUrl,
-      company: body.company || "Both" // Add company field to response with default
+      company: body.company || "Both", // Add company field to response with default
+      ticketNumber: null, // New control doesn't have a ticket yet
+      ticketUrl: null // New control doesn't have a ticket URL yet
     };
 
     return NextResponse.json(responseControl, { status: 201 });
