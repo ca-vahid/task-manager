@@ -366,7 +366,7 @@ export function DashboardBuilder({ controls, technicians }: DashboardBuilderProp
         <div className="bg-gray-50 p-10 rounded-lg text-center">
           <p className="text-gray-500">No widgets added to this dashboard yet.</p>
           {isEditing && (
-            <p className="text-gray-500 mt-2">Use the "Add Widget" section above to add widgets.</p>
+            <p className="text-gray-500 mt-2">Use the &quot;Add Widget&quot; section above to add widgets.</p>
           )}
         </div>
       )}
