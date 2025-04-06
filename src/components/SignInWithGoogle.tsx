@@ -1,16 +1,17 @@
 "use client";
 
-import { useAuth } from '../lib/hooks/useAuth';
+import { useAuth } from "@/lib/hooks/useAuth";
+import Image from "next/image";
 
 export default function SignInWithGoogle() {
-  const { signInWithGoogle } = useAuth();
+  // const { signInWithGoogle } = useAuth(); // Removed: signInWithGoogle is not defined in AuthContext
 
   return (
     <button
-      onClick={signInWithGoogle}
-      className="flex items-center justify-center bg-white text-gray-700 font-semibold py-2 px-4 rounded-full border border-gray-300 hover:bg-gray-100 transition duration-300 ease-in-out"
+      // onClick={signInWithGoogle} // Removed: signInWithGoogle is not defined in AuthContext
+      className="flex items-center justify-center w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-150"
     >
-      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google logo" className="w-6 h-6 mr-2" />
+      <Image src="/google-logo.svg" alt="Google logo" width={18} height={18} className="mr-2" />
       Sign in with Google
     </button>
   );
