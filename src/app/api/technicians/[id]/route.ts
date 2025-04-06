@@ -15,7 +15,7 @@ export async function PUT(request: Request, { params }: { params: Params }) {
   const { id } = params;
   try {
     const body = await request.json();
-    const { name } = body;
+    const { name, email, agentId } = body;
 
     if (!id) {
       return NextResponse.json({ message: 'Technician ID is required' }, { status: 400 });
@@ -24,8 +24,16 @@ export async function PUT(request: Request, { params }: { params: Params }) {
     if (!name || typeof name !== 'string') {
       return NextResponse.json({ message: 'Invalid technician name provided' }, { status: 400 });
     }
+    
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
+      return NextResponse.json({ message: 'Valid email address is required' }, { status: 400 });
+    }
 
-    const updatedData = { name };
+    if (!agentId || typeof agentId !== 'string') {
+      return NextResponse.json({ message: 'Valid agent ID is required' }, { status: 400 });
+    }
+
+    const updatedData = { name, email, agentId };
     await updateDocument(TECHNICIANS_COLLECTION, id, updatedData);
 
     return NextResponse.json({ id, ...updatedData }); // Return updated technician

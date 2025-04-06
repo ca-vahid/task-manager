@@ -3,6 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { ControlStatus, Technician, Control, PriorityLevel, Company } from '@/lib/types';
+import dynamic from 'next/dynamic';
+
+// Import ReactQuill dynamically to avoid SSR issues
+const ReactQuill = dynamic(() => import('react-quill'), { ssr: false });
+import 'react-quill/dist/quill.snow.css'; // Import Quill styles
 
 interface BulkAddControlFormProps {
   technicians: Technician[];
@@ -17,7 +22,6 @@ interface ExtractedControl {
   explanation: string;
   technician: string | null;
   estimatedCompletionDate: string | null;
-  externalUrl: string | null;
   isValid: boolean;
   errors: string[];
 }
@@ -147,17 +151,6 @@ export function BulkAddControlForm({
           }
         }
         
-        // Process external URL if provided
-        let processedUrl = null;
-        if (control.externalUrl) {
-          let url = control.externalUrl.trim();
-          // Add https:// if no protocol specified
-          if (!url.startsWith('http://') && !url.startsWith('https://')) {
-            url = 'https://' + url;
-          }
-          processedUrl = url;
-        }
-        
         // Create a control object
         return {
           dcfId: control.dcfId.trim(),
@@ -171,8 +164,10 @@ export function BulkAddControlForm({
           tags: [],
           progress: 0,
           lastUpdated: Timestamp.now(),
-          externalUrl: processedUrl,
-          company: Company.Both // Default company to Both
+          externalUrl: null, // Set to null as we're removing the field
+          company: Company.Both, // Default company to Both
+          ticketNumber: null,    // Add ticketNumber
+          ticketUrl: null        // Add ticketUrl
         } as Omit<Control, 'id'>;
       });
       
@@ -226,7 +221,6 @@ export function BulkAddControlForm({
         explanation: "",
         technician: null,
         estimatedCompletionDate: null,
-        externalUrl: null,
         isValid: false,
         errors: ["DCF ID is required", "Title is required"]
       }
@@ -406,13 +400,24 @@ export function BulkAddControlForm({
                     <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Explanation
                     </label>
-                    <textarea
-                      value={control.explanation || ''}
-                      onChange={(e) => updateControl(index, { explanation: e.target.value })}
-                      rows={2}
-                      className="block w-full rounded-md border-2 border-gray-300 dark:border-gray-700 focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 text-sm p-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                      placeholder="Explanation of the control"
-                    />
+                    <div className="border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 min-h-[100px]">
+                      <ReactQuill
+                        value={control.explanation || ''}
+                        onChange={(value) => updateControl(index, { explanation: value })}
+                        theme="snow"
+                        className="text-gray-900 dark:text-gray-100"
+                        modules={{
+                          toolbar: [
+                            ['bold', 'italic', 'underline', 'strike'],
+                            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                            ['link'],
+                            ['clean']
+                          ]
+                        }}
+                        formats={['bold', 'italic', 'underline', 'strike', 'list', 'bullet', 'link']}
+                        placeholder="Explanation of the control"
+                      />
+                    </div>
                   </div>
                   
                   {/* Assignee and Date row */}
@@ -446,20 +451,6 @@ export function BulkAddControlForm({
                         className="block w-full rounded-md border-2 border-gray-300 dark:border-gray-700 focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 text-sm h-9 px-3 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                       />
                     </div>
-                  </div>
-                  
-                  {/* External URL */}
-                  <div className="md:col-span-2">
-                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      External URL
-                    </label>
-                    <input
-                      type="url"
-                      value={control.externalUrl || ''}
-                      onChange={(e) => updateControl(index, { externalUrl: e.target.value || null })}
-                      className="block w-full rounded-md border-2 border-gray-300 dark:border-gray-700 focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 text-sm h-9 px-3 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                      placeholder="https://example.com"
-                    />
                   </div>
                 </div>
               </div>

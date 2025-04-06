@@ -3,6 +3,16 @@ import { Timestamp } from "firebase/firestore";
 export interface Technician {
   id: string;
   name: string;
+  email: string;
+  agentId: string;
+}
+
+// New interface for tickets
+export interface Ticket {
+  id: string;
+  ticketNumber: string;
+  createdAt: Timestamp;
+  url: string;
 }
 
 export enum ControlStatus {
@@ -39,6 +49,8 @@ export interface Control {
   lastUpdated: Timestamp | null; // When the control was last modified
   externalUrl: string | null; // URL to external ticketing system
   company: Company; // Company the control is associated with
+  ticketNumber: string | null; // New field for ticket number
+  ticketUrl: string | null; // New field for ticket URL
 }
 
 // Interface for search and filter options

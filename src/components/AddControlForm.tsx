@@ -1,9 +1,14 @@
 "use client";
 
-import React, { useState, FormEvent, ChangeEvent } from 'react';
+import React, { useState, FormEvent, ChangeEvent, useEffect } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { ControlStatus, Technician, Control, Company } from '@/lib/types';
 import Image from 'next/image';
+import dynamic from 'next/dynamic';
+
+// Import ReactQuill dynamically to avoid SSR issues
+const ReactQuill = dynamic(() => import('react-quill'), { ssr: false });
+import 'react-quill/dist/quill.snow.css'; // Import Quill styles
 
 interface AddControlFormProps {
   technicians: Technician[];
@@ -24,7 +29,6 @@ export function AddControlForm({
   const [status, setStatus] = useState<ControlStatus>(ControlStatus.InProgress);
   const [assigneeId, setAssigneeId] = useState<string | null>(null);
   const [estimatedCompletionDate, setEstimatedCompletionDate] = useState<string>(''); // Store as string YYYY-MM-DD
-  const [externalUrl, setExternalUrl] = useState<string>(''); // Add state for external URL
   const [company, setCompany] = useState<Company>(Company.Both); // Default to Both
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,17 +87,6 @@ export function AddControlForm({
       }
     }
 
-    // Process external URL if provided
-    let processedUrl = null;
-    if (externalUrl.trim()) {
-      let url = externalUrl.trim();
-      // Add https:// if no protocol specified
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        url = 'https://' + url;
-      }
-      processedUrl = url;
-    }
-
     const newControlData: Omit<Control, 'id'> = {
       dcfId: dcfId.trim(),
       title: title.trim(),
@@ -106,8 +99,10 @@ export function AddControlForm({
       tags: [],
       progress: 0,
       lastUpdated: Timestamp.now(),
-      externalUrl: processedUrl, // Add the external URL
-      company // Add the company field
+      externalUrl: null, // Set to null as we're removing the field
+      company, // Add the company field
+      ticketNumber: null, // Add the ticketNumber field
+      ticketUrl: null // Add the ticketUrl field
     };
 
     try {
@@ -177,10 +172,6 @@ export function AddControlForm({
       
       if (data.estimatedCompletionDate) {
         setEstimatedCompletionDate(data.estimatedCompletionDate);
-      }
-      
-      if (data.externalUrl) {
-        setExternalUrl(data.externalUrl);
       }
       
       // Close the AI modal after successful extraction
@@ -412,44 +403,42 @@ export function AddControlForm({
           />
         </div>
 
-        {/* Row 2: DCF ID & External URL */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="md:col-span-1">
-            <label htmlFor="dcfId" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">DCF ID <span className="text-red-500">*</span></label>
-            <input
-              type="number" // Use type number for better input
-              id="dcfId"
-              value={dcfId}
-              onChange={(e) => setDcfId(e.target.value.slice(0, 3))} // Limit to 3 digits
-              className="block w-full rounded-md border-2 border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 sm:text-sm h-9 px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-              max="999"
-              min="0"
-              required
-            />
-          </div>
-          <div className="md:col-span-2">
-            <label htmlFor="external-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">External URL</label>
-            <input
-              type="url"
-              id="external-url"
-              value={externalUrl}
-              onChange={(e) => setExternalUrl(e.target.value)}
-              placeholder="https://tickets.example.com/ticket/123"
-              className="block w-full rounded-md border-2 border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 sm:text-sm h-9 px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 dark:placeholder-gray-400"
-            />
-          </div>
+        {/* Row 2: DCF ID (Full Width) */}
+        <div>
+          <label htmlFor="dcfId" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">DCF ID <span className="text-red-500">*</span></label>
+          <input
+            type="number" // Use type number for better input
+            id="dcfId"
+            value={dcfId}
+            onChange={(e) => setDcfId(e.target.value.slice(0, 3))} // Limit to 3 digits
+            className="block w-full rounded-md border-2 border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 sm:text-sm h-9 px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+            max="999"
+            min="0"
+            required
+          />
         </div>
 
         {/* Row 3: Explanation */}
         <div>
             <label htmlFor="explanation" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Explanation</label>
-            <textarea
-              id="explanation"
-              value={explanation}
-              onChange={(e) => setExplanation(e.target.value)}
-              rows={3}
-              className="block w-full rounded-md border-2 border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 sm:text-sm p-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-            />
+            <div className="bg-white dark:bg-gray-800 rounded-md border-2 border-gray-300 dark:border-gray-700">
+              <ReactQuill
+                value={explanation}
+                onChange={setExplanation}
+                theme="snow"
+                className="text-gray-900 dark:text-gray-100"
+                modules={{
+                  toolbar: [
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    ['link'],
+                    ['clean']
+                  ]
+                }}
+                formats={['bold', 'italic', 'underline', 'strike', 'list', 'bullet', 'link']}
+                placeholder="Add a detailed explanation of this control..."
+              />
+            </div>
           </div>
 
         {/* Row 4: Company Selection */}

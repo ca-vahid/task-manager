@@ -1,0 +1,25 @@
+---
+description: my coding preferences
+globs: 
+alwaysApply: false
+---
+# Coding preferences
+
+- Always prefer simple solutions.  
+- Avoid code duplication by checking for similar code/functionality.  
+- Write code considering dev, test, and prod environments.  
+- Only make requested changes or those you’re confident are well-understood and related.  
+- Fix bugs using existing patterns first, exhausting all options before introducing new tech.  
+- If new patterns are added, remove old implementations to avoid duplicate logic.  
+- Keep the codebase clean and organized.
+- Do not remove remakrs, update remarks instead, remove only when neceesary.  
+- Avoid scripts in files, especially for one-time use.  
+- Refactor files exceeding 200-300 lines.  
+- Mock data only for tests, never for dev or prod.  
+- Never add stubbing/fake data to dev or prod code.  
+- Focus on task-relevant code.  
+- Don’t touch unrelated code.  
+- Write thorough tests for all major functionality.  
+- Avoid major pattern/architecture changes to proven features unless explicitly told.  
+- Consider how changes affect other methods and code areas.
+

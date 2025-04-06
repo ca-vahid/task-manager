@@ -22,13 +22,21 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name } = body;
+    const { name, email, agentId } = body;
 
     if (!name || typeof name !== 'string') {
       return NextResponse.json({ message: 'Invalid technician name provided' }, { status: 400 });
     }
 
-    const newTechnicianData = { name };
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
+      return NextResponse.json({ message: 'Valid email address is required' }, { status: 400 });
+    }
+
+    if (!agentId || typeof agentId !== 'string') {
+      return NextResponse.json({ message: 'Valid agent ID is required' }, { status: 400 });
+    }
+
+    const newTechnicianData = { name, email, agentId };
     const docRef = await addDocument(TECHNICIANS_COLLECTION, newTechnicianData);
     
     // Return the newly created technician with its ID

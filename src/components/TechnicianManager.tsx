@@ -6,8 +6,12 @@ import { Technician } from '@/lib/types'; // Assuming alias
 export function TechnicianManager() {
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [newTechName, setNewTechName] = useState("");
+  const [newTechEmail, setNewTechEmail] = useState("");
+  const [newTechAgentId, setNewTechAgentId] = useState("");
   const [editingTechId, setEditingTechId] = useState<string | null>(null);
   const [editingTechName, setEditingTechName] = useState("");
+  const [editingTechEmail, setEditingTechEmail] = useState("");
+  const [editingTechAgentId, setEditingTechAgentId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
@@ -38,14 +42,18 @@ export function TechnicianManager() {
   // Handler to add a new technician
   const handleAddTechnician = async (e: FormEvent) => {
     e.preventDefault();
-    if (!newTechName.trim()) return;
+    if (!newTechName.trim() || !newTechEmail.trim() || !newTechAgentId.trim()) return;
     setError(null);
 
     try {
       const response = await fetch('/api/technicians', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newTechName.trim() }),
+        body: JSON.stringify({ 
+          name: newTechName.trim(),
+          email: newTechEmail.trim(),
+          agentId: newTechAgentId.trim()
+        }),
       });
       if (!response.ok) {
         const errorData = await response.json();
@@ -53,7 +61,10 @@ export function TechnicianManager() {
       }
       const addedTechnician: Technician = await response.json();
       setTechnicians([...technicians, addedTechnician]);
-      setNewTechName(""); // Clear input field
+      // Clear input fields
+      setNewTechName("");
+      setNewTechEmail("");
+      setNewTechAgentId("");
     } catch (err: any) {
       console.error("Failed to add technician:", err);
       setError(err.message || "Failed to add technician.");
@@ -123,17 +134,30 @@ export function TechnicianManager() {
   // Handlers for inline editing
   const startEditing = (tech: Technician) => {
     setEditingTechId(tech.id);
-    setEditingTechName(tech.name);
+    setEditingTechName(tech.name || '');
+    setEditingTechEmail(tech.email || '');
+    setEditingTechAgentId(tech.agentId || '');
   };
 
   const cancelEditing = () => {
     setEditingTechId(null);
     setEditingTechName("");
+    setEditingTechEmail("");
+    setEditingTechAgentId("");
   };
 
   const handleUpdateTechnician = async (id: string) => {
-    if (!editingTechName.trim() || editingTechName.trim() === technicians.find(t => t.id === id)?.name) {
-      cancelEditing(); // Exit if name is empty or unchanged
+    // Safely trim values or use empty string if undefined
+    const trimmedName = editingTechName?.trim() || '';
+    const trimmedEmail = editingTechEmail?.trim() || '';
+    const trimmedAgentId = editingTechAgentId?.trim() || '';
+
+    // Check if values are empty or unchanged
+    if (!trimmedName || !trimmedEmail || !trimmedAgentId ||
+        (trimmedName === technicians.find(t => t.id === id)?.name &&
+         trimmedEmail === technicians.find(t => t.id === id)?.email &&
+         trimmedAgentId === technicians.find(t => t.id === id)?.agentId)) {
+      cancelEditing(); // Exit if fields are empty or unchanged
       return;
     }
     setError(null);
@@ -144,17 +168,31 @@ export function TechnicianManager() {
 
     // Optimistic UI update
     const updatedOptimisticTechnicians = originalTechnicians.map(tech =>
-      tech.id === id ? { ...tech, name: editingTechName.trim() } : tech
+      tech.id === id ? { 
+        ...tech, 
+        name: trimmedName,
+        email: trimmedEmail,
+        agentId: trimmedAgentId
+      } : tech
     );
     setTechnicians(updatedOptimisticTechnicians);
-    const originalEditingName = editingTechName; // Store for potential rollback
+    
+    // Store original values for potential rollback
+    const originalEditingName = trimmedName;
+    const originalEditingEmail = trimmedEmail;
+    const originalEditingAgentId = trimmedAgentId;
+    
     cancelEditing(); // Exit editing mode immediately
 
     try {
       const response = await fetch(`/api/technicians/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: originalEditingName.trim() }), // Use originalEditingName for the API call
+        body: JSON.stringify({ 
+          name: originalEditingName,
+          email: originalEditingEmail,
+          agentId: originalEditingAgentId
+        }),
       });
       
       if (!response.ok) {
@@ -195,9 +233,14 @@ export function TechnicianManager() {
         return;
       }
       
-      // Update the UI with the server's response
+      // Update the UI with the server's response - fix to include all fields
       setTechnicians(technicians.map(tech => 
-        tech.id === id ? { ...tech, name: updatedTechnician.name } : tech
+        tech.id === id ? { 
+          ...tech, 
+          name: updatedTechnician.name,
+          email: updatedTechnician.email,
+          agentId: updatedTechnician.agentId
+        } : tech
       ));
     } catch (err: any) {
       console.error("Failed to update technician:", err);
@@ -211,21 +254,58 @@ export function TechnicianManager() {
       <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">Manage Technicians</h3>
       
       {/* Add Technician Form */}
-      <form onSubmit={handleAddTechnician} className="flex gap-2 mb-4">
-        <input
-          type="text"
-          value={newTechName}
-          onChange={(e: ChangeEvent<HTMLInputElement>) => setNewTechName(e.target.value)}
-          placeholder="New technician name"
-          className="flex h-10 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 dark:placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:focus-visible:ring-indigo-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 flex-grow"
-          aria-label="New technician name"
-        />
+      <form onSubmit={handleAddTechnician} className="flex flex-col gap-2 mb-6">
+        <div className="mb-2">
+          <label htmlFor="tech-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Name <span className="text-red-500">*</span>
+          </label>
+          <input
+            id="tech-name"
+            type="text"
+            value={newTechName}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => setNewTechName(e.target.value)}
+            placeholder="Technician name"
+            className="flex h-10 w-full rounded-md border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 dark:placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:focus-visible:ring-indigo-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="New technician name"
+          />
+        </div>
+        
+        <div className="mb-2">
+          <label htmlFor="tech-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Email <span className="text-red-500">*</span>
+          </label>
+          <input
+            id="tech-email"
+            type="email"
+            value={newTechEmail}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => setNewTechEmail(e.target.value)}
+            placeholder="email@example.com"
+            className="flex h-10 w-full rounded-md border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 dark:placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:focus-visible:ring-indigo-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="New technician email"
+          />
+        </div>
+        
+        <div className="mb-4">
+          <label htmlFor="tech-agent-id" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Agent ID <span className="text-red-500">*</span>
+          </label>
+          <input
+            id="tech-agent-id"
+            type="text"
+            value={newTechAgentId}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => setNewTechAgentId(e.target.value)}
+            placeholder="A12345"
+            className="flex h-10 w-full rounded-md border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 dark:placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:focus-visible:ring-indigo-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="New technician agent ID"
+          />
+        </div>
+        
         <button 
           type="submit" 
-          disabled={!newTechName.trim()} // Disable if input is empty
-          className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:focus-visible:ring-indigo-400 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-indigo-600 dark:bg-indigo-500 text-white hover:bg-indigo-700 dark:hover:bg-indigo-600 h-10 px-4 py-2"
+          disabled={!newTechName.trim() || !newTechEmail.trim() || !newTechAgentId.trim()} // Disable if inputs are empty
+          className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:focus-visible:ring-indigo-400 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-indigo-600 dark:bg-indigo-400 text-white hover:bg-indigo-700 dark:hover:bg-indigo-500 h-10 px-4 py-2"
         >
-          Add
+          Add Technician
         </button>
       </form>
 
@@ -233,64 +313,91 @@ export function TechnicianManager() {
       {error && <p className="text-red-500 dark:text-red-400 text-sm mb-4">Error: {error}</p>}
 
       {/* Technician List */}
-      <ul className="space-y-2">
+      <ul className="space-y-3">
         {/* Add explicit Technician type to map parameter */}
         {technicians.map((tech: Technician) => (
-          <li key={tech.id} className="flex items-center justify-between p-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md min-h-[40px]"> {/* Ensure minimum height */} 
+          <li key={tech.id} className="p-3 border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md"> 
             {editingTechId === tech.id ? (
-              // Editing View - Should not be visible if optimistic update works
-              <div className="flex-grow flex items-center gap-2">
-                <input
-                  type="text"
-                  value={editingTechName}
-                  onChange={(e: ChangeEvent<HTMLInputElement>) => setEditingTechName(e.target.value)}
-                  className="flex h-8 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-2 py-1 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:focus-visible:ring-indigo-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 flex-grow"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleUpdateTechnician(tech.id);
-                    if (e.key === 'Escape') cancelEditing();
-                  }}
-                />
-                <button onClick={() => handleUpdateTechnician(tech.id)} className="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 text-xs px-2">Save</button>
-                <button onClick={cancelEditing} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-xs px-2">Cancel</button>
+              // Editing View
+              <div className="space-y-2">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Name</label>
+                  <input
+                    type="text"
+                    value={editingTechName}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setEditingTechName(e.target.value)}
+                    className="flex h-9 w-full rounded-md border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-2 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:focus-visible:ring-indigo-400 focus-visible:ring-offset-2"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={editingTechEmail}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setEditingTechEmail(e.target.value)}
+                    className="flex h-9 w-full rounded-md border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-2 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:focus-visible:ring-indigo-400 focus-visible:ring-offset-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Agent ID</label>
+                  <input
+                    type="text"
+                    value={editingTechAgentId}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setEditingTechAgentId(e.target.value)}
+                    className="flex h-9 w-full rounded-md border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-2 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:focus-visible:ring-indigo-400 focus-visible:ring-offset-2"
+                  />
+                </div>
+                <div className="flex justify-end gap-2 mt-3">
+                  <button onClick={cancelEditing} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm px-3 py-1 border border-gray-300 dark:border-gray-600 rounded">Cancel</button>
+                  <button onClick={() => handleUpdateTechnician(tech.id)} className="text-white bg-indigo-600 dark:bg-indigo-400 hover:bg-indigo-700 dark:hover:bg-indigo-500 text-sm px-3 py-1 rounded">Save</button>
+                </div>
               </div>
             ) : (
               // Display View
-              <span className="flex-grow truncate cursor-pointer hover:underline text-gray-900 dark:text-gray-100" title={tech.name} onClick={() => startEditing(tech)}>{tech.name}</span>
-            )}
-            
-            {editingTechId !== tech.id && (
-               <div className="flex gap-2 ml-2 flex-shrink-0">
-                  {/* Edit button is now handled by clicking the name */}
-                  {/* <button onClick={() => startEditing(tech)} className="text-blue-600 hover:text-blue-800 text-sm">Edit</button> */}
-                  {confirmingDeleteId === tech.id ? (
-                     <div className="flex items-center gap-2">
-                       <span className="text-sm text-gray-700 dark:text-gray-300">Delete?</span>
+              <div>
+                <div className="flex justify-between">
+                  <div className="mb-2">
+                    <h4 className="font-medium text-gray-900 dark:text-gray-100">{tech.name}</h4>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">{tech.email}</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-500">ID: {tech.agentId}</div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => startEditing(tech)} 
+                      className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm"
+                    >
+                      Edit
+                    </button>
+                    {confirmingDeleteId === tech.id ? (
+                       <div className="flex items-center gap-2">
+                         <button 
+                           onClick={handleCancelDelete}
+                           className="text-xs rounded px-2 py-1 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50"
+                           disabled={deletingTechnicianId === tech.id}
+                         >
+                           Cancel
+                         </button>
+                         <button 
+                           onClick={() => handleConfirmDelete(tech.id)}
+                           className="text-xs rounded px-2 py-1 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:bg-red-400"
+                           disabled={deletingTechnicianId === tech.id}
+                         >
+                           {deletingTechnicianId === tech.id ? 'Deleting...' : 'Confirm'}
+                         </button>
+                       </div>
+                    ) : (
                        <button 
-                         onClick={handleCancelDelete}
-                         className="text-xs rounded px-2 py-1 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50"
-                         disabled={deletingTechnicianId === tech.id}
+                         onClick={() => handleDeleteClick(tech.id)} 
+                         className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm disabled:opacity-50"
+                         disabled={deletingTechnicianId !== null} // Disable if any delete is in progress
                        >
-                         Cancel
+                         Delete
                        </button>
-                       <button 
-                         onClick={() => handleConfirmDelete(tech.id)}
-                         className="text-xs rounded px-2 py-1 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:bg-red-400"
-                         disabled={deletingTechnicianId === tech.id}
-                       >
-                         {deletingTechnicianId === tech.id ? 'Deleting...' : 'Confirm'}
-                       </button>
-                     </div>
-                  ) : (
-                     <button 
-                       onClick={() => handleDeleteClick(tech.id)} 
-                       className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm disabled:opacity-50"
-                       disabled={deletingTechnicianId !== null} // Disable if any delete is in progress
-                     >
-                       Delete
-                     </button>
-                  )}
-               </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             )}
           </li>
         ))}
