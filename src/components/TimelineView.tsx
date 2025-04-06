@@ -242,11 +242,11 @@ export function TimelineView({
       <span className="inline-flex items-center" title={`Company: ${company}`}>
         {company === Company.Both ? (
           <div className="flex items-center space-x-0.5">
-            <Image src={styles.bgc.img} alt={styles.bgc.alt} width={styles.bgc.size} height={styles.bgc.size} className="object-contain" />
-            <Image src={styles.cambio.img} alt={styles.cambio.alt} width={styles.cambio.size} height={styles.cambio.size} className="object-contain" />
+            <Image src={(styles as any).bgc.img} alt={(styles as any).bgc.alt} width={(styles as any).bgc.size} height={(styles as any).bgc.size} className="object-contain" />
+            <Image src={(styles as any).cambio.img} alt={(styles as any).cambio.alt} width={(styles as any).cambio.size} height={(styles as any).cambio.size} className="object-contain" />
           </div>
         ) : (
-          <Image src={styles.img} alt={styles.alt} width={styles.size} height={styles.size} className="object-contain" />
+          <Image src={(styles as any).img} alt={(styles as any).alt} width={(styles as any).size} height={(styles as any).size} className="object-contain" />
         )}
       </span>
     );
