@@ -10,11 +10,14 @@ export interface ToastProps {
   message: string;
   type: ToastType;
   duration?: number;
+  action?: React.ReactNode;
   onClose: (id: string) => void;
 }
 
-export function Toast({ id, message, type, duration = 5000, onClose }: ToastProps) {
+export function Toast({ id, message, type, duration = 5000, action, onClose }: ToastProps) {
   useEffect(() => {
+    if (!duration) return;
+    
     const timer = setTimeout(() => {
       onClose(id);
     }, duration);
@@ -84,7 +87,10 @@ export function Toast({ id, message, type, duration = 5000, onClose }: ToastProp
       <div className={`flex-shrink-0 ${iconColor}`}>
         {icon}
       </div>
-      <div className={`ml-3 ${textColor} text-sm font-medium flex-grow`}>{message}</div>
+      <div className={`ml-3 ${textColor} text-sm font-medium flex-grow`}>
+        {message}
+        {action && <div className="mt-1">{action}</div>}
+      </div>
       <button
         type="button"
         className={`ml-auto -mx-1.5 -my-1.5 rounded-lg p-1.5 inline-flex h-8 w-8 focus:outline-none focus:ring-2 focus:ring-offset-2 ${iconColor}`}

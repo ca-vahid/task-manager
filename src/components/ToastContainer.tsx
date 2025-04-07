@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { ReactNode } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Toast, ToastType } from './Toast';
 
@@ -9,6 +9,7 @@ export interface ToastItem {
   message: string;
   type: ToastType;
   duration?: number;
+  action?: ReactNode;
 }
 
 interface ToastContainerProps {
@@ -42,6 +43,7 @@ export function ToastContainer({
             message={toast.message}
             type={toast.type}
             duration={toast.duration}
+            action={toast.action}
             onClose={onRemoveToast}
           />
         ))}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Control, Technician, ControlStatus, ViewMode, BatchOperation, ViewDensity, PriorityLevel, Company } from '@/lib/types'; // Assuming alias
 import { ControlCard } from './ControlCard'; 
 import { Timestamp } from 'firebase/firestore'; // Correct import path for Timestamp
@@ -27,6 +27,7 @@ import { Modal } from './Modal'; // Import the Modal component
 import { BulkAddControlForm } from './BulkAddControlForm'; // Import the new bulk add form component
 import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
+import { useUndo, UndoableActionType } from '@/lib/contexts/UndoContext';
 
 export function ControlList() {
   const [controls, setControls] = useState<Control[]>([]);
@@ -41,6 +42,7 @@ export function ControlList() {
   const [viewDensity, setViewDensity] = useState<ViewDensity>('medium');
   const [selectedControlIds, setSelectedControlIds] = useState<string[]>([]);
   const [activeFilters, setActiveFilters] = useState<boolean>(false); // Track if filters are active
+  const { showUndoToast, addUndoableAction } = useUndo();
 
   // Sensors for dnd-kit
   const sensors = useSensors(
@@ -49,6 +51,10 @@ export function ControlList() {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
+
+  // Ref to track drag operations and prevent duplicate undo toasts
+  const isDraggingRef = useRef(false);
+  const lastDragOperationTimeRef = useRef(0);
 
   // Fetch initial data (controls and technicians)
   const fetchData = useCallback(async () => {
@@ -153,6 +159,38 @@ export function ControlList() {
     const controlIndex = originalControls.findIndex(c => c.id === id);
     if (controlIndex === -1) return; 
     
+    // Store the original control for undo
+    const originalControl = {...originalControls[controlIndex]};
+    
+    // Identify what fields are being updated to show appropriate message
+    const updateType = Object.keys(updates)[0] as keyof typeof updates;
+    let undoActionType: UndoableActionType = 'UPDATE_CONTROL_TITLE';
+    let updateDescription = '';
+    
+    // Determine the type of update and create an appropriate message
+    if (updateType === 'title') {
+      undoActionType = 'UPDATE_CONTROL_TITLE';
+      updateDescription = `Title changed to "${updates.title}"`;
+    } else if (updateType === 'estimatedCompletionDate') {
+      undoActionType = 'UPDATE_CONTROL_DATE';
+      if (updates.estimatedCompletionDate === null) {
+        updateDescription = 'Due date removed';
+      } else {
+        updateDescription = 'Due date updated';
+      }
+    } else if (updateType === 'status') {
+      undoActionType = 'UPDATE_CONTROL_STATUS';
+      updateDescription = `Status changed to ${updates.status}`;
+    } else if (updateType === 'assigneeId') {
+      undoActionType = 'UPDATE_CONTROL_ASSIGNEE';
+      const newAssigneeName = updates.assigneeId 
+        ? technicians.find(t => t.id === updates.assigneeId)?.name || 'Unknown'
+        : 'Unassigned';
+      updateDescription = `Assigned to ${newAssigneeName}`;
+    } else {
+      updateDescription = 'Control updated';
+    }
+    
     const updatedLocalControl = { 
         ...originalControls[controlIndex], 
         ...updates 
@@ -193,6 +231,18 @@ export function ControlList() {
     }
 
     try {
+      // Record this action for potential undo
+      addUndoableAction({
+        type: undoActionType,
+        data: {
+          controlId: id,
+          originalValues: {
+            [updateType]: originalControl[updateType]
+          },
+          newValues: updates
+        }
+      });
+      
       // Use POST to /api/controls/update instead of PUT to /api/controls/[id]
       const response = await fetch('/api/controls/update', {
         method: 'POST',
@@ -221,7 +271,67 @@ export function ControlList() {
       
       // Optional: update the control with the response data
       const updatedControl = await response.json();
-      console.log("Control updated successfully:", updatedControl);
+      
+      // Show undo toast
+      showUndoToast(
+        updateDescription,
+        async () => {
+          try {
+            // Revert the property to its original value
+            const revertUpdate = {
+              [updateType]: originalControl[updateType]
+            };
+            
+            // Prepare API data for the undo operation
+            let undoApiUpdateData: any = { ...revertUpdate, id };
+            
+            // Fix date handling for undo
+            if (updateType === 'estimatedCompletionDate') {
+              const dateValue = originalControl.estimatedCompletionDate;
+              if (dateValue === null) {
+                undoApiUpdateData.estimatedCompletionDate = null;
+              } else if (dateValue instanceof Timestamp) {
+                undoApiUpdateData.estimatedCompletionDate = dateValue.toDate().toISOString();
+              } else if (dateValue && typeof dateValue === 'object' && 'seconds' in dateValue) {
+                const date = new Date((dateValue as any).seconds * 1000);
+                undoApiUpdateData.estimatedCompletionDate = date.toISOString();
+              }
+            }
+            
+            // Make the API call to undo the update
+            const response = await fetch('/api/controls/update', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(undoApiUpdateData),
+            });
+            
+            if (!response.ok) {
+              throw new Error(`Failed to undo update. Status: ${response.status}`);
+            }
+            
+            // Update the local state with the original value
+            setControls(prevControls => {
+              const newControls = [...prevControls];
+              const controlIndex = newControls.findIndex(c => c.id === id);
+              
+              if (controlIndex !== -1) {
+                newControls[controlIndex] = {
+                  ...newControls[controlIndex],
+                  [updateType]: originalControl[updateType]
+                };
+              }
+              
+              return newControls;
+            });
+            
+            return Promise.resolve();
+          } catch (error) {
+            console.error("Failed to undo update:", error);
+            return Promise.reject(error);
+          }
+        },
+        7000 // 7 seconds to undo
+      );
       
     } catch (err: any) {
       console.error(`Failed to update control ${id}:`, err);
@@ -229,49 +339,131 @@ export function ControlList() {
       setControls(originalControls); 
       throw err; 
     }
-  }, [controls]); 
+  }, [controls, technicians, addUndoableAction, showUndoToast]);
 
   // Handler for deleting a control
   const handleDeleteControl = useCallback(async (id: string) => {
     setError(null);
     const originalControls = [...controls];
-    setControls(originalControls.filter(c => c.id !== id)); // Optimistic update
+    const deletedControl = controls.find(c => c.id === id);
+    
+    if (!deletedControl) {
+      throw new Error("Control not found");
+    }
+    
+    // Track the control's position for restoration
+    const controlIndex = controls.findIndex(c => c.id === id);
+    
+    // Optimistically update UI
+    setControls(originalControls.filter(c => c.id !== id));
     
     try {
-        // Use POST to /api/controls/delete instead of DELETE to /api/controls/[id]
-        const response = await fetch(`/api/controls/delete`, { 
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id }) // Pass the ID in the request body
-        });
+      // Add to undoable actions
+      addUndoableAction({
+        type: 'DELETE_CONTROL',
+        data: {
+          control: deletedControl,
+          position: controlIndex
+        },
+        externalAction: !!deletedControl.ticketNumber
+      });
+      
+      // Make the API call to delete
+      const response = await fetch(`/api/controls/delete`, { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }) // Pass the ID in the request body
+      });
 
-        if (!response.ok) {
-            let errorMessage = `HTTP error! status: ${response.status} ${response.statusText}`;
-            const responseBodyText = await response.text(); // Read response body once
-            try {
-              const errorData = JSON.parse(responseBodyText); // Try parsing as JSON
-              errorMessage = errorData.message || errorMessage;
-            } catch (parseError) {
-              console.error("Control delete error response was not valid JSON:", responseBodyText);
-              errorMessage = `Failed to delete control. Server responded unexpectedly (status: ${response.status})`;
-            }
-            setControls(originalControls); // Rollback optimistic update
-            throw new Error(errorMessage); // Throw refined error
+      if (!response.ok) {
+        let errorMessage = `HTTP error! status: ${response.status} ${response.statusText}`;
+        const responseBodyText = await response.text(); // Read response body once
+        try {
+          const errorData = JSON.parse(responseBodyText); // Try parsing as JSON
+          errorMessage = errorData.message || errorMessage;
+        } catch (parseError) {
+          console.error("Control delete error response was not valid JSON:", responseBodyText);
+          errorMessage = `Failed to delete control. Server responded unexpectedly (status: ${response.status})`;
         }
-        // Success: Control deleted, UI already updated.
-        // Consider updating order of subsequent items if necessary
-
+        setControls(originalControls); // Rollback optimistic update
+        throw new Error(errorMessage); // Throw refined error
+      }
+      
+      // Show undo toast
+      showUndoToast(
+        `Control "${deletedControl.title}" deleted`,
+        async () => {
+          try {
+            // Show loading state if needed
+            
+            // Re-create the control through the API
+            const response = await fetch('/api/controls', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                ...deletedControl,
+                // Handle Timestamp/Date conversion for the API
+                estimatedCompletionDate: deletedControl.estimatedCompletionDate
+                  ? (deletedControl.estimatedCompletionDate instanceof Timestamp 
+                    ? deletedControl.estimatedCompletionDate.toDate().toISOString()
+                    : new Date(deletedControl.estimatedCompletionDate).toISOString())
+                  : null,
+              }),
+            });
+            
+            if (!response.ok) {
+              throw new Error(`Failed to restore control. Status: ${response.status}`);
+            }
+            
+            // Get the new control data
+            const restoredControl = await response.json();
+            
+            // Make sure dates are in the correct format
+            let finalDate = null;
+            if (restoredControl.estimatedCompletionDate) {
+              if (typeof restoredControl.estimatedCompletionDate === 'string') {
+                finalDate = Timestamp.fromDate(new Date(restoredControl.estimatedCompletionDate));
+              } else if ((restoredControl.estimatedCompletionDate as any).seconds) {
+                finalDate = restoredControl.estimatedCompletionDate; // Assume it's already a Timestamp
+              }
+            }
+            
+            // Add the control back to the state at the correct position
+            setControls(prevControls => {
+              const newControls = [...prevControls];
+              const controlWithProperDate = {
+                ...restoredControl,
+                estimatedCompletionDate: finalDate
+              };
+              
+              // Insert at the original position, or at the end if position is invalid
+              if (controlIndex >= 0 && controlIndex <= newControls.length) {
+                newControls.splice(controlIndex, 0, controlWithProperDate);
+              } else {
+                newControls.push(controlWithProperDate);
+              }
+              
+              return newControls;
+            });
+            
+            return Promise.resolve();
+          } catch (error) {
+            console.error("Failed to undo delete:", error);
+            return Promise.reject(error);
+          }
+        }
+      );
     } catch (err: any) {
-        console.error(`Failed to delete control ${id}:`, err);
-        setError(err.message || "Failed to delete control.");
-        // Ensure rollback if error happens outside fetch logic or state changes unexpectedly
-         if (JSON.stringify(controls.map(c=>c.id)) !== JSON.stringify(originalControls.filter(c => c.id !== id).map(c=>c.id))) {
-             setControls(originalControls);
-         }
-        // Re-throw the error so ControlCard can potentially handle it too
-        throw err; 
+      console.error(`Failed to delete control ${id}:`, err);
+      setError(err.message || "Failed to delete control.");
+      // Ensure rollback if error happens outside fetch logic or state changes unexpectedly
+      if (JSON.stringify(controls.map(c=>c.id)) !== JSON.stringify(originalControls.filter(c => c.id !== id).map(c=>c.id))) {
+        setControls(originalControls);
+      }
+      // Re-throw the error so ControlCard can potentially handle it too
+      throw err; 
     }
-}, [controls]); // Dependency array includes controls for optimistic updates
+  }, [controls, addUndoableAction, showUndoToast]);
 
   // Handler for adding a new control (called by AddControlForm)
   const handleAddControl = useCallback(async (newControlData: Omit<Control, 'id'>) => {
@@ -375,39 +567,6 @@ export function ControlList() {
       }
   }, [controls]); // Add controls to dependency array
 
-  // Drag End Handler
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    
-    if (over && active.id !== over.id) {
-      // Pass explicit Control[] type to the items parameter
-      setControls((items: Control[]) => {
-        const oldIndex = items.findIndex((item) => item.id === active.id);
-        const newIndex = items.findIndex((item) => item.id === over.id);
-        
-        // Ensure indices are found before proceeding
-        if (oldIndex === -1 || newIndex === -1) {
-            console.error("Could not find dragged items in state.");
-            return items; // Return original items if indices are invalid
-        }
-        
-        const newItems = arrayMove(items, oldIndex, newIndex);
-        
-        // Update local state first for responsiveness
-        // Assign new order based on the new array index
-        const itemsWithUpdatedOrder = newItems.map((item, index) => ({ 
-            ...item, 
-            order: index 
-        }));
-
-        // Trigger background update to Firestore
-        updateOrderInFirestore(itemsWithUpdatedOrder);
-
-        return itemsWithUpdatedOrder; // Return the re-ordered items with updated order property
-      });
-    }
-  };
-
   // Function to update order in Firestore
   const updateOrderInFirestore = useCallback(async (orderedControls: Control[]) => {
     console.log("Updating order in Firestore...");
@@ -434,32 +593,116 @@ export function ControlList() {
     }
     */
 
-    // --- Option 2: Dedicated API Route for Batch Updates (Recommended) ---
-    // This is generally better for atomicity and efficiency.
-    // We'll need to create a new API route e.g., /api/controls/update-order
+    // --- Option 2: Dedicated API Route for Batch Updates ---
     try {
-        const response = await fetch('/api/controls/update-order', {
+        const response = await fetch('/api/controls/batch-update', { 
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ updates }), // Send array of {id, order}
+            body: JSON.stringify({ updates })
         });
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+            const errorMessage = errorData.message || `HTTP error! status: ${response.status}`;
+            throw new Error(errorMessage);
         }
-
-        console.log("Firestore order updated successfully via batch API.");
-        // No need to refetch if API handles it well, local state is already updated.
-
+        
+        // Success - local state is already updated
+        console.log("Firestore order updated successfully via batch update.");
     } catch (error: any) {
-        console.error("Failed to update Firestore order via batch API:", error);
-        setError(`Failed to save new order: ${error.message}. Data might be inconsistent.`);
-        // Consider refetching data on error to ensure UI consistency
-        fetchData(); 
+        console.error("Failed to update Firestore order:", error);
+        setError(error.message || "Failed to save new order. Please try again.");
+        // Optionally refetch to ensure consistency 
+        fetchData();
     }
+  }, [fetchData, handleUpdateControl, setError]);
 
-  }, [fetchData]); // Include fetchData in dependencies for potential refetch on error
+  // Drag End Handler
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (over && active.id !== over.id) {
+      // Prevent duplicate processing - check if we've handled a drag recently
+      const now = Date.now();
+      if (now - lastDragOperationTimeRef.current < 500) {
+        return; // Skip if less than 500ms since last drag operation
+      }
+      lastDragOperationTimeRef.current = now;
+      
+      // Set dragging flag during the operation
+      isDraggingRef.current = true;
+      
+      // Save original controls array for potential undo
+      const originalControls = [...controls];
+      
+      // Pass explicit Control[] type to the items parameter
+      setControls((items: Control[]) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+        
+        // Ensure indices are found before proceeding
+        if (oldIndex === -1 || newIndex === -1) {
+            console.error("Could not find dragged items in state.");
+            return items; // Return original items if indices are invalid
+        }
+        
+        const newItems = arrayMove(items, oldIndex, newIndex);
+        
+        // Update local state first for responsiveness
+        // Assign new order based on the new array index
+        const itemsWithUpdatedOrder = newItems.map((item, index) => ({ 
+            ...item, 
+            order: index 
+        }));
+        
+        // Get the moved item's name for the toast message
+        const movedItemName = items.find(item => item.id === active.id)?.title || "Control";
+        
+        // Record this as an undoable action
+        addUndoableAction({
+          type: 'REORDER_CONTROLS',
+          data: {
+            originalControls,
+            newControls: itemsWithUpdatedOrder
+          }
+        });
+        
+        // Use a timeout to delay showing the toast until after the state update
+        setTimeout(() => {
+          // Only show toast if we're still the active drag operation
+          if (isDraggingRef.current) {
+            // Show undo toast
+            showUndoToast(
+              `Moved "${movedItemName}" ${oldIndex < newIndex ? 'down' : 'up'}`,
+              async () => {
+                try {
+                  // Update the UI immediately
+                  setControls(originalControls);
+                  
+                  // Update the database with original orders
+                  await updateOrderInFirestore(originalControls);
+                  
+                  return Promise.resolve();
+                } catch (error) {
+                  console.error("Failed to undo reordering:", error);
+                  return Promise.reject(error);
+                }
+              },
+              7000 // 7 seconds to undo
+            );
+            
+            // Reset dragging flag after toast is shown
+            isDraggingRef.current = false;
+          }
+        }, 100);
+
+        // Trigger background update to Firestore
+        updateOrderInFirestore(itemsWithUpdatedOrder);
+
+        return itemsWithUpdatedOrder; // Return the re-ordered items with updated order property
+      });
+    }
+  }, [controls, addUndoableAction, showUndoToast, updateOrderInFirestore]);
 
   // New function to handle batch operations
   const handleBatchUpdate = async (controlIds: string[], updates: Partial<Omit<Control, 'id'>>) => {

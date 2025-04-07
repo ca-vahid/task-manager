@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/lib/contexts/AuthContext"; // Assuming alias
 import { ThemeProvider } from "@/lib/contexts/ThemeContext"; // Import ThemeProvider
 import { NotificationProvider } from "@/lib/contexts/NotificationContext"; // Import NotificationProvider
+import { UndoProvider } from "@/lib/contexts/UndoContext"; // Import UndoProvider
 import React from "react"; // Import React
 import { usePathname } from 'next/navigation'; // Import usePathname
 import { Header } from '@/components/Header'; // Import the Header component
@@ -22,14 +23,16 @@ export default function RootLayout({
       <body>
         <ThemeProvider>
           <NotificationProvider>
-            <AuthProvider>
-              {showHeader && <Header />} {/* Conditionally render Header */}
-              {/* Add dark mode background classes */}
-              <main className="pt-4 pb-8 bg-gray-50 dark:bg-gray-900">
-                {/* Content moves below header */}
-                {children}
-              </main>
-            </AuthProvider>
+            <UndoProvider>
+              <AuthProvider>
+                {showHeader && <Header />} {/* Conditionally render Header */}
+                {/* Add dark mode background classes */}
+                <main className="pt-4 pb-8 bg-gray-50 dark:bg-gray-900">
+                  {/* Content moves below header */}
+                  {children}
+                </main>
+              </AuthProvider>
+            </UndoProvider>
           </NotificationProvider>
         </ThemeProvider>
       </body>

@@ -50,9 +50,11 @@ export function ControlGroupView({
   // Configure sensors for improved drag experience
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      // Increase activation distance to prevent accidental drags
+      // Configure activation constraints to prevent accidental drags
       activationConstraint: {
         distance: 8, // 8px minimum drag distance
+        tolerance: 5, // Allow some movement before drag starts
+        delay: 150, // Add slight delay for better touch handling
       },
     })
   );
@@ -400,6 +402,12 @@ export function ControlGroupView({
         collisionDetection={closestCenter}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
+        // Add modifiers and configuration to improve stability
+        autoScroll={{
+          threshold: { x: 0.1, y: 0.2 },
+          acceleration: 10,
+          interval: 5
+        }}
       >
         {/* Outer container clips the scrolling content */}
         <div className="overflow-hidden relative"> 
