@@ -19,6 +19,7 @@ interface QuillEditorProps {
 
 function QuillEditor({ value, onChange, placeholder }: QuillEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
   const quillRef = useRef<any>(null);
   const [isClient, setIsClient] = useState(false);
   
@@ -34,17 +35,13 @@ function QuillEditor({ value, onChange, placeholder }: QuillEditorProps) {
     if (editorRef.current && !quillRef.current) {
       // Dynamic import to avoid SSR issues
       import('quill').then(({ default: Quill }) => {
-        if (editorRef.current) { // Double-check ref is still valid
+        if (editorRef.current && toolbarRef.current) { // Double-check refs are still valid
+          // Create the editor with a custom toolbar container
           quillRef.current = new Quill(editorRef.current, {
             theme: 'snow',
             placeholder: placeholder || 'Write something...',
             modules: {
-              toolbar: [
-                ['bold', 'italic', 'underline', 'strike'],
-                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                ['link'],
-                ['clean']
-              ]
+              toolbar: toolbarRef.current // Use the toolbar container ref
             },
             formats: ['bold', 'italic', 'underline', 'strike', 'list', 'bullet', 'link']
           });
@@ -68,21 +65,23 @@ function QuillEditor({ value, onChange, placeholder }: QuillEditorProps) {
     
     // Cleanup on unmount
     return () => {
-      quillRef.current = null;
+      if (quillRef.current) {
+        // Properly destroy the Quill instance
+        quillRef.current.off('text-change');
+        quillRef.current = null;
+      }
     };
   }, [isClient, placeholder, onChange]);
   
   // Update content when value prop changes
   useEffect(() => {
-    if (!isClient) return;
+    if (!isClient || !quillRef.current) return;
     
-    if (quillRef.current && editorRef.current) {
-      const editorElement = editorRef.current.querySelector('.ql-editor');
-      if (editorElement) {
-        const currentContent = editorElement.innerHTML;
-        if (value !== currentContent) {
-          quillRef.current.clipboard.dangerouslyPasteHTML(value || '');
-        }
+    const editorElement = editorRef.current?.querySelector('.ql-editor');
+    if (editorElement) {
+      const currentContent = editorElement.innerHTML;
+      if (value !== currentContent) {
+        quillRef.current.clipboard.dangerouslyPasteHTML(value || '');
       }
     }
   }, [value, isClient]);
@@ -93,7 +92,26 @@ function QuillEditor({ value, onChange, placeholder }: QuillEditorProps) {
   }
   
   return (
-    <div className="quill-editor">
+    <div className="quill-container">
+      {/* Custom toolbar container */}
+      <div ref={toolbarRef} className="quill-toolbar">
+        <span className="ql-formats">
+          <button className="ql-bold"></button>
+          <button className="ql-italic"></button>
+          <button className="ql-underline"></button>
+          <button className="ql-strike"></button>
+        </span>
+        <span className="ql-formats">
+          <button className="ql-list" value="ordered"></button>
+          <button className="ql-list" value="bullet"></button>
+        </span>
+        <span className="ql-formats">
+          <button className="ql-link"></button>
+          <button className="ql-clean"></button>
+        </span>
+      </div>
+      
+      {/* Editor container */}
       <div ref={editorRef} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
     </div>
   );
