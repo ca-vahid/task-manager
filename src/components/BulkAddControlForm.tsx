@@ -1,13 +1,49 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { ControlStatus, Technician, Control, PriorityLevel, Company } from '@/lib/types';
-import dynamic from 'next/dynamic';
+import 'react-quill/dist/quill.snow.css';
 
-// Import ReactQuill dynamically to avoid SSR issues
-const ReactQuill = dynamic(() => import('react-quill'), { ssr: false });
-import 'react-quill/dist/quill.snow.css'; // Import Quill styles
+// Create a client-side only wrapper to safely render ReactQuill
+const ClientOnly = ({ children }: { children: React.ReactNode }) => {
+  const [mounted, setMounted] = useState(false);
+  
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+  
+  if (!mounted) return <EditorFallback />;
+  
+  return <>{children}</>;
+};
+
+// Fallback component to show while the editor is loading
+const EditorFallback = () => (
+  <div className="p-3 border-2 border-gray-300 dark:border-gray-700 rounded-md h-24 animate-pulse bg-gray-50 dark:bg-gray-800/50"></div>
+);
+
+// Create a lazy-loaded editor component to avoid SSR issues
+const Editor = React.lazy(() => 
+  import('react-quill').then(mod => {
+    // Return a wrapper component that doesn't use findDOMNode
+    return {
+      default: (props: {
+        value: string;
+        onChange: (value: string) => void;
+        theme?: string;
+        className?: string;
+        modules?: any;
+        formats?: string[];
+        placeholder?: string;
+      }) => {
+        const ReactQuill = mod.default;
+        return <ReactQuill {...props} />;
+      }
+    };
+  })
+);
 
 interface BulkAddControlFormProps {
   technicians: Technician[];
@@ -401,22 +437,26 @@ export function BulkAddControlForm({
                       Explanation
                     </label>
                     <div className="border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 min-h-[100px]">
-                      <ReactQuill
-                        value={control.explanation || ''}
-                        onChange={(value) => updateControl(index, { explanation: value })}
-                        theme="snow"
-                        className="text-gray-900 dark:text-gray-100"
-                        modules={{
-                          toolbar: [
-                            ['bold', 'italic', 'underline', 'strike'],
-                            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                            ['link'],
-                            ['clean']
-                          ]
-                        }}
-                        formats={['bold', 'italic', 'underline', 'strike', 'list', 'bullet', 'link']}
-                        placeholder="Explanation of the control"
-                      />
+                      <ClientOnly>
+                        <Suspense fallback={<EditorFallback />}>
+                          <Editor
+                            value={control.explanation || ''}
+                            onChange={(value) => updateControl(index, { explanation: value })}
+                            theme="snow"
+                            className="text-gray-900 dark:text-gray-100"
+                            modules={{
+                              toolbar: [
+                                ['bold', 'italic', 'underline', 'strike'],
+                                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                                ['link'],
+                                ['clean']
+                              ]
+                            }}
+                            formats={['bold', 'italic', 'underline', 'strike', 'list', 'bullet', 'link']}
+                            placeholder="Explanation of the control"
+                          />
+                        </Suspense>
+                      </ClientOnly>
                     </div>
                   </div>
                   
