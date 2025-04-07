@@ -10,7 +10,15 @@ export type UndoableActionType =
   | 'UPDATE_CONTROL_DATE' 
   | 'UPDATE_CONTROL_STATUS'
   | 'UPDATE_CONTROL_ASSIGNEE' 
-  | 'REORDER_CONTROLS';
+  | 'REORDER_CONTROLS'
+  // New Task-related action types
+  | 'DELETE_TASK' 
+  | 'UPDATE_TASK_TITLE' 
+  | 'UPDATE_TASK_DATE' 
+  | 'UPDATE_TASK_STATUS'
+  | 'UPDATE_TASK_ASSIGNEE'
+  | 'UPDATE_TASK_GROUP'
+  | 'REORDER_TASKS';
 
 // Interface for undoable actions
 export interface UndoableAction {

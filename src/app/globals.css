@@ -3,33 +3,45 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
+  --foreground-rgb: 51, 65, 85; /* slate-700 */
+  --background-rgb: 248, 250, 252; /* slate-50 */
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
+    --foreground-rgb: 226, 232, 240; /* slate-200 */
+    --background-rgb: 15, 23, 42; /* slate-900 */
   }
 }
 
 body {
   color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  background: rgb(var(--background-rgb));
+  min-height: 100vh;
 }
 
 @layer base {
   /* Apply transitions to all elements for smooth theme switching */
   * {
     @apply transition-all duration-300 ease-in-out;
+  }
+  
+  /* Force correct dark mode colors */
+  .dark body {
+    background-color: rgb(15, 23, 42) !important; /* slate-900 */
+    color: rgb(226, 232, 240) !important; /* slate-200 */
+  }
+}
+
+@layer components {
+  /* Card styles */
+  .task-card {
+    @apply bg-white dark:bg-gray-800;
+  }
+  
+  /* Status column styles */
+  .status-column {
+    @apply bg-slate-100 dark:bg-slate-800/50;
   }
 }
 

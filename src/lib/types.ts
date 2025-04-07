@@ -7,7 +7,7 @@ export interface Technician {
   agentId: string;
 }
 
-// New interface for tickets
+// Interface for tickets
 export interface Ticket {
   id: string;
   ticketNumber: string;
@@ -15,10 +15,17 @@ export interface Ticket {
   url: string;
 }
 
-export enum ControlStatus {
-  InProgress = "In Progress",
-  InReview = "In Review",
-  Complete = "Complete",
+// New interface for task groups
+export interface Group {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export enum TaskStatus {
+  Open = "Open",
+  Pending = "Pending",
+  Resolved = "Resolved",
 }
 
 export enum PriorityLevel {
@@ -28,39 +35,32 @@ export enum PriorityLevel {
   Critical = "Critical",
 }
 
-export enum Company {
-  BGC = "BGC",
-  Cambio = "Cambio",
-  Both = "Both"
-}
-
-export interface Control {
+export interface Task {
   id: string;
-  dcfId: string; // e.g., "DCF-441"
-  title: string; // e.g., "Audit Log Retention Period"
+  title: string;
   explanation: string;
-  status: ControlStatus;
-  priorityLevel: PriorityLevel | null; // New field for priority
-  estimatedCompletionDate: Timestamp | null; // Use Firestore Timestamp for dates
-  assigneeId: string | null; // ID of the assigned Technician, null if unassigned
-  order: number; // For drag-and-drop ordering
-  tags: string[]; // For additional filtering capabilities
-  progress: number; // Percentage complete (0-100)
-  lastUpdated: Timestamp | null; // When the control was last modified
-  externalUrl: string | null; // URL to external ticketing system
-  company: Company; // Company the control is associated with
-  ticketNumber: string | null; // New field for ticket number
-  ticketUrl: string | null; // New field for ticket URL
+  status: TaskStatus;
+  priorityLevel: PriorityLevel | null;
+  estimatedCompletionDate: Timestamp | null;
+  assigneeId: string | null;
+  order: number;
+  tags: string[];
+  progress: number;
+  lastUpdated: Timestamp | null;
+  externalUrl: string | null;
+  groupId: string | null; // Group the task belongs to
+  ticketNumber: string | null;
+  ticketUrl: string | null;
 }
 
 // Interface for search and filter options
-export interface ControlFilters {
+export interface TaskFilters {
   search: string;
-  status: ControlStatus[] | null;
+  status: TaskStatus[] | null;
   priority: PriorityLevel[] | null;
   assignee: string[] | null;
   tags: string[] | null;
-  company: Company[] | null; // Add company filter
+  group: string[] | null; // Filter by group IDs
   dateRange: {
     start: Timestamp | null;
     end: Timestamp | null;
@@ -69,8 +69,8 @@ export interface ControlFilters {
 
 // Interface for batch operations
 export interface BatchOperation {
-  controlIds: string[];
-  updates: Partial<Omit<Control, 'id'>>;
+  taskIds: string[];
+  updates: Partial<Omit<Task, 'id'>>;
 }
 
 // Type for view mode

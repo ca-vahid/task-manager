@@ -27,11 +27,17 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
   }, []);
 
   useEffect(() => {
-    // Apply theme to body class and store preference
+    // Apply theme to both document and body
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
+      document.body.classList.add('dark');
+      document.body.style.backgroundColor = 'rgb(15, 23, 42)'; // slate-900
+      document.body.style.color = 'rgb(226, 232, 240)'; // slate-200
     } else {
       document.documentElement.classList.remove('dark');
+      document.body.classList.remove('dark');
+      document.body.style.backgroundColor = 'rgb(248, 250, 252)'; // slate-50
+      document.body.style.color = 'rgb(51, 65, 85)'; // slate-700
     }
     localStorage.setItem('theme', theme);
   }, [theme]);

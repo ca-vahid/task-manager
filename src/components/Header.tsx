@@ -16,7 +16,7 @@ export function Header() {
           {/* Left side: Title and Logos */}
           <div className="flex items-center space-x-2">
             <Link href="/" className="text-xl font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors">
-              ISO 27001:2022
+              Task Management AI
             </Link>
             {/* Add Company Logos */}
             <div className="flex items-center space-x-1">
@@ -40,7 +40,10 @@ export function Header() {
           {/* Middle: Navigation */}
           <nav className="hidden md:flex space-x-8">
             <Link href="/" className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
-              Controls
+              Tasks
+            </Link>
+            <Link href="/groups" className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+              Groups
             </Link>
             <Link href="/dashboard" className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
               Dashboard

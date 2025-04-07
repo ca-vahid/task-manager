@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth'; // Assuming alias
-import { ControlList } from '@/components/ControlList'; // Import ControlList
+import { TaskList } from '@/components/TaskList'; // Updated import
 
 export default function Home() {
   const { user, loading } = useAuth(); // Only need user and loading for redirect
@@ -20,16 +20,16 @@ export default function Home() {
   if (loading || !user) {
     return (
       <div className="flex min-h-[calc(100vh-80px)] items-center justify-center">
-        <p>Loading...</p> {/* Centered loading */} 
+        <p className="text-slate-700 dark:text-slate-200">Loading...</p> {/* Centered loading */} 
       </div>
     );
   }
 
-  // Render the ControlList for the main page
+  // Render the TaskList for the main page
   return (
     <div className="container mx-auto px-4 max-w-7xl">
       <div className="py-6">
-        <ControlList />
+        <TaskList />
       </div>
     </div>
   );

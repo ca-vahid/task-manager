@@ -1,0 +1,439 @@
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import { Technician, Group, PriorityLevel } from '@/lib/types';
+import 'react-quill/dist/quill.snow.css';
+import dynamic from 'next/dynamic';
+
+// Import editor component
+const DynamicQuillEditor = dynamic(
+  async () => {
+    const { QuillEditor } = await import('./AddTaskForm');
+    // Create a wrapper component that matches the expected props
+    return ({ value, onChange, placeholder }: { value: string, onChange: (value: string) => void, placeholder?: string }) => (
+      <QuillEditor value={value} onChange={onChange} placeholder={placeholder} />
+    );
+  },
+  { ssr: false, loading: () => <div className="p-3 border-2 border-gray-300 dark:border-gray-700 rounded-md h-48 animate-pulse bg-gray-50 dark:bg-gray-800/50"></div> }
+);
+
+interface ParsedTask {
+  title: string;
+  details: string;
+  assignee: string | null;
+  group: string | null;
+  dueDate: string | null;
+  priority: string;
+  ticketNumber: string | null;
+  externalUrl: string | null;
+}
+
+interface TaskReviewFormProps {
+  parsedTasks: ParsedTask[];
+  technicians: Technician[];
+  groups: Group[];
+  onSubmit: (tasks: ParsedTask[]) => Promise<void>;
+  onBack: () => void;
+  onCreateGroup?: (name: string, description?: string) => Promise<Group>;
+}
+
+export function TaskReviewForm({ 
+  parsedTasks, 
+  technicians, 
+  groups, 
+  onSubmit, 
+  onBack,
+  onCreateGroup
+}: TaskReviewFormProps) {
+  const [editedTasks, setEditedTasks] = useState<ParsedTask[]>(parsedTasks);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showNewGroupForm, setShowNewGroupForm] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupDescription, setNewGroupDescription] = useState('');
+  const [processingGroup, setProcessingGroup] = useState(false);
+  
+  // Handle field changes for a specific task
+  const handleTaskChange = (index: number, field: keyof ParsedTask, value: any) => {
+    const updatedTasks = [...editedTasks];
+    updatedTasks[index] = { ...updatedTasks[index], [field]: value };
+    setEditedTasks(updatedTasks);
+  };
+  
+  // Handle final submission
+  const handleSubmit = async () => {
+    if (editedTasks.length === 0) {
+      setError('No tasks to submit');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    setError(null);
+    
+    try {
+      await onSubmit(editedTasks);
+    } catch (err: any) {
+      setError(err.message || 'Failed to add tasks');
+      setIsSubmitting(false);
+    }
+  };
+  
+  // Handle creating a new group
+  const handleCreateGroup = async () => {
+    if (!newGroupName.trim() || !onCreateGroup) {
+      return;
+    }
+    
+    setProcessingGroup(true);
+    
+    try {
+      const newGroup = await onCreateGroup(newGroupName.trim(), newGroupDescription.trim());
+      
+      // Update UI with new group
+      groups.push(newGroup);
+      
+      // Clear form
+      setShowNewGroupForm(false);
+      setNewGroupName('');
+      setNewGroupDescription('');
+    } catch (err: any) {
+      setError(err.message || "Failed to create new group.");
+    } finally {
+      setProcessingGroup(false);
+    }
+  };
+  
+  // Handle removing a task
+  const handleRemoveTask = (index: number) => {
+    setEditedTasks(editedTasks.filter((_, i) => i !== index));
+  };
+  
+  // Prioritize matching technicians by name
+  const findBestTechnicianMatch = (name: string | null): string => {
+    if (!name) return '';
+    
+    const normalizedName = name.toLowerCase().trim();
+    
+    // Try to find an exact match
+    const exactMatch = technicians.find(tech => 
+      tech.name.toLowerCase().trim() === normalizedName
+    );
+    if (exactMatch) return exactMatch.id;
+    
+    // Try if any technician name contains the input name
+    const containsMatch = technicians.find(tech => 
+      tech.name.toLowerCase().trim().includes(normalizedName)
+    );
+    if (containsMatch) return containsMatch.id;
+    
+    // Try if the input name contains any technician name
+    const reverseContainsMatch = technicians.find(tech => 
+      normalizedName.includes(tech.name.toLowerCase().trim())
+    );
+    if (reverseContainsMatch) return reverseContainsMatch.id;
+    
+    // Try if the input name contains any part (word) of any technician name
+    for (const tech of technicians) {
+      const techNameParts = tech.name.toLowerCase().trim().split(/\s+/);
+      for (const part of techNameParts) {
+        if (normalizedName.includes(part) && part.length > 1) {
+          return tech.id;
+        }
+      }
+    }
+    
+    // Try if any part of the input name matches any part of any technician name
+    const nameParts = normalizedName.split(/\s+/);
+    for (const part of nameParts) {
+      if (part.length < 2) continue; // Skip very short parts
+      
+      const partMatch = technicians.find(tech => {
+        const techParts = tech.name.toLowerCase().trim().split(/\s+/);
+        return techParts.some(techPart => techPart.includes(part) || part.includes(techPart));
+      });
+      
+      if (partMatch) return partMatch.id;
+    }
+    
+    return '';
+  };
+  
+  // Prioritize matching groups by name
+  const findBestGroupMatch = (name: string | null): string => {
+    if (!name) return '';
+    
+    // Try to find an exact match
+    const exactMatch = groups.find(group => 
+      group.name.toLowerCase() === name.toLowerCase()
+    );
+    if (exactMatch) return exactMatch.id;
+    
+    // Try to find a partial match
+    const partialMatch = groups.find(group => 
+      group.name.toLowerCase().includes(name.toLowerCase()) || 
+      name.toLowerCase().includes(group.name.toLowerCase())
+    );
+    if (partialMatch) return partialMatch.id;
+    
+    return '';
+  };
+  
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+          Review Tasks ({editedTasks.length})
+        </h3>
+        
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onBack}
+            className="px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded text-sm hover:bg-gray-200 dark:hover:bg-gray-700"
+            disabled={isSubmitting}
+          >
+            Back
+          </button>
+          
+          <button
+            type="button"
+            onClick={handleSubmit}
+            className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 flex items-center space-x-1 disabled:opacity-50"
+            disabled={isSubmitting || editedTasks.length === 0}
+          >
+            {isSubmitting ? (
+              <>
+                <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Adding Tasks...</span>
+              </>
+            ) : (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                <span>Add All Tasks</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+      
+      {/* New group form */}
+      {showNewGroupForm && (
+        <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-lg border border-indigo-200 dark:border-indigo-800 mb-4">
+          <h4 className="text-sm font-medium text-indigo-800 dark:text-indigo-300 mb-2">Create New Group</h4>
+          <div className="space-y-3">
+            <div>
+              <input 
+                type="text" 
+                placeholder="Group name"
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                className="block w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 sm:text-sm p-2 bg-white dark:bg-gray-800"
+              />
+            </div>
+            <div>
+              <input 
+                type="text" 
+                placeholder="Description (optional)"
+                value={newGroupDescription}
+                onChange={(e) => setNewGroupDescription(e.target.value)}
+                className="block w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 sm:text-sm p-2 bg-white dark:bg-gray-800"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleCreateGroup}
+                disabled={!newGroupName.trim() || processingGroup}
+                className="px-3 py-1.5 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50 flex items-center"
+              >
+                {processingGroup ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Creating...
+                  </>
+                ) : "Create Group"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowNewGroupForm(false)}
+                className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded text-sm hover:bg-gray-300 dark:hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Task cards */}
+      <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2">
+        {editedTasks.map((task, index) => (
+          <div 
+            key={index} 
+            className="border rounded-lg p-4 bg-white dark:bg-gray-800 shadow-sm border-gray-200 dark:border-gray-700"
+          >
+            {/* Task header with title and remove button */}
+            <div className="flex justify-between items-start mb-4">
+              <div className="flex-1">
+                <input
+                  type="text"
+                  value={task.title}
+                  onChange={(e) => handleTaskChange(index, 'title', e.target.value)}
+                  className="w-full text-lg font-medium rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800"
+                  placeholder="Task title"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => handleRemoveTask(index)}
+                className="text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* Task details - Use rich text editor */}
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Details
+              </label>
+              <DynamicQuillEditor
+                value={task.details || ''}
+                onChange={(value) => handleTaskChange(index, 'details', value)}
+                placeholder="Task details"
+              />
+            </div>
+            
+            {/* Task metadata */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Assignee */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  Assignee
+                </label>
+                <select
+                  value={findBestTechnicianMatch(task.assignee)}
+                  onChange={(e) => {
+                    const techId = e.target.value;
+                    const techName = techId 
+                      ? technicians.find(t => t.id === techId)?.name || null 
+                      : null;
+                    handleTaskChange(index, 'assignee', techName);
+                  }}
+                  className="w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800"
+                >
+                  <option value="">Unassigned</option>
+                  {technicians.map((tech) => (
+                    <option key={tech.id} value={tech.id}>
+                      {tech.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Group */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  Group
+                </label>
+                <div className="flex gap-2">
+                  <select
+                    value={findBestGroupMatch(task.group)}
+                    onChange={(e) => {
+                      const groupId = e.target.value;
+                      const groupName = groupId 
+                        ? groups.find(g => g.id === groupId)?.name || null 
+                        : null;
+                      handleTaskChange(index, 'group', groupName);
+                    }}
+                    className="w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800"
+                  >
+                    <option value="">No Group</option>
+                    {groups.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
+                  
+                  {!showNewGroupForm && onCreateGroup && (
+                    <button
+                      type="button"
+                      onClick={() => setShowNewGroupForm(true)}
+                      className="px-2 flex-none bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded hover:bg-indigo-200 dark:hover:bg-indigo-800/30"
+                      title="Create new group"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+              
+              {/* Due date */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  Due Date
+                </label>
+                <input
+                  type="date"
+                  value={task.dueDate || ''}
+                  onChange={(e) => handleTaskChange(index, 'dueDate', e.target.value)}
+                  className="w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800"
+                />
+              </div>
+              
+              {/* Priority */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  Priority
+                </label>
+                <select
+                  value={task.priority || 'Medium'}
+                  onChange={(e) => handleTaskChange(index, 'priority', e.target.value)}
+                  className="w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800"
+                >
+                  <option value="Low">Low</option>
+                  <option value="Medium">Medium</option>
+                  <option value="High">High</option>
+                  <option value="Critical">Critical</option>
+                </select>
+              </div>
+              
+              {/* Ticket number */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  Ticket Number
+                </label>
+                <input
+                  type="text"
+                  value={task.ticketNumber || ''}
+                  onChange={(e) => handleTaskChange(index, 'ticketNumber', e.target.value)}
+                  className="w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800"
+                  placeholder="e.g. TICKET-123"
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+        
+        {editedTasks.length === 0 && (
+          <div className="text-center py-6 text-gray-500 dark:text-gray-400">
+            No tasks found. Please go back and try again.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+} 

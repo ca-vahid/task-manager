@@ -18,16 +18,14 @@ export default function RootLayout({
   const showHeader = pathname !== '/login'; // Don't show header on login page
 
   return (
-    <html lang="en">
-      {/* body tag will have dark class applied by ThemeProvider */}
-      <body>
+    <html lang="en" className="h-full">
+      <body className="h-full">
         <ThemeProvider>
           <NotificationProvider>
             <UndoProvider>
               <AuthProvider>
                 {showHeader && <Header />} {/* Conditionally render Header */}
-                {/* Add dark mode background classes */}
-                <main className="pt-4 pb-8 bg-gray-50 dark:bg-gray-900">
+                <main className="min-h-screen bg-slate-50 dark:bg-slate-900">
                   {/* Content moves below header */}
                   {children}
                 </main>
