@@ -1,17 +1,38 @@
 "use client";
 
-import React, { useState, FormEvent, ChangeEvent, useEffect } from 'react';
+import React, { useState, FormEvent, ChangeEvent, useEffect, forwardRef } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { ControlStatus, Technician, Control, Company } from '@/lib/types';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 
-// Import ReactQuill dynamically to avoid SSR issues
-const ReactQuill = dynamic(() => import('react-quill'), { 
-  ssr: false,
-  loading: () => <div className="p-3 border-2 border-gray-300 dark:border-gray-700 rounded-md h-48 animate-pulse bg-gray-50 dark:bg-gray-800/50"></div>
+// Create a custom wrapper around ReactQuill to fix the findDOMNode issue
+const QuillWrapper = forwardRef((props: any, ref) => {
+  const [mounted, setMounted] = useState(false);
+  
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+  
+  if (!mounted) {
+    return (
+      <div className="p-3 border-2 border-gray-300 dark:border-gray-700 rounded-md h-48 animate-pulse bg-gray-50 dark:bg-gray-800/50"></div>
+    );
+  }
+  
+  // Dynamically import ReactQuill only on the client side
+  const ReactQuill = require('react-quill');
+  return <ReactQuill {...props} ref={ref} />;
 });
-import 'react-quill/dist/quill.snow.css'; // Import Quill styles
+
+QuillWrapper.displayName = 'QuillWrapper';
+
+// Import Quill styles
+import 'react-quill/dist/quill.snow.css';
+
+// Simple flag to use basic textarea instead of ReactQuill
+const USE_BASIC_EDITOR = true;
 
 interface AddControlFormProps {
   technicians: Technician[];
@@ -425,25 +446,12 @@ export function AddControlForm({
         <div>
             <label htmlFor="explanation" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Explanation</label>
             <div className="bg-white dark:bg-gray-800 rounded-md border-2 border-gray-300 dark:border-gray-700">
-              {/* Key prop forces remount to avoid findDOMNode warnings */}
-              <div key={`quill-editor-${Math.random()}`}>
-                <ReactQuill
-                  value={explanation}
-                  onChange={setExplanation}
-                  theme="snow"
-                  className="text-gray-900 dark:text-gray-100"
-                  modules={{
-                    toolbar: [
-                      ['bold', 'italic', 'underline', 'strike'],
-                      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                      ['link'],
-                      ['clean']
-                    ]
-                  }}
-                  formats={['bold', 'italic', 'underline', 'strike', 'list', 'bullet', 'link']}
-                  placeholder="Add a detailed explanation of this control..."
-                />
-              </div>
+              <textarea
+                value={explanation}
+                onChange={(e) => setExplanation(e.target.value)}
+                className="w-full h-48 p-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-0 focus:ring-0 focus:outline-none resize-none"
+                placeholder="Add a detailed explanation of this control..."
+              ></textarea>
             </div>
           </div>
 
