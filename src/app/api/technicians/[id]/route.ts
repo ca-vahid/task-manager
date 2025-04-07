@@ -7,8 +7,10 @@ import {
 const TECHNICIANS_COLLECTION = 'technicians';
 
 // PUT /api/technicians/[id] - Update a technician
-export async function PUT(request: Request, context: any) {
-  const id = context.params.id;
+export async function PUT(
+  request: Request
+) {
+  const id = request.url.split('/').pop();
   try {
     const body = await request.json();
     const { name, email, agentId } = body;
@@ -41,8 +43,10 @@ export async function PUT(request: Request, context: any) {
 }
 
 // DELETE /api/technicians/[id] - Delete a technician
-export async function DELETE(request: Request, context: any) {
-  const id = context.params.id;
+export async function DELETE(
+  request: Request
+) {
+  const id = request.url.split('/').pop();
   try {
     if (!id) {
       return NextResponse.json({ message: 'Technician ID is required' }, { status: 400 });
