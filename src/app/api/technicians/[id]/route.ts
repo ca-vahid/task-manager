@@ -1,24 +1,14 @@
-import { NextResponse, NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { 
     updateDocument, 
     deleteDocument 
 } from '@/lib/firebase/firebaseUtils'; // Assuming alias @
 
-// Define the type for the route context
-interface RouteContext {
-  params: {
-    id: string;
-  };
-}
-
 const TECHNICIANS_COLLECTION = 'technicians';
 
 // PUT /api/technicians/[id] - Update a technician
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const { id } = params;
+export async function PUT(request: Request, context: any) {
+  const id = context.params.id;
   try {
     const body = await request.json();
     const { name, email, agentId } = body;
@@ -51,11 +41,8 @@ export async function PUT(
 }
 
 // DELETE /api/technicians/[id] - Delete a technician
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const { id } = params;
+export async function DELETE(request: Request, context: any) {
+  const id = context.params.id;
   try {
     if (!id) {
       return NextResponse.json({ message: 'Technician ID is required' }, { status: 400 });
