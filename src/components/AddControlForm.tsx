@@ -1,42 +1,106 @@
 "use client";
 
-import React, { useState, FormEvent, ChangeEvent, useEffect, forwardRef, Suspense } from 'react';
+import React, { useState, FormEvent, ChangeEvent, useEffect, useRef } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { ControlStatus, Technician, Control, Company } from '@/lib/types';
 import Image from 'next/image';
-import dynamic from 'next/dynamic';
-
-// Create a lazy-loaded editor component to avoid SSR issues
-const Editor = React.lazy(() => 
-  import('react-quill').then(mod => {
-    // Return a wrapper component that doesn't use findDOMNode
-    return {
-      default: (props: {
-        value: string;
-        onChange: (value: string) => void;
-        theme?: string;
-        className?: string;
-        modules?: any;
-        formats?: string[];
-        placeholder?: string;
-      }) => {
-        const ReactQuill = mod.default;
-        return <ReactQuill {...props} />;
-      }
-    };
-  })
-);
-
-// Fallback component to show while the editor is loading
-const EditorFallback = () => (
-  <div className="p-3 border-2 border-gray-300 dark:border-gray-700 rounded-md h-48 animate-pulse bg-gray-50 dark:bg-gray-800/50"></div>
-);
 
 // Import Quill styles
 import 'react-quill/dist/quill.snow.css';
 
-// Simple flag to use basic textarea instead of ReactQuill
-const USE_BASIC_EDITOR = true;
+// Loading placeholder for the editor
+const EditorFallback = () => (
+  <div className="p-3 border-2 border-gray-300 dark:border-gray-700 rounded-md h-48 animate-pulse bg-gray-50 dark:bg-gray-800/50"></div>
+);
+
+// Custom Quill Editor Component with TypeScript types
+interface QuillEditorProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}
+
+function QuillEditor({ value, onChange, placeholder }: QuillEditorProps) {
+  const editorRef = useRef<HTMLDivElement>(null);
+  const quillRef = useRef<any>(null);
+  const [isClient, setIsClient] = useState(false);
+  
+  // Check if we're on the client
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+  
+  // Initialize Quill on mount
+  useEffect(() => {
+    if (!isClient) return;
+    
+    if (editorRef.current && !quillRef.current) {
+      // Dynamic import to avoid SSR issues
+      import('quill').then(({ default: Quill }) => {
+        if (editorRef.current) { // Double-check ref is still valid
+          quillRef.current = new Quill(editorRef.current, {
+            theme: 'snow',
+            placeholder: placeholder || 'Write something...',
+            modules: {
+              toolbar: [
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                ['link'],
+                ['clean']
+              ]
+            },
+            formats: ['bold', 'italic', 'underline', 'strike', 'list', 'bullet', 'link']
+          });
+          
+          // Set initial content
+          quillRef.current.clipboard.dangerouslyPasteHTML(value || '');
+          
+          // Handle text change
+          quillRef.current.on('text-change', () => {
+            if (onChange && editorRef.current) {
+              const editorElement = editorRef.current.querySelector('.ql-editor');
+              if (editorElement) {
+                const html = editorElement.innerHTML;
+                onChange(html);
+              }
+            }
+          });
+        }
+      });
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      quillRef.current = null;
+    };
+  }, [isClient, placeholder, onChange]);
+  
+  // Update content when value prop changes
+  useEffect(() => {
+    if (!isClient) return;
+    
+    if (quillRef.current && editorRef.current) {
+      const editorElement = editorRef.current.querySelector('.ql-editor');
+      if (editorElement) {
+        const currentContent = editorElement.innerHTML;
+        if (value !== currentContent) {
+          quillRef.current.clipboard.dangerouslyPasteHTML(value || '');
+        }
+      }
+    }
+  }, [value, isClient]);
+  
+  // Show loading placeholder until client-side code is ready
+  if (!isClient) {
+    return <EditorFallback />;
+  }
+  
+  return (
+    <div className="quill-editor">
+      <div ref={editorRef} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+    </div>
+  );
+}
 
 interface AddControlFormProps {
   technicians: Technician[];
@@ -44,20 +108,6 @@ interface AddControlFormProps {
   onAddControl: (newControlData: Omit<Control, 'id'>) => Promise<void>;
   onCancel: () => void;
 }
-
-// Create a client-side only wrapper to safely render ReactQuill
-const ClientOnly = ({ children }: { children: React.ReactNode }) => {
-  const [mounted, setMounted] = useState(false);
-  
-  useEffect(() => {
-    setMounted(true);
-    return () => setMounted(false);
-  }, []);
-  
-  if (!mounted) return <EditorFallback />;
-  
-  return <>{children}</>;
-};
 
 export function AddControlForm({ 
     technicians, 
@@ -464,26 +514,11 @@ export function AddControlForm({
         <div>
             <label htmlFor="explanation" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Explanation</label>
             <div className="bg-white dark:bg-gray-800 rounded-md border-2 border-gray-300 dark:border-gray-700">
-              <ClientOnly>
-                <Suspense fallback={<EditorFallback />}>
-                  <Editor
-                    value={explanation}
-                    onChange={(value) => setExplanation(value)}
-                    theme="snow"
-                    className="text-gray-900 dark:text-gray-100"
-                    modules={{
-                      toolbar: [
-                        ['bold', 'italic', 'underline', 'strike'],
-                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                        ['link'],
-                        ['clean']
-                      ]
-                    }}
-                    formats={['bold', 'italic', 'underline', 'strike', 'list', 'bullet', 'link']}
-                    placeholder="Add a detailed explanation of this control..."
-                  />
-                </Suspense>
-              </ClientOnly>
+              <QuillEditor
+                value={explanation}
+                onChange={(value) => setExplanation(value)}
+                placeholder="Add a detailed explanation of this control..."
+              />
             </div>
           </div>
 
