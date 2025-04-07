@@ -77,28 +77,8 @@ export async function POST(request: Request) {
         dataToUpdate.estimatedCompletionDate = null;
       } else {
         try {
-          // Parse the date value properly to avoid timezone issues
-          let jsDate: Date;
-          
-          if (typeof dateValue === 'string') {
-            // If it's a YYYY-MM-DD format string
-            if (dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
-              const [year, month, day] = dateValue.split('-').map(n => parseInt(n, 10));
-              // Use UTC date to prevent timezone shifts
-              jsDate = new Date(Date.UTC(year, month - 1, day));
-            }
-            // If it's an ISO string
-            else if (dateValue.includes('T')) {
-              jsDate = new Date(dateValue);
-            }
-            else {
-              throw new Error('Unsupported date format');
-            }
-          } else {
-            // For other formats (like timestamp objects)
-            jsDate = new Date(dateValue);
-          }
-          
+          // Simplified date handling: client sends ISO string or YYYY-MM-DD
+          const jsDate = new Date(dateValue);
           if (!isNaN(jsDate.getTime())) {
             // Convert valid JS Date to Firestore Timestamp
             dataToUpdate.estimatedCompletionDate = Timestamp.fromDate(jsDate);

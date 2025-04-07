@@ -40,15 +40,11 @@ function formatDateForInput(timestamp: Timestamp | null): string {
 
     if (isNaN(date.getTime())) { return ''; }
     
-    // Create a date string that preserves the user's intended date
-    // First, adjust for the timezone offset - this prevents the date from shifting
-    const utcDate = new Date(Date.UTC(
-      date.getFullYear(),
-      date.getMonth(),
-      date.getDate()
-    ));
-    
-    return utcDate.toISOString().split('T')[0];
+    // Use UTC methods to prevent timezone shifts
+    const year = date.getUTCFullYear();
+    const month = (date.getUTCMonth() + 1).toString().padStart(2, '0'); // Month is 0-indexed
+    const day = date.getUTCDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
   } catch (error) { 
     console.error("Error formatting date:", error, timestamp);
     return ''; 
@@ -66,10 +62,13 @@ function getTimeRemaining(timestamp: Timestamp | null | any, status?: ControlSta
     else if (typeof timestamp === 'string') { date = new Date(timestamp); }
     else { return { days: 0, urgent: false, overdue: false, text: 'Invalid date' }; }
     if (isNaN(date.getTime())) { return { days: 0, urgent: false, overdue: false, text: 'Invalid date' }; }
+    
+    // Use UTC dates for comparison to avoid timezone issues
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    date.setHours(0, 0, 0, 0);
-    const diffTime = date.getTime() - today.getTime();
+    const todayUTC = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+    const dateUTC = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+
+    const diffTime = dateUTC.getTime() - todayUTC.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     if (diffDays < 0) { return { days: Math.abs(diffDays), urgent: false, overdue: true, text: `${Math.abs(diffDays)} ${Math.abs(diffDays) === 1 ? 'day' : 'days'} overdue` }; }
     else if (diffDays === 0) { return { days: 0, urgent: true, overdue: false, text: 'Due today' }; }
@@ -190,26 +189,24 @@ export function ControlCard({ control, technicians, onUpdateControl, onDeleteCon
         }
         else { 
             try { 
-                // Parse YYYY-MM-DD string to create a date object
-                // We'll use UTC to ensure the date doesn't shift due to timezone differences
-                // This way, if the user selects April 10, it will remain April 10 regardless of timezone
-                const [year, month, day] = value.split('-').map((num: string) => parseInt(num, 10));
-                
+                // Parse YYYY-MM-DD string as UTC date to create Timestamp
+                const dateParts = value.split('-');
+                if (dateParts.length !== 3) throw new Error('Invalid date string format');
+                const year = parseInt(dateParts[0], 10);
+                const month = parseInt(dateParts[1], 10) - 1; // JS month is 0-indexed
+                const day = parseInt(dateParts[2], 10);
+
                 // Validate parts
-                if (isNaN(year) || isNaN(month) || isNaN(day) || 
-                    month < 1 || month > 12 || day < 1 || day > 31) {
-                    throw new Error('Invalid date components');
-                }
-                
-                // Create date at UTC midnight to ensure date doesn't shift
-                const adjustedDate = new Date(Date.UTC(year, month - 1, day));
-                
-                if (isNaN(adjustedDate.getTime())) {
+                if (isNaN(year) || isNaN(month) || isNaN(day)) throw new Error('Invalid date components');
+
+                // Create date object representing midnight UTC on the selected day
+                const utcDate = new Date(Date.UTC(year, month, day));
+
+                if (isNaN(utcDate.getTime())) { // Check if the constructed date is valid
                     throw new Error('Invalid date constructed');
                 }
-                
-                // Store as Firestore Timestamp
-                updateValue = Timestamp.fromDate(adjustedDate);
+                updateValue = Timestamp.fromDate(utcDate); // Convert to Firestore Timestamp
+
             } catch (error) { 
                 setUpdateError('Invalid date format provided.'); 
                 console.error("Error parsing date input:", value, error); 
