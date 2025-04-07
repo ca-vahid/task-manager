@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Task, TaskStatus, Technician, ViewDensity, PriorityLevel } from '@/lib/types';
 import { Timestamp } from 'firebase/firestore';
 import { ChevronDownIcon, ChevronUpIcon, EllipsisVerticalIcon } from '@heroicons/react/24/outline';
+import DOMPurify from 'dompurify';
 
 interface TaskCardProps {
   task: Task;
@@ -203,6 +204,14 @@ export function TaskCard({
       ? 'p-4' 
       : 'p-5';
 
+  // Sanitize HTML content
+  const sanitizeHtml = (html: string) => {
+    return DOMPurify.sanitize(html, {
+      ALLOWED_TAGS: ['p', 'ul', 'ol', 'li', 'strong', 'em', 'b', 'i', 'a', 'h1', 'h2', 'h3', 'h4', 'br', 'span'],
+      ALLOWED_ATTR: ['href', 'target', 'rel', 'style', 'class']
+    });
+  };
+
   return (
     <div className={`border ${statusStyles.border} ${statusStyles.darkBorder} rounded-lg shadow-sm hover:shadow-md ${statusStyles.background} ${statusStyles.darkBackground} ${cardClasses} 
     transition-all duration-300 ease-in-out relative ${isSelected ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''} 
@@ -301,9 +310,10 @@ export function TaskCard({
           
           {/* Collapsible description */}
           {showDescription && (
-            <div className="mb-4 text-sm text-gray-700 dark:text-gray-300 bg-white/50 dark:bg-black/20 p-3 rounded-md border border-gray-200 dark:border-gray-700 transition-all duration-200 ease-in">
-              {task.explanation}
-            </div>
+            <div 
+              className="mb-4 text-sm text-gray-700 dark:text-gray-300 bg-white/50 dark:bg-black/20 p-3 rounded-md border border-gray-200 dark:border-gray-700 transition-all duration-200 ease-in rich-text-content"
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(task.explanation || '') }}
+            />
           )}
         </div>
       )}
