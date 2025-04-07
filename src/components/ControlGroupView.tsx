@@ -52,9 +52,9 @@ export function ControlGroupView({
     useSensor(PointerSensor, {
       // Configure activation constraints to prevent accidental drags
       activationConstraint: {
-        distance: 8, // 8px minimum drag distance
-        tolerance: 5, // Allow some movement before drag starts
-        delay: 150, // Add slight delay for better touch handling
+        distance: 10, // Slightly increase minimum drag distance for better detection
+        tolerance: 8, // Allow more movement before drag starts
+        // Remove delay completely as it causes jankiness
       },
     })
   );
@@ -405,8 +405,8 @@ export function ControlGroupView({
         // Add modifiers and configuration to improve stability
         autoScroll={{
           threshold: { x: 0.1, y: 0.2 },
-          acceleration: 10,
-          interval: 5
+          acceleration: 5, // Lower acceleration for smoother scrolling
+          interval: 10 // Increased interval for better performance
         }}
       >
         {/* Outer container clips the scrolling content */}
@@ -454,7 +454,7 @@ export function ControlGroupView({
                           
                           {/* Column Content */}
                           <SortableContext 
-                            items={groups[groupName].map(control => control.id)} 
+                            items={controlIdsByGroup[groupName] || []} 
                             strategy={verticalListSortingStrategy}
                           >
                             <div className={`${ 

@@ -56,6 +56,9 @@ export function ControlList() {
   const isDraggingRef = useRef(false);
   const lastDragOperationTimeRef = useRef(0);
 
+  // Create a timeout ref to track and clean up timeouts
+  const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Fetch initial data (controls and technicians)
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -635,74 +638,90 @@ export function ControlList() {
       // Save original controls array for potential undo
       const originalControls = [...controls];
       
-      // Pass explicit Control[] type to the items parameter
-      setControls((items: Control[]) => {
-        const oldIndex = items.findIndex((item) => item.id === active.id);
-        const newIndex = items.findIndex((item) => item.id === over.id);
-        
-        // Ensure indices are found before proceeding
-        if (oldIndex === -1 || newIndex === -1) {
-            console.error("Could not find dragged items in state.");
-            return items; // Return original items if indices are invalid
+      // Find the indices directly without using setState callback
+      const oldIndex = controls.findIndex((item) => item.id === active.id);
+      const newIndex = controls.findIndex((item) => item.id === over.id);
+      
+      // Ensure indices are found before proceeding
+      if (oldIndex === -1 || newIndex === -1) {
+        console.error("Could not find dragged items in state.");
+        return; // Return early if invalid indices
+      }
+      
+      // Create the new array with moved items
+      const newItems = arrayMove([...controls], oldIndex, newIndex);
+      
+      // Assign new order based on the new array index
+      const itemsWithUpdatedOrder = newItems.map((item, index) => ({ 
+        ...item, 
+        order: index 
+      }));
+      
+      // Get the moved item's name for the toast message
+      const movedItemName = controls.find(item => item.id === active.id)?.title || "Control";
+      
+      // Update state directly with the new order
+      setControls(itemsWithUpdatedOrder);
+      
+      // Record this as an undoable action
+      addUndoableAction({
+        type: 'REORDER_CONTROLS',
+        data: {
+          originalControls,
+          newControls: itemsWithUpdatedOrder
         }
-        
-        const newItems = arrayMove(items, oldIndex, newIndex);
-        
-        // Update local state first for responsiveness
-        // Assign new order based on the new array index
-        const itemsWithUpdatedOrder = newItems.map((item, index) => ({ 
-            ...item, 
-            order: index 
-        }));
-        
-        // Get the moved item's name for the toast message
-        const movedItemName = items.find(item => item.id === active.id)?.title || "Control";
-        
-        // Record this as an undoable action
-        addUndoableAction({
-          type: 'REORDER_CONTROLS',
-          data: {
-            originalControls,
-            newControls: itemsWithUpdatedOrder
-          }
-        });
-        
-        // Use a timeout to delay showing the toast until after the state update
-        setTimeout(() => {
-          // Only show toast if we're still the active drag operation
-          if (isDraggingRef.current) {
-            // Show undo toast
-            showUndoToast(
-              `Moved "${movedItemName}" ${oldIndex < newIndex ? 'down' : 'up'}`,
-              async () => {
-                try {
-                  // Update the UI immediately
-                  setControls(originalControls);
-                  
-                  // Update the database with original orders
-                  await updateOrderInFirestore(originalControls);
-                  
-                  return Promise.resolve();
-                } catch (error) {
-                  console.error("Failed to undo reordering:", error);
-                  return Promise.reject(error);
-                }
-              },
-              7000 // 7 seconds to undo
-            );
-            
-            // Reset dragging flag after toast is shown
-            isDraggingRef.current = false;
-          }
-        }, 100);
-
-        // Trigger background update to Firestore
-        updateOrderInFirestore(itemsWithUpdatedOrder);
-
-        return itemsWithUpdatedOrder; // Return the re-ordered items with updated order property
       });
+      
+      // Clear any existing timeout to prevent multiple toasts
+      if (undoTimeoutRef.current) {
+        clearTimeout(undoTimeoutRef.current);
+        undoTimeoutRef.current = null;
+      }
+      
+      // Use a timeout to delay showing the toast until after the state update
+      undoTimeoutRef.current = setTimeout(() => {
+        undoTimeoutRef.current = null;
+        
+        // Only show toast if we're still the active drag operation
+        if (isDraggingRef.current) {
+          // Show undo toast
+          showUndoToast(
+            `Moved "${movedItemName}" ${oldIndex < newIndex ? 'down' : 'up'}`,
+            async () => {
+              try {
+                // Update the UI immediately
+                setControls(originalControls);
+                
+                // Update the database with original orders
+                await updateOrderInFirestore(originalControls);
+                
+                return Promise.resolve();
+              } catch (error) {
+                console.error("Failed to undo reordering:", error);
+                return Promise.reject(error);
+              }
+            },
+            7000 // 7 seconds to undo
+          );
+          
+          // Reset dragging flag after toast is shown
+          isDraggingRef.current = false;
+        }
+      }, 100);
+
+      // Trigger background update to Firestore
+      updateOrderInFirestore(itemsWithUpdatedOrder);
     }
   }, [controls, addUndoableAction, showUndoToast, updateOrderInFirestore]);
+
+  // Clean up any pending timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (undoTimeoutRef.current) {
+        clearTimeout(undoTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // New function to handle batch operations
   const handleBatchUpdate = async (controlIds: string[], updates: Partial<Omit<Control, 'id'>>) => {
