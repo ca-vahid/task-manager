@@ -607,10 +607,10 @@ export function ControlList({ initialControls = [] }: ControlListProps) {
     }));
 
     try {
-        const response = await fetch('/api/controls/batch-update', { 
+        const response = await fetch('/api/controls/update-order', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ controls: updates }),
+            body: JSON.stringify({ updates: updates }),
         });
 
         if (!response.ok) {
