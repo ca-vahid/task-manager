@@ -40,6 +40,7 @@ export function ControlList() {
   const [viewMode, setViewMode] = useState<ViewMode>('kanban');
   const [viewDensity, setViewDensity] = useState<ViewDensity>('medium');
   const [selectedControlIds, setSelectedControlIds] = useState<string[]>([]);
+  const [activeFilters, setActiveFilters] = useState<boolean>(false); // Track if filters are active
 
   // Sensors for dnd-kit
   const sensors = useSensors(
@@ -119,14 +120,30 @@ export function ControlList() {
   }, [fetchData]);
 
   // Set filtered controls whenever controls change
-  useEffect(() => {
-    setFilteredControls(controls);
-  }, [controls]);
-  
-  // Handler for filter changes
   const handleFilterChange = useCallback((filtered: Control[]) => {
     setFilteredControls(filtered);
-  }, []);
+    // If the filtered list length is different from the full list, filters are active
+    setActiveFilters(filtered.length !== controls.length);
+  }, [controls]);
+  
+  // Apply current filters to updated controls
+  const reapplyFilters = useCallback(() => {
+    // This function will be called after any operation that modifies the controls
+    if (activeFilters) {
+      // Signal to the ControlFilterBar that we need to reapply filters
+      // We'll do this by sending a custom event
+      const reapplyEvent = new CustomEvent('reapplyFilters');
+      window.dispatchEvent(reapplyEvent);
+    } else {
+      // If no filters are active, just show all controls
+      setFilteredControls(controls);
+    }
+  }, [activeFilters, controls]);
+
+  // Listen for controls changes and reapply filters if needed
+  useEffect(() => {
+    reapplyFilters();
+  }, [controls, reapplyFilters]);
 
   // Handler for updating a control
   const handleUpdateControl = useCallback(async (id: string, updates: Partial<Omit<Control, 'id'>>) => {

@@ -135,6 +135,42 @@ export function ControlFilterBar({
     onFilterChange(filtered);
   };
   
+  // Listen for reapplyFilters event
+  useEffect(() => {
+    const handleReapplyFilters = () => {
+      // Reapply current filters when the event is triggered
+      applyFiltersWithState(filters);
+    };
+    
+    // Add event listener
+    window.addEventListener('reapplyFilters', handleReapplyFilters);
+    
+    // Clean up on unmount
+    return () => {
+      window.removeEventListener('reapplyFilters', handleReapplyFilters);
+    };
+  }, [filters, controls]); // Re-add listener if filters or controls change
+  
+  // Reapply filters when controls change (to maintain filtered view)
+  useEffect(() => {
+    // Only reapply if there are active filters
+    if (hasActiveFilters(filters)) {
+      applyFiltersWithState(filters);
+    }
+  }, [controls]);
+  
+  // Helper to check if there are any active filters
+  const hasActiveFilters = (filterState: ControlFilters): boolean => {
+    return !!(
+      filterState.search?.trim() || 
+      (filterState.status && filterState.status.length > 0) ||
+      (filterState.assignee && filterState.assignee.length > 0) ||
+      (filterState.company && filterState.company.length > 0) ||
+      (filterState.tags && filterState.tags.length > 0) ||
+      (filterState.dateRange && (filterState.dateRange.start || filterState.dateRange.end))
+    );
+  };
+  
   const clearFilters = () => {
     const newFilters = {
       search: '',
