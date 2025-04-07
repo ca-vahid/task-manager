@@ -7,7 +7,10 @@ import Image from 'next/image';
 import dynamic from 'next/dynamic';
 
 // Import ReactQuill dynamically to avoid SSR issues
-const ReactQuill = dynamic(() => import('react-quill'), { ssr: false });
+const ReactQuill = dynamic(() => import('react-quill'), { 
+  ssr: false,
+  loading: () => <div className="p-3 border-2 border-gray-300 dark:border-gray-700 rounded-md h-48 animate-pulse bg-gray-50 dark:bg-gray-800/50"></div>
+});
 import 'react-quill/dist/quill.snow.css'; // Import Quill styles
 
 interface AddControlFormProps {
@@ -422,22 +425,25 @@ export function AddControlForm({
         <div>
             <label htmlFor="explanation" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Explanation</label>
             <div className="bg-white dark:bg-gray-800 rounded-md border-2 border-gray-300 dark:border-gray-700">
-              <ReactQuill
-                value={explanation}
-                onChange={setExplanation}
-                theme="snow"
-                className="text-gray-900 dark:text-gray-100"
-                modules={{
-                  toolbar: [
-                    ['bold', 'italic', 'underline', 'strike'],
-                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                    ['link'],
-                    ['clean']
-                  ]
-                }}
-                formats={['bold', 'italic', 'underline', 'strike', 'list', 'bullet', 'link']}
-                placeholder="Add a detailed explanation of this control..."
-              />
+              {/* Key prop forces remount to avoid findDOMNode warnings */}
+              <div key={`quill-editor-${Math.random()}`}>
+                <ReactQuill
+                  value={explanation}
+                  onChange={setExplanation}
+                  theme="snow"
+                  className="text-gray-900 dark:text-gray-100"
+                  modules={{
+                    toolbar: [
+                      ['bold', 'italic', 'underline', 'strike'],
+                      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                      ['link'],
+                      ['clean']
+                    ]
+                  }}
+                  formats={['bold', 'italic', 'underline', 'strike', 'list', 'bullet', 'link']}
+                  placeholder="Add a detailed explanation of this control..."
+                />
+              </div>
             </div>
           </div>
 
