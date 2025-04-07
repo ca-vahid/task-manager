@@ -52,15 +52,30 @@ export function ControlFilterBar({
   const applyFiltersWithState = (filterState: ControlFilters) => {
     let filtered = [...controls];
     
-    // Text search filter (searches across title, ID, and explanation)
+    // Text search filter (searches across title, ID, explanation, and technician names)
     if (filterState.search?.trim()) {
       const searchLower = filterState.search.toLowerCase();
-      filtered = filtered.filter(control => 
-        control.title.toLowerCase().includes(searchLower) || 
-        control.dcfId.toLowerCase().includes(searchLower) ||
-        control.explanation?.toLowerCase().includes(searchLower) ||
-        (control.tags?.some(tag => tag.toLowerCase().includes(searchLower)))
-      );
+      filtered = filtered.filter(control => {
+        // Check standard fields
+        if (
+          control.title.toLowerCase().includes(searchLower) || 
+          control.dcfId.toLowerCase().includes(searchLower) ||
+          control.explanation?.toLowerCase().includes(searchLower) ||
+          (control.tags?.some(tag => tag.toLowerCase().includes(searchLower)))
+        ) {
+          return true;
+        }
+        
+        // Check technician name if control has an assignee
+        if (control.assigneeId) {
+          const technician = technicians.find(tech => tech.id === control.assigneeId);
+          if (technician && technician.name.toLowerCase().includes(searchLower)) {
+            return true;
+          }
+        }
+        
+        return false;
+      });
     }
     
     // Status filter
@@ -287,7 +302,7 @@ export function ControlFilterBar({
             <input
               ref={searchInputRef}
               type="text"
-              placeholder="Search controls by title, ID, description, or tags..."
+              placeholder="Search controls by title, ID, description, technician, or tags..."
               className="border border-gray-300 dark:border-gray-600 rounded-md px-10 py-2 w-full focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
               value={filters.search || ''}
               onChange={(e) => updateFilter('search', e.target.value)}
