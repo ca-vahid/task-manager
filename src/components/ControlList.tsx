@@ -28,13 +28,19 @@ import { BulkAddControlForm } from './BulkAddControlForm'; // Import the new bul
 import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import { useUndo, UndoableActionType } from '@/lib/contexts/UndoContext';
+import { useTheme } from '@/lib/contexts/ThemeContext';
 
-export function ControlList() {
-  const [controls, setControls] = useState<Control[]>([]);
+interface ControlListProps {
+  initialControls?: Control[];
+}
+
+export function ControlList({ initialControls = [] }: ControlListProps) {
+  const [controls, setControls] = useState<Control[]>(initialControls);
   const [filteredControls, setFilteredControls] = useState<Control[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false); // State to toggle form visibility
   const [showBulkAddForm, setShowBulkAddForm] = useState(false); // State to toggle bulk add form
   const [groupBy, setGroupBy] = useState<'status' | 'assignee' | 'none'>('status');
@@ -43,6 +49,14 @@ export function ControlList() {
   const [selectedControlIds, setSelectedControlIds] = useState<string[]>([]);
   const [activeFilters, setActiveFilters] = useState<boolean>(false); // Track if filters are active
   const { showUndoToast, addUndoableAction } = useUndo();
+  const [isAdding, setIsAdding] = useState(false);
+  const [newControlTitle, setNewControlTitle] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentOrderMap, setCurrentOrderMap] = useState<Map<string, number>>(new Map());
+  const [isSaving, setIsSaving] = useState(false);
+  
+  // Theme context to detect dark mode
+  const { theme } = useTheme();
 
   // Sensors for dnd-kit
   const sensors = useSensors(
@@ -254,18 +268,22 @@ export function ControlList() {
       });
 
       if (!response.ok) {
-        // Read the response body as text first
-        const responseBodyText = await response.text();
-        let errorMessage = `HTTP error! status: ${response.status} ${response.statusText}`;
+        let errorMessage = `HTTP error! status: ${response.status}`;
         
+        // Only try to parse JSON if there's content
         try {
-          // Attempt to parse the text as JSON
-          const errorData = JSON.parse(responseBodyText);
-          errorMessage = errorData.message || errorMessage;
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const text = await response.text();
+            if (text) {
+              const errorData = JSON.parse(text);
+              if (errorData && errorData.message) {
+                errorMessage = errorData.message;
+              }
+            }
+          }
         } catch (parseError) {
-          // If parsing failed, it wasn't JSON. Log the raw text
-          console.error("Error response was not valid JSON:", responseBodyText);
-          errorMessage = `Failed to update control. Server responded unexpectedly (status: ${response.status})`;
+          console.error('Error parsing error response:', parseError);
         }
         
         setControls(originalControls);
@@ -574,8 +592,9 @@ export function ControlList() {
   const updateOrderInFirestore = useCallback(async (orderedControls: Control[]) => {
     console.log("Preparing order update for Firestore...");
     setError(null); // Clear previous errors
+    setIsSaving(true);
 
-    // Create a map of ID to order for easier comparison later
+    // Create a map of ID to order for easier comparison
     const orderMap = new Map<string, number>();
     orderedControls.forEach((control, index) => {
       orderMap.set(control.id, index);
@@ -591,52 +610,78 @@ export function ControlList() {
         const response = await fetch('/api/controls/batch-update', { 
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ updates })
+            body: JSON.stringify({ controls: updates }),
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
-            const errorMessage = errorData.message || `HTTP error! status: ${response.status}`;
+            let errorMessage = `HTTP error! status: ${response.status}`;
+            
+            // Only try to parse JSON if there's content
+            try {
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    const text = await response.text();
+                    if (text) {
+                        const errorData = JSON.parse(text);
+                        if (errorData && errorData.message) {
+                            errorMessage = errorData.message;
+                        }
+                    }
+                }
+            } catch (parseError) {
+                console.error('Error parsing error response:', parseError);
+            }
+            
             throw new Error(errorMessage);
         }
-        
-        // Success - ensure controls are in the updated order
-        console.log("Firestore order updated successfully");
-        
-        // Check if the current state still matches what we expect
-        setControls(prevControls => {
-          // Make sure the order in state matches what we just saved
-          const currentOrderMap = new Map<string, number>();
-          prevControls.forEach((control, index) => {
-            currentOrderMap.set(control.id, index);
-          });
-          
-          // If orders match, no need to update state
-          let needsReordering = false;
-          for (const id of Array.from(orderMap.keys())) {
-            if (currentOrderMap.get(id) !== orderMap.get(id)) {
-              needsReordering = true;
-              break;
+
+        // Process the successful response
+        try {
+            // Check if there's content to parse
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                const text = await response.text();
+                if (text) {
+                    const result = JSON.parse(text);
+                    console.log('Order update succeeded:', result);
+                }
+            } else {
+                console.log('Order update succeeded with non-JSON response');
             }
-          }
-          
-          if (needsReordering) {
-            console.log("Detected order mismatch, reordering state");
-            // Sort controls based on the order we just saved
-            return [...prevControls].sort((a, b) => {
-              const orderA = orderMap.get(a.id) ?? 999;
-              const orderB = orderMap.get(b.id) ?? 999;
-              return orderA - orderB;
+            
+            // Ensure the controls state reflects the new order
+            setControls(prevControls => {
+                // If already in the right order, don't update
+                const currentIds = prevControls.map(c => c.id);
+                const newIds = orderedControls.map(c => c.id);
+                
+                // Check if arrays are equal
+                const needsUpdate = currentIds.some((id, index) => id !== newIds[index]);
+                
+                if (needsUpdate) {
+                    return [...orderedControls];
+                }
+                return prevControls;
             });
-          }
-          
-          return prevControls;
-        });
+            
+            // Update currentOrderMap for future comparisons
+            setCurrentOrderMap(new Map(orderMap));
+            setIsSaving(false);
+            console.log("Order update completed successfully");
+        } catch (parseError) {
+            console.error('Error parsing success response:', parseError);
+            // Still mark as success since the server returned ok
+            setIsSaving(false);
+        }
     } catch (error: any) {
         console.error("Failed to update Firestore order:", error);
-        setError(error.message || "Failed to save new order. Please try again.");
+        setError(error.message || "Failed to update order in database");
+        setIsSaving(false);
+        
+        // Revert controls to match the database state
+        fetchData(); // Re-fetch to ensure we're in sync with the database
     }
-  }, [setControls, setError]);
+  }, [fetchData, setControls, setError]);
 
   // Drag End Handler
   const handleDragEnd = useCallback((event: DragEndEvent) => {
