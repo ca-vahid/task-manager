@@ -1,4 +1,5 @@
-import { NextResponse, NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
+import { NextRequest } from 'next/server'; // Import NextRequest
 import { 
     doc, // Import doc
     updateDoc, // Import updateDoc
@@ -8,21 +9,14 @@ import { db } from '@/lib/firebase/firebase'; // Import db instance
 import { Control, ControlStatus } from '@/lib/types';
 import { Timestamp } from 'firebase/firestore'; // Import Timestamp
 
-// Define the type for the route context
-interface RouteContext {
-  params: {
-    id: string;
-  };
-}
-
 const CONTROLS_COLLECTION = 'controls';
 
 // PUT /api/controls/[id] - Update a control
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
-  const { id } = params;
+  const { id } = context.params;
   try {
     const body = await request.json();
     // Destructure all possible fields from Control, allowing partial updates
@@ -96,9 +90,9 @@ export async function PUT(
 // DELETE /api/controls/[id] - Delete a control
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
-  const { id } = params;
+  const { id } = context.params;
   try {
     if (!id) {
       return NextResponse.json({ message: 'Control ID is required' }, { status: 400 });
