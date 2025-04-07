@@ -67,7 +67,9 @@ export async function GET() {
         progress: data.progress || 0,
         lastUpdated: data.lastUpdated || null,
         externalUrl: data.externalUrl || null,
-        company: data.company || "Both" // Explicitly ensure company field is included and has default
+        company: data.company || "Both", // Explicitly ensure company field is included and has default
+        ticketNumber: data.ticketNumber || null, // Include ticket number if available
+        ticketUrl: data.ticketUrl || null // Include ticket URL if available
       } as Control; 
     });
 
@@ -180,7 +182,9 @@ export async function POST(request: Request) {
       progress: 0,
       lastUpdated: serverTimestamp(),
       externalUrl: body.externalUrl || null,
-      company: body.company || "Both" // Add company field to Firestore data with default
+      company: body.company || "Both", // Add company field to Firestore data with default
+      ticketNumber: null, // Initialize with null
+      ticketUrl: null // Initialize with null
     };
 
     const docRef = await addDoc(collection(db, CONTROLS_COLLECTION), newControlData);
