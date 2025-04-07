@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Task, Technician, TaskStatus, ViewDensity, Group } from '@/lib/types';
 import { TaskCard } from './TaskCard';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
@@ -32,6 +32,8 @@ export function TaskGroupView({
 }: TaskGroupViewProps) {
   // State for pagination
   const [currentPage, setCurrentPage] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [animationDirection, setAnimationDirection] = useState<'left' | 'right' | null>(null);
   const columnsPerPage = 3;
   
   // Group tasks by the specified grouping
@@ -143,14 +145,60 @@ export function TaskGroupView({
     (currentPage + 1) * columnsPerPage
   );
 
-  // Navigate to previous page
+  // Navigate to previous page with animation
   const goToPreviousPage = () => {
-    setCurrentPage(prev => Math.max(0, prev - 1));
+    if (currentPage > 0 && !isAnimating) {
+      setIsAnimating(true);
+      setAnimationDirection('right');
+      
+      // Allow animation to complete before changing page
+      setTimeout(() => {
+        setCurrentPage(prev => prev - 1);
+        setTimeout(() => {
+          setIsAnimating(false);
+        }, 50);
+      }, 250);
+    }
   };
 
-  // Navigate to next page
+  // Navigate to next page with animation
   const goToNextPage = () => {
-    setCurrentPage(prev => Math.min(totalPages - 1, prev + 1));
+    if (currentPage < totalPages - 1 && !isAnimating) {
+      setIsAnimating(true);
+      setAnimationDirection('left');
+      
+      // Allow animation to complete before changing page
+      setTimeout(() => {
+        setCurrentPage(prev => prev + 1);
+        setTimeout(() => {
+          setIsAnimating(false);
+        }, 50);
+      }, 250);
+    }
+  };
+
+  // Reset animation direction when animation ends
+  useEffect(() => {
+    if (!isAnimating) {
+      setAnimationDirection(null);
+    }
+  }, [isAnimating]);
+
+  // Determine animation classes
+  const getAnimationClasses = () => {
+    if (!isAnimating && animationDirection === null) {
+      return 'transform transition-all duration-300 opacity-100 translate-x-0';
+    }
+    
+    if (isAnimating) {
+      if (animationDirection === 'left') {
+        return 'transform transition-all duration-300 opacity-0 -translate-x-10';
+      } else {
+        return 'transform transition-all duration-300 opacity-0 translate-x-10';
+      }
+    }
+    
+    return '';
   };
 
   return (
@@ -161,9 +209,9 @@ export function TaskGroupView({
           {/* Left arrow */}
           <button 
             onClick={goToPreviousPage}
-            disabled={currentPage === 0}
+            disabled={currentPage === 0 || isAnimating}
             className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-12 p-2 rounded-full 
-              ${currentPage === 0 
+              ${(currentPage === 0 || isAnimating) 
                 ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' 
                 : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
               } transition-colors z-10`}
@@ -175,9 +223,9 @@ export function TaskGroupView({
           {/* Right arrow */}
           <button 
             onClick={goToNextPage}
-            disabled={currentPage >= totalPages - 1}
+            disabled={currentPage >= totalPages - 1 || isAnimating}
             className={`absolute right-0 top-1/2 -translate-y-1/2 translate-x-12 p-2 rounded-full
-              ${currentPage >= totalPages - 1 
+              ${(currentPage >= totalPages - 1 || isAnimating) 
                 ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' 
                 : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
               } transition-colors z-10`}
@@ -195,7 +243,7 @@ export function TaskGroupView({
         </div>
       )}
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 ${getAnimationClasses()}`}>
         {/* Render current page groups */}
         {currentGroups.map(([groupKey, groupTasks]) => (
           <div key={groupKey} className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
