@@ -14,9 +14,9 @@ const CONTROLS_COLLECTION = 'controls';
 // PUT /api/controls/[id] - Update a control
 export async function PUT(
   request: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = context.params;
+  const { id } = params;
   try {
     const body = await request.json();
     // Destructure all possible fields from Control, allowing partial updates
@@ -90,9 +90,9 @@ export async function PUT(
 // DELETE /api/controls/[id] - Delete a control
 export async function DELETE(
   request: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = context.params;
+  const { id } = params;
   try {
     if (!id) {
       return NextResponse.json({ message: 'Control ID is required' }, { status: 400 });
