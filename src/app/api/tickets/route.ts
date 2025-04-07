@@ -7,11 +7,12 @@ const TECHNICIANS_COLLECTION = 'technicians';
 
 // GET /api/tickets/:controlId - Get ticket information for a control
 export async function GET(
-  request: Request,
-  { params }: { params: { controlId: string } }
+  request: Request
 ) {
   try {
-    const controlId = params.controlId;
+    const { searchParams } = new URL(request.url);
+    const controlId = searchParams.get('controlId');
+    
     if (!controlId) {
       return NextResponse.json({ message: 'Control ID is required' }, { status: 400 });
     }
