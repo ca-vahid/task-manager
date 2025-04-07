@@ -300,23 +300,7 @@ export function ControlCard({ control, technicians, onUpdateControl, onDeleteCon
     e.stopPropagation();
     if (!menuOpen && menuButtonRef.current) {
       const rect = menuButtonRef.current.getBoundingClientRect();
-      const menuHeight = 290; // Approximate height of the menu
-      const viewportHeight = window.innerHeight;
-      const viewportWidth = window.innerWidth;
-      
-      // Calculate if there's enough space below
-      const spaceBelow = viewportHeight - rect.bottom;
-      const showAbove = spaceBelow < menuHeight;
-      
-      // Calculate left position (don't let it go off-screen)
-      let leftPos = rect.right - 180;
-      if (leftPos < 10) leftPos = 10;
-      if (leftPos + 180 > viewportWidth) leftPos = viewportWidth - 190;
-      
-      setMenuPosition({ 
-        top: showAbove ? rect.top - menuHeight - 5 : rect.bottom + 5, 
-        left: leftPos 
-      });
+      setMenuPosition({ top: rect.bottom + 5, left: rect.right - 180 }); // Adjust positioning as needed
     }
     setMenuOpen(!menuOpen);
   };
@@ -1112,33 +1096,6 @@ please tell me what evidence do i need to provide to satisfy this control.`
                         </svg>
                       </button>
               </div>
-                  ) : (
-                    <button
-                      onClick={handleCreateTicket}
-                      disabled={isCreatingTicket}
-                      className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 flex items-center"
-                      title="Create Support Ticket"
-                    >
-                      {isCreatingTicket ? (
-                        <svg className="animate-spin h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                      ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
-                        </svg>
-                      )}
-                      <span className="text-xs">Create Ticket</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-              <button onClick={handleDeleteClick} className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 p-1 rounded-md flex-shrink-0" title="Delete">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-                  <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-              </button>
             </div>
           </div>
         </div>
@@ -1182,15 +1139,7 @@ please tell me what evidence do i need to provide to satisfy this control.`
             <div className="relative" ref={menuRef}>
               <button ref={menuButtonRef} onClick={toggleMenu} className="text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-1 rounded-md"> <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" /></svg> </button>
               {menuOpen && (
-                <div 
-                  className="fixed bg-white dark:bg-gray-800 rounded-md shadow-lg z-50 border border-gray-200 dark:border-gray-700 py-1 w-44" 
-                  style={{ 
-                    top: `${menuPosition.top}px`, 
-                    left: `${menuPosition.left}px`, 
-                    maxHeight: '80vh',
-                    overflowY: 'auto'
-                  }}
-                >
+                <div className="fixed bg-white dark:bg-gray-800 rounded-md shadow-lg z-50 border border-gray-200 dark:border-gray-700 py-1 w-44" style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px`, position: 'fixed' }}>
                   <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center" onClick={() => { setMenuOpen(false); setIsEditingTitle(true); }}>Edit Title</button>
                   <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center" onClick={() => { setMenuOpen(false); setIsDcfIdEditing(true); }}>Edit DCF ID</button>
                   <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center" onClick={() => { setMenuOpen(false); setShowStatusDialog(true); }}>Update Status</button>
@@ -1352,8 +1301,22 @@ please tell me what evidence do i need to provide to satisfy this control.`
                       type="date" 
                       value={formatDateForInput(control.estimatedCompletionDate)} 
                       onChange={(e) => { 
-                          const value = e.target.value || null;
-                          handleFieldUpdate('estimatedCompletionDate', value); 
+                          const dateString = e.target.value;
+                          let updateValue: Timestamp | null = null;
+                          if (dateString) {
+                            try {
+                              const [year, month, day] = dateString.split('-').map(Number);
+                              // Create Date object at UTC midnight
+                              const utcDate = new Date(Date.UTC(year, month - 1, day));
+                              if (!isNaN(utcDate.getTime())) {
+                                updateValue = Timestamp.fromDate(utcDate);
+                              }
+                            } catch (error) {
+                              console.error("Error creating Timestamp from date input:", error);
+                            }
+                          }
+                          // Pass Timestamp or null to handleFieldUpdate
+                          handleFieldUpdate('estimatedCompletionDate', updateValue); 
                           setShowDateDialog(false); 
                       }} 
                       className="block w-full border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:border-indigo-300 dark:focus:border-indigo-500 focus:ring focus:ring-indigo-200 dark:focus:ring-indigo-600 focus:ring-opacity-50 dark:bg-gray-700 dark:text-gray-200" 

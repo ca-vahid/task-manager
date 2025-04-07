@@ -77,16 +77,30 @@ export async function POST(request: Request) {
         dataToUpdate.estimatedCompletionDate = null;
       } else {
         try {
-          // Simplified date handling: client sends ISO string or YYYY-MM-DD
-          const jsDate = new Date(dateValue);
-          if (!isNaN(jsDate.getTime())) {
+          let jsDate: Date | null = null;
+          if (typeof dateValue === 'string') {
+            // If it's a date string (YYYY-MM-DD format from date input)
+            if (dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
+              const [year, month, day] = dateValue.split('-').map(num => parseInt(num, 10));
+              // Create a JavaScript Date object at UTC midnight
+              jsDate = new Date(Date.UTC(year, month - 1, day));
+            } else {
+              // Try parsing other string formats (like ISO)
+              jsDate = new Date(dateValue);
+            }
+          } else if (dateValue instanceof Date) {
+            jsDate = dateValue; // Already a Date object
+          }
+
+          // Check if the resulting date is valid
+          if (jsDate && !isNaN(jsDate.getTime())) {
             // Convert valid JS Date to Firestore Timestamp
             dataToUpdate.estimatedCompletionDate = Timestamp.fromDate(jsDate);
           } else {
-            console.warn("Invalid date value received:", dateValue);
+            console.warn("Invalid date value received during update:", dateValue);
           }
         } catch (error) {
-          console.error("Date conversion error:", error);
+          console.error("Date conversion error during update:", error);
         }
       }
     }

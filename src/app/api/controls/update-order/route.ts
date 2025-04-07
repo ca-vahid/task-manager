@@ -15,7 +15,9 @@ interface UpdatePayload {
 
 // POST /api/controls/update-order - Batch update control order
 export async function POST(request: Request) {
+  console.log('--- Received POST request to /api/controls/update-order ---');
   try {
+    console.log('Attempting to parse request body...');
     const body = await request.json();
     const { updates } = body as { updates: UpdatePayload[] };
 
