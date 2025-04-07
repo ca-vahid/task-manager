@@ -51,23 +51,23 @@ export function SortableItem({
       style={style}
       className={`relative group transition-all duration-200 ${isDragging ? 'scale-105' : ''}`}
     >
-      {/* Improved drag handle with visual feedback */}
+      {/* Simplified drag handle with better touch support */}
       <div 
         {...attributes} 
         {...listeners}
         className={`absolute left-0 top-0 bottom-0 w-8 flex items-center justify-center ${
           disabled 
             ? 'cursor-not-allowed opacity-0' 
-            : 'cursor-grab active:cursor-grabbing opacity-50 group-hover:opacity-100'
+            : 'cursor-grab opacity-70 group-hover:opacity-100'
         } transition-opacity touch-action-none`}
         aria-label="Drag to reorder"
         role="button"
         tabIndex={0} 
       >
-        <div className="w-6 h-10 flex flex-col items-center justify-center rounded hover:bg-gray-200 dark:hover:bg-gray-700 active:bg-gray-300 dark:active:bg-gray-600 transition-colors">
-          <div className="w-4 h-0.5 bg-gray-500 dark:bg-gray-400 mb-1 rounded-full"></div>
-          <div className="w-4 h-0.5 bg-gray-500 dark:bg-gray-400 mb-1 rounded-full"></div>
-          <div className="w-4 h-0.5 bg-gray-500 dark:bg-gray-400 rounded-full"></div>
+        <div className="w-6 h-10 flex flex-col items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+          {Array(3).fill(0).map((_, i) => (
+            <div key={i} className="w-4 h-0.5 bg-gray-500 dark:bg-gray-400 mb-1 last:mb-0 rounded-full"></div>
+          ))}
         </div>
       </div>
       
