@@ -300,7 +300,23 @@ export function ControlCard({ control, technicians, onUpdateControl, onDeleteCon
     e.stopPropagation();
     if (!menuOpen && menuButtonRef.current) {
       const rect = menuButtonRef.current.getBoundingClientRect();
-      setMenuPosition({ top: rect.bottom + 5, left: rect.right - 180 }); // Adjust positioning as needed
+      const menuHeight = 290; // Approximate height of the menu
+      const viewportHeight = window.innerHeight;
+      const viewportWidth = window.innerWidth;
+      
+      // Calculate if there's enough space below
+      const spaceBelow = viewportHeight - rect.bottom;
+      const showAbove = spaceBelow < menuHeight;
+      
+      // Calculate left position (don't let it go off-screen)
+      let leftPos = rect.right - 180;
+      if (leftPos < 10) leftPos = 10;
+      if (leftPos + 180 > viewportWidth) leftPos = viewportWidth - 190;
+      
+      setMenuPosition({ 
+        top: showAbove ? rect.top - menuHeight - 5 : rect.bottom + 5, 
+        left: leftPos 
+      });
     }
     setMenuOpen(!menuOpen);
   };
@@ -597,12 +613,12 @@ please tell me what evidence do i need to provide to satisfy this control.`
             href={control.ticketUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center"
+            className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center bg-indigo-50 dark:bg-indigo-900/20 px-2 py-0.5 rounded-md"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
             </svg>
-            Ticket #{control.ticketNumber}
+            #{control.ticketNumber}
           </a>
           <button
             onClick={() => setShowTicketDeleteDialog(true)}
@@ -866,20 +882,22 @@ please tell me what evidence do i need to provide to satisfy this control.`
   const renderCompanyDropdown = () => {
     const getCompanyBgColor = (company: Company) => {
       switch (company) {
-        case Company.BGC: return currentCompany === Company.BGC ? 'bg-blue-100 dark:bg-blue-800/60' : 'bg-white dark:bg-gray-700';
-        case Company.Cambio: return currentCompany === Company.Cambio ? 'bg-emerald-100 dark:bg-emerald-800/60' : 'bg-white dark:bg-gray-700';
-        case Company.Both: return currentCompany === Company.Both ? 'bg-purple-100 dark:bg-cyan-800/60' : 'bg-white dark:bg-gray-700';
+        // Use slightly stronger base colors for non-selected states
+        case Company.BGC: return currentCompany === Company.BGC ? 'bg-blue-100 dark:bg-blue-800/60' : 'bg-blue-100/80 dark:bg-blue-900/50';
+        case Company.Cambio: return currentCompany === Company.Cambio ? 'bg-emerald-100 dark:bg-emerald-800/60' : 'bg-emerald-100/80 dark:bg-emerald-900/50';
+        case Company.Both: return currentCompany === Company.Both ? 'bg-purple-100 dark:bg-cyan-800/60' : 'bg-purple-100/80 dark:bg-cyan-900/50';
         default: return 'bg-white dark:bg-gray-700';
       }
     };
 
     return (
       <div className="relative" ref={companyDropdownRef}>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center">
           <button
             type="button"
             onClick={() => setCompanyDropdownOpen(!companyDropdownOpen)}
-            className={`relative rounded-full w-14 h-8 flex items-center justify-center border border-gray-300 dark:border-gray-600 ${getCompanyBgColor(currentCompany)} hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors`}
+            // Increase size: w-20 -> w-24, h-8 -> h-9
+            className={`relative rounded-full w-24 h-9 flex items-center justify-center border border-gray-300 dark:border-gray-600 ${getCompanyBgColor(currentCompany)} hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors`}
             title="Select company"
           >
             {currentCompany === Company.BGC && (
@@ -899,11 +917,11 @@ please tell me what evidence do i need to provide to satisfy this control.`
                 </div>
               </div>
             )}
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500 dark:text-gray-400 absolute right-0 bottom-0" viewBox="0 0 20 20" fill="currentColor">
+            {/* Adjust arrow position slightly for new size: right-1.5 bottom-0.5 */}
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500 dark:text-gray-400 absolute right-1.5 bottom-0.5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
             </svg>
           </button>
-          <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Company</label>
         </div>
         
         {companyDropdownOpen && (
@@ -913,7 +931,7 @@ please tell me what evidence do i need to provide to satisfy this control.`
               onClick={() => { handleSaveCompany(Company.BGC); setCompanyDropdownOpen(false); }}
               className={`flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${currentCompany === Company.BGC ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'}`}
             >
-              <div className={`relative rounded-full w-10 h-6 flex items-center justify-center ${getCompanyBgColor(Company.BGC)} border border-gray-300 dark:border-gray-600`}>
+              <div className={`relative rounded-full w-12 h-6 flex items-center justify-center ${getCompanyBgColor(Company.BGC)} border border-gray-300 dark:border-gray-600`}>
                 <Image src="/logos/bgc-logo.png" alt="BGC Logo" width={24} height={20} className="object-contain" />
               </div>
               <span>BGC</span>
@@ -923,7 +941,7 @@ please tell me what evidence do i need to provide to satisfy this control.`
               onClick={() => { handleSaveCompany(Company.Cambio); setCompanyDropdownOpen(false); }}
               className={`flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${currentCompany === Company.Cambio ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300' : 'text-gray-700 dark:text-gray-300'}`}
             >
-              <div className={`relative rounded-full w-10 h-6 flex items-center justify-center ${getCompanyBgColor(Company.Cambio)} border border-gray-300 dark:border-gray-600`}>
+              <div className={`relative rounded-full w-12 h-6 flex items-center justify-center ${getCompanyBgColor(Company.Cambio)} border border-gray-300 dark:border-gray-600`}>
                 <Image src="/logos/cambio-logo.png" alt="Cambio Logo" width={24} height={20} className="object-contain" />
               </div>
               <span>Cambio</span>
@@ -933,7 +951,7 @@ please tell me what evidence do i need to provide to satisfy this control.`
               onClick={() => { handleSaveCompany(Company.Both); setCompanyDropdownOpen(false); }}
               className={`flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${currentCompany === Company.Both ? 'bg-purple-50 dark:bg-cyan-900/20 text-purple-700 dark:text-cyan-300' : 'text-gray-700 dark:text-gray-300'}`}
             >
-              <div className={`relative rounded-full w-10 h-6 flex items-center justify-center overflow-hidden ${getCompanyBgColor(Company.Both)} border border-gray-300 dark:border-gray-600`}>
+              <div className={`relative rounded-full w-12 h-6 flex items-center justify-center overflow-hidden ${getCompanyBgColor(Company.Both)} border border-gray-300 dark:border-gray-600`}>
                 <div className="flex flex-col items-center justify-center w-full h-full">
                   <div className="w-10 h-2 flex items-center justify-center">
                     <Image src="/logos/bgc-logo.png" alt="BGC Logo" width={20} height={10} className="object-contain" />
@@ -1042,7 +1060,7 @@ please tell me what evidence do i need to provide to satisfy this control.`
                   control.status === ControlStatus.InReview ? 'bg-amber-500 dark:bg-amber-400' : 'bg-gray-500 dark:bg-gray-400'
               }`} title={control.status} />
               <div className="flex flex-wrap gap-1.5">
-                {renderCompanyBadge()} 
+                 
                 {timeRemaining.text && <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${timeRemaining.overdue ? 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300' : timeRemaining.urgent ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'}`}> <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> {timeRemaining.text}</span>}
                 {control.priorityLevel && <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${ 
                     control.priorityLevel === PriorityLevel.Critical ? 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300' : 
@@ -1077,12 +1095,12 @@ please tell me what evidence do i need to provide to satisfy this control.`
                         href={control.ticketUrl || "#"}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center"
+                        className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center bg-indigo-50 dark:bg-indigo-900/20 px-2 py-0.5 rounded-md"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
                         </svg>
-                        Ticket #{control.ticketNumber}
+                        #{control.ticketNumber}
                       </a>
                       <button
                         onClick={() => setShowTicketDeleteDialog(true)}
@@ -1164,7 +1182,15 @@ please tell me what evidence do i need to provide to satisfy this control.`
             <div className="relative" ref={menuRef}>
               <button ref={menuButtonRef} onClick={toggleMenu} className="text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-1 rounded-md"> <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" /></svg> </button>
               {menuOpen && (
-                <div className="fixed bg-white dark:bg-gray-800 rounded-md shadow-lg z-50 border border-gray-200 dark:border-gray-700 py-1 w-44" style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px`, position: 'fixed' }}>
+                <div 
+                  className="fixed bg-white dark:bg-gray-800 rounded-md shadow-lg z-50 border border-gray-200 dark:border-gray-700 py-1 w-44" 
+                  style={{ 
+                    top: `${menuPosition.top}px`, 
+                    left: `${menuPosition.left}px`, 
+                    maxHeight: '80vh',
+                    overflowY: 'auto'
+                  }}
+                >
                   <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center" onClick={() => { setMenuOpen(false); setIsEditingTitle(true); }}>Edit Title</button>
                   <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center" onClick={() => { setMenuOpen(false); setIsDcfIdEditing(true); }}>Edit DCF ID</button>
                   <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center" onClick={() => { setMenuOpen(false); setShowStatusDialog(true); }}>Update Status</button>
@@ -1197,107 +1223,76 @@ please tell me what evidence do i need to provide to satisfy this control.`
             {isEditingTitle ? (
               <input type="text" value={titleDraft} onChange={(e) => setTitleDraft(e.target.value)} className="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:focus:ring-indigo-400 dark:bg-gray-700 dark:text-gray-100" autoFocus onBlur={handleSaveTitle} onKeyDown={(e) => e.key === 'Enter' && handleSaveTitle()} />
             ) : (
-              <h2 className={`${statusStyles.color} ${statusStyles.darkColor} font-semibold text-lg cursor-pointer`} onClick={() => setIsEditingTitle(true)} title="Click to edit title">
-                {control.title}
-              </h2>
+              <>
+                <h4 className={`text-sm font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-300 transition-colors ${statusStyles.color} ${statusStyles.darkColor} flex-grow text-gray-900 dark:text-gray-100`} onClick={() => setIsEditingTitle(true)} title="Click to edit title">
+                  {control.title}
+                  {isHighPriority && <span className="inline-block ml-1.5 text-red-500 dark:text-red-400" title={`${control.priorityLevel} Priority`}><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 inline-block"><path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" /></svg></span>}
+                </h4>
+                {control.ticketNumber ? (
+                  <a 
+                    href={control.ticketUrl || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-2 px-3 py-1 rounded-full bg-indigo-100 dark:bg-indigo-900/40 border border-green-300 dark:border-green-700/60 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-800/50 transition-colors flex items-center gap-1.5 shadow-sm"
+                    onClick={(e) => e.stopPropagation()}
+                    title="Open Support Ticket"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+                    </svg>
+                    <span className="text-xs font-bold">#{control.ticketNumber}</span>
+                  </a>
+                ) : control.externalUrl ? (
+                  <a href={control.externalUrl} target="_blank" rel="noopener noreferrer" className="ml-2 text-gray-400 dark:text-gray-500 hover:text-indigo-500 dark:hover:text-indigo-400" onClick={(e) => e.stopPropagation()} title="Open Link"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M15.75 2.25H21a.75.75 0 01.75.75v5.25a.75.75 0 01-1.5 0V4.81L8.03 17.03a.75.75 0 01-1.06-1.06L19.19 3.75h-3.44a.75.75 0 010-1.5z" clipRule="evenodd" /><path fillRule="evenodd" d="M5.25 6.75a1.5 1.5 0 00-1.5 1.5v10.5a1.5 1.5 0 001.5 1.5h10.5a1.5 1.5 0 001.5-1.5V15a.75.75 0 011.5 0v3.75a3 3 0 01-3 3H5.25a3 3 0 01-3-3V8.25a3 3 0 013-3H9a.75.75 0 010 1.5H5.25z" clipRule="evenodd" /></svg> <span className="text-xs">Details</span></a>
+                ) : (
+                  <button
+                    onClick={handleCreateTicket}
+                    disabled={isCreatingTicket}
+                    className="ml-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors p-1"
+                    title="Create Support Ticket"
+                  >
+                    {isCreatingTicket ? (
+                      <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+                      </svg>
+                    )}
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
-        {/* Status/Controls/Company Section */}
-        <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2 max-w-full"> 
-            <div className={`px-2.5 py-1 text-xs font-medium rounded-full ${
-              control.status === ControlStatus.Complete 
-                ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300' 
-                : control.status === ControlStatus.InProgress 
-                ? 'bg-indigo-100 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300' 
-                : 'bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
-            } cursor-pointer hover:opacity-80 transition-opacity`} onClick={() => setShowStatusDialog(true)} title="Click to change status">
-              <span className="flex items-center gap-1">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  {control.status === ControlStatus.Complete ? (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  ) : control.status === ControlStatus.InProgress ? (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  ) : (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  )}
-                </svg>
-                {control.status}
-              </span>
-            </div>
-            
-            {/* Enhanced company indicator for full view */}
-            <div 
-              onClick={(e) => { e.stopPropagation(); setIsEditingCompany(true); }}
-              className={`flex items-center px-2.5 py-1 rounded-full cursor-pointer shadow-sm border ${companyStyles.borderColor} ${companyStyles.darkBorderColor} ${companyStyles.bgColor} ${companyStyles.darkBgColor} ${companyStyles.textColor} ${companyStyles.darkTextColor} hover:opacity-80 transition-opacity`}
-              title="Click to change company"
-            >
-              {currentCompany === Company.BGC && (
-                <div className="flex items-center gap-1.5">
-                  <div className="w-4 h-4 flex items-center justify-center">
-                    <Image src="/logos/bgc-logo.png" alt="BGC" width={16} height={16} className="object-contain"/>
-                  </div>
-                  <span className="text-xs font-medium">BGC</span>
-                </div>
-              )}
-              
-              {currentCompany === Company.Cambio && (
-                <div className="flex items-center gap-1.5">
-                  <div className="w-4 h-4 flex items-center justify-center">
-                    <Image src="/logos/cambio-logo.png" alt="Cambio" width={16} height={16} className="object-contain"/>
-                  </div>
-                  <span className="text-xs font-medium">Cambio</span>
-                </div>
-              )}
-              
-              {currentCompany === Company.Both && (
-                <div className="flex items-center gap-1.5">
-                  <div className="flex space-x-1">
-                    <div className="w-4 h-4 flex items-center justify-center">
-                      <Image src="/logos/bgc-logo.png" alt="BGC" width={12} height={12} className="object-contain"/>
-                    </div>
-                    <div className="w-4 h-4 flex items-center justify-center">
-                      <Image src="/logos/cambio-logo.png" alt="Cambio" width={12} height={12} className="object-contain"/>
-                    </div>
-                  </div>
-                  <span className="text-xs font-medium">Both</span>
-                </div>
-              )}
-            </div>
-
-            {control.priorityLevel && (
-              <div 
-                className={`px-2.5 py-1 text-xs font-medium rounded-full ${
-                  control.priorityLevel === PriorityLevel.Critical 
-                    ? 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-300' 
-                    : control.priorityLevel === PriorityLevel.High 
-                    ? 'bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300' 
-                    : control.priorityLevel === PriorityLevel.Medium
-                    ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                    : 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300'
-                } hover:opacity-80 cursor-pointer transition-opacity`}
-                onClick={() => {
-                  const nextPriority = 
-                    control.priorityLevel === PriorityLevel.Critical ? PriorityLevel.High :
-                    control.priorityLevel === PriorityLevel.High ? PriorityLevel.Medium :
-                    control.priorityLevel === PriorityLevel.Medium ? PriorityLevel.Low :
-                    PriorityLevel.Critical;
-                  handleFieldUpdate('priorityLevel', nextPriority);
-                }}
-                title="Click to change priority"
-              >
-                <span className="flex items-center gap-1.5">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                  </svg>
-                  {control.priorityLevel}
-                </span>
-              </div>
-            )}
-            
--           <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">Company</span>
--           {renderCompanyBadge()}
+        {/* Info Badges & Status Row */} 
+        <div className="flex flex-wrap items-center gap-1.5 px-3 py-2 bg-gray-50/50 dark:bg-gray-900/20">
+          <div className="flex items-center gap-1 bg-white dark:bg-gray-700 rounded-full px-2 py-0.5 shadow-sm border border-gray-100 dark:border-gray-600">
+            <span className={`h-2 w-2 rounded-full flex-shrink-0 ${
+                control.status === ControlStatus.Complete ? 'bg-emerald-500 dark:bg-emerald-400' : 
+                control.status === ControlStatus.InProgress ? 'bg-indigo-500 dark:bg-indigo-400' : 
+                control.status === ControlStatus.InReview ? 'bg-amber-500 dark:bg-amber-400' : 'bg-gray-500 dark:bg-gray-400'
+            }`} title={control.status}></span>
+            <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{control.status}</span>
+          </div>
+          
+          {timeRemaining.text && control.status !== ControlStatus.Complete && <div className={`flex items-center gap-1 rounded-full px-2 py-0.5 shadow-sm border border-gray-100 dark:border-gray-600 bg-white dark:bg-gray-700 ${timeRemaining.overdue ? 'text-red-700 dark:text-red-300' : timeRemaining.urgent ? 'text-amber-700 dark:text-amber-300' : 'text-gray-700 dark:text-gray-300'}`}> <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> <span className="text-xs">{timeRemaining.text}</span></div>}
+        </div>
+        {/* Progress bar */}
+        {control.progress !== undefined && control.progress > 0 && <div className="w-full h-1 bg-gray-200 dark:bg-gray-700 rounded-full mt-1 overflow-hidden"><div className={`h-full rounded-full ${ 
+          control.progress >= 100 ? 'bg-emerald-500 dark:bg-emerald-400' : 
+          control.progress >= 75 ? 'bg-indigo-500 dark:bg-indigo-400' : 
+          control.progress >= 50 ? 'bg-amber-500 dark:bg-amber-400' : 
+          control.progress >= 25 ? 'bg-orange-500 dark:bg-orange-400' : 'bg-red-500 dark:bg-red-400'
+         }`} style={{ width: `${control.progress}%` }} /></div>}
+        {/* Main Content Section (Company Selection Buttons) */}
+        <div className="p-2 grid gap-2">
+          {/* Company Selector Dropdown & Due Date */}
+          <div className="flex items-center justify-between">
+            {/* Company Selector Dropdown */}
+            {renderCompanyDropdown()}
             
             {/* Due Date Display */}
             {(control.estimatedCompletionDate !== undefined && control.estimatedCompletionDate !== null) && (
@@ -1322,63 +1317,172 @@ please tell me what evidence do i need to provide to satisfy this control.`
               </div>
             )}
           </div>
-
-          {renderTicketSection()}
         </div>
-        {control.externalUrl && (
-          <div className="px-4 pb-3 pt-0">
-            <a href={control.externalUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center max-w-full">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-              <span className="truncate">{control.externalUrl}</span>
-            </a>
-          </div>
-        )}
-        {isEditingCompany && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-5 max-w-xs w-full mx-4">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Change Company</h3>
-              <div className="flex flex-col space-y-3">
-                <button 
-                  onClick={() => { handleSaveCompany(Company.BGC); setIsEditingCompany(false); }}
-                  className={`flex items-center gap-2 p-2 rounded-lg border ${companyDraft === Company.BGC ? 'border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : 'border-gray-300 dark:border-gray-600'}`}
-                >
-                  <div className="w-6 h-6 flex items-center justify-center">
-                    <Image src="/logos/bgc-logo.png" alt="BGC" width={24} height={24} className="object-contain"/>
-                  </div>
-                  <span className="font-medium">BGC</span>
-                </button>
-                <button 
-                  onClick={() => { handleSaveCompany(Company.Cambio); setIsEditingCompany(false); }}
-                  className={`flex items-center gap-2 p-2 rounded-lg border ${companyDraft === Company.Cambio ? 'border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : 'border-gray-300 dark:border-gray-600'}`}
-                >
-                  <div className="w-6 h-6 flex items-center justify-center">
-                    <Image src="/logos/cambio-logo.png" alt="Cambio" width={24} height={24} className="object-contain"/>
-                  </div>
-                  <span className="font-medium">Cambio</span>
-                </button>
-                <button 
-                  onClick={() => { handleSaveCompany(Company.Both); setIsEditingCompany(false); }}
-                  className={`flex items-center gap-2 p-2 rounded-lg border ${companyDraft === Company.Both ? 'border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : 'border-gray-300 dark:border-gray-600'}`}
-                >
-                  <div className="flex items-center gap-1">
-                    <div className="w-5 h-5 flex items-center justify-center">
-                      <Image src="/logos/bgc-logo.png" alt="BGC" width={16} height={16} className="object-contain"/>
-                    </div>
-                    <div className="w-5 h-5 flex items-center justify-center">
-                      <Image src="/logos/cambio-logo.png" alt="Cambio" width={16} height={16} className="object-contain"/>
-                    </div>
-                  </div>
-                  <span className="font-medium">Both</span>
-                </button>
-              </div>
-              <button onClick={() => setIsEditingCompany(false)} className="mt-4 w-full px-4 py-2 text-sm font-bold text-blue-700 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-900/20 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors">Cancel</button>
-            </div>
-          </div>
-        )}
+        {updateError && <p className="text-red-600 dark:text-red-400 text-xs p-2 text-center bg-red-50 dark:bg-red-900/30 border-t border-red-200 dark:border-red-500/50">{updateError}</p>}
       </div>
       {isConfirmingDelete && renderDeleteConfirmationModal()}
+      {showStatusDialog && ( 
+          <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-5 max-w-xs w-full mx-4">
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Change Status</h3>
+                  <select value={control.status} onChange={(e) => { handleFieldUpdate('status', e.target.value as ControlStatus); setShowStatusDialog(false); }} className="block w-full border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:border-indigo-300 dark:focus:border-indigo-500 focus:ring focus:ring-indigo-200 dark:focus:ring-indigo-600 focus:ring-opacity-50 dark:bg-gray-700 dark:text-gray-200">
+                      {Object.values(ControlStatus).map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <button onClick={() => setShowStatusDialog(false)} className="mt-4 px-4 py-2 text-sm font-bold text-blue-700 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">Cancel</button>
+              </div>
+          </div>
+      )} 
+      {showAssigneeDialog && ( 
+           <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-5 max-w-xs w-full mx-4">
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Change Assignee</h3>
+                  <select value={control.assigneeId || ""} onChange={(e) => { handleFieldUpdate('assigneeId', e.target.value); setShowAssigneeDialog(false); }} className="block w-full border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:border-indigo-300 dark:focus:border-indigo-500 focus:ring focus:ring-indigo-200 dark:focus:ring-indigo-600 focus:ring-opacity-50 dark:bg-gray-700 dark:text-gray-200">
+                      <option value="">Unassigned</option>
+                      {technicians.map(tech => <option key={tech.id} value={tech.id}>{tech.name}</option>)}
+                  </select>
+                  <button onClick={() => setShowAssigneeDialog(false)} className="mt-4 px-4 py-2 text-sm font-bold text-blue-700 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">Cancel</button>
+              </div>
+          </div>
+      )} 
+      {showDateDialog && ( 
+           <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-5 max-w-xs w-full mx-4">
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Change Due Date</h3>
+                  <input 
+                      type="date" 
+                      value={formatDateForInput(control.estimatedCompletionDate)} 
+                      onChange={(e) => { 
+                          const value = e.target.value || null;
+                          handleFieldUpdate('estimatedCompletionDate', value); 
+                          setShowDateDialog(false); 
+                      }} 
+                      className="block w-full border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:border-indigo-300 dark:focus:border-indigo-500 focus:ring focus:ring-indigo-200 dark:focus:ring-indigo-600 focus:ring-opacity-50 dark:bg-gray-700 dark:text-gray-200" 
+                  />
+                  <div className="flex justify-between mt-4">
+                      {control.estimatedCompletionDate && (
+                          <button 
+                              onClick={() => { 
+                                  handleFieldUpdate('estimatedCompletionDate', null); 
+                                  setShowDateDialog(false); 
+                              }} 
+                              className="px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 rounded hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                          >
+                              Clear Date
+                          </button>
+                      )}
+                      <button 
+                          onClick={() => setShowDateDialog(false)} 
+                          className="px-4 py-2 text-sm font-bold text-blue-700 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+                      >
+                          Cancel
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )} 
+      {showUrlDialog && ( 
+           <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-5 max-w-md w-full mx-4">
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">{control.externalUrl ? 'Edit External Link' : 'Add External Link'}</h3>
+                  <input type="text" value={urlDraft} onChange={(e) => setUrlDraft(e.target.value)} placeholder="https://example.com/ticket/123" className="block w-full border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:border-indigo-300 dark:focus:border-indigo-500 focus:ring focus:ring-indigo-200 dark:focus:ring-indigo-600 focus:ring-opacity-50 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
+                  <div className="flex justify-end gap-2 mt-4">
+                      <button onClick={() => { setShowUrlDialog(false); setUrlDraft(control.externalUrl || ''); }} className="px-4 py-2 text-sm font-bold text-blue-700 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-900/20 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors">Cancel</button>
+                      <button onClick={handleSaveUrl} className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 dark:bg-indigo-500 rounded-md hover:bg-indigo-700 dark:hover:bg-indigo-600">Save Link</button>
+                  </div>
+              </div>
+          </div>
+      )} 
+      {showExplanationDialog && ( 
+           <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-5 max-w-lg w-full mx-4 max-h-[80vh] flex flex-col">
+            <div className="flex justify-between items-center mb-4 flex-shrink-0">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">Explanation</h3>
+              <button 
+                onClick={askAIForExplanation} 
+                disabled={isLoadingAIExplanation}
+                className="flex items-center text-sm px-3 py-1 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-800/40 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:ring-offset-1 dark:focus:ring-offset-gray-800 disabled:opacity-50"
+              >
+                {isLoadingAIExplanation ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                    Ask AI
+                  </>
+                )}
+              </button>
+            </div>
+                  <div className="overflow-y-auto mb-4 flex-grow">
+              {aiExplanation ? (
+                <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-md">
+                  <h4 className="text-sm font-semibold mb-2 text-purple-800 dark:text-purple-300 flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                    AI Explanation
+                  </h4>
+                  {/* Use ReactMarkdown to render the explanation, replacing multiple newlines with single newlines */}
+                  <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap text-sm prose prose-sm dark:prose-invert max-w-none">
+                    <ReactMarkdown>{aiExplanation.replace(/\n{2,}/g, '\n')}</ReactMarkdown>
+                  </div>
+                </div>
+              ) : null}
+              
+              <div>
+                <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Manual Explanation</h4>
+                      {isEditingExplanation ? (
+                  <div className="border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700">
+                    <ReactQuill
+                      value={explanationDraft || ''}
+                      onChange={setExplanationDraft}
+                      theme="snow"
+                      className="text-gray-900 dark:text-gray-100"
+                      modules={{
+                        toolbar: [
+                          ['bold', 'italic', 'underline', 'strike'],
+                          [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                          ['link'],
+                          ['clean']
+                        ]
+                      }}
+                      formats={['bold', 'italic', 'underline', 'strike', 'list', 'bullet', 'link']}
+                      placeholder="Add a detailed explanation of this control..."
+                    />
+                  </div>
+                ) : (
+                  <div 
+                    className="text-gray-700 dark:text-gray-300 prose prose-sm dark:prose-invert max-w-none"
+                    dangerouslySetInnerHTML={{ __html: control.explanation || '<span class="italic text-gray-400 dark:text-gray-500">No explanation provided.</span>' }}
+                  />
+                )}
+              </div>
+                  </div>
+                  <div className="flex justify-end gap-2 mt-auto flex-shrink-0">
+                      {isEditingExplanation ? (
+                          <>
+                              <button onClick={() => { setIsEditingExplanation(false); setExplanationDraft(control.explanation); }} className="px-3 py-1.5 text-sm font-bold text-blue-700 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-900/20 rounded hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors">Cancel</button>
+                              <button onClick={handleSaveExplanation} className="px-3 py-1.5 text-sm text-white bg-indigo-600 dark:bg-indigo-500 rounded hover:bg-indigo-700 dark:hover:bg-indigo-600">Save</button>
+                          </>
+                      ) : (
+                          <>
+                              <button onClick={() => setIsEditingExplanation(true)} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 text-sm flex items-center mr-auto"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>Edit</button>
+                              <button onClick={() => setShowExplanationDialog(false)} className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 dark:bg-indigo-500 rounded-md hover:bg-indigo-700 dark:hover:bg-indigo-600">Close</button>
+                          </>
+                      )}
+                  </div>
+              </div>
+          </div>
+      )} 
+      {showTicketDeleteDialog && renderTicketDeleteDialog()}
+      {showInsightDialog && renderInsightDialog()}
     </>
   );
 } 
