@@ -55,7 +55,7 @@ export function SortableItem({
       <div 
         {...attributes} 
         {...listeners}
-        className={`absolute left-0 top-0 bottom-0 w-8 flex items-center justify-center ${disabled ? 'cursor-not-allowed opacity-0' : 'cursor-grab opacity-0 group-hover:opacity-70'} transition-opacity touch-manipulation`}
+        className={`absolute left-0 top-0 bottom-0 w-8 flex items-center justify-center ${disabled ? 'cursor-not-allowed opacity-0' : 'cursor-grab hover:cursor-grabbing opacity-30 group-hover:opacity-100'} transition-opacity`}
         aria-label="Drag to reorder"
       >
         <div className="w-6 h-10 flex flex-col items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 transition-colors">

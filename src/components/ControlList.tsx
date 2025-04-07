@@ -625,26 +625,15 @@ export function ControlList() {
     const { active, over } = event;
     
     if (over && active.id !== over.id) {
-      // Prevent duplicate processing - check if we've handled a drag recently
-      const now = Date.now();
-      if (now - lastDragOperationTimeRef.current < 500) {
-        return; // Skip if less than 500ms since last drag operation
-      }
-      lastDragOperationTimeRef.current = now;
-      
-      // Set dragging flag during the operation
-      isDraggingRef.current = true;
-      
       // Save original controls array for potential undo
       const originalControls = [...controls];
       
-      // Find the indices directly without using setState callback
+      // Find the indices
       const oldIndex = controls.findIndex((item) => item.id === active.id);
       const newIndex = controls.findIndex((item) => item.id === over.id);
       
       // Ensure indices are found before proceeding
       if (oldIndex === -1 || newIndex === -1) {
-        console.error("Could not find dragged items in state.");
         return; // Return early if invalid indices
       }
       
@@ -657,10 +646,7 @@ export function ControlList() {
         order: index 
       }));
       
-      // Get the moved item's name for the toast message
-      const movedItemName = controls.find(item => item.id === active.id)?.title || "Control";
-      
-      // Update state directly with the new order
+      // Update state with the new order
       setControls(itemsWithUpdatedOrder);
       
       // Record this as an undoable action
@@ -672,42 +658,28 @@ export function ControlList() {
         }
       });
       
-      // Clear any existing timeout to prevent multiple toasts
-      if (undoTimeoutRef.current) {
-        clearTimeout(undoTimeoutRef.current);
-        undoTimeoutRef.current = null;
-      }
+      // Get the moved item's name for the toast message
+      const movedItemName = controls.find(item => item.id === active.id)?.title || "Control";
       
-      // Use a timeout to delay showing the toast until after the state update
-      undoTimeoutRef.current = setTimeout(() => {
-        undoTimeoutRef.current = null;
-        
-        // Only show toast if we're still the active drag operation
-        if (isDraggingRef.current) {
-          // Show undo toast
-          showUndoToast(
-            `Moved "${movedItemName}" ${oldIndex < newIndex ? 'down' : 'up'}`,
-            async () => {
-              try {
-                // Update the UI immediately
-                setControls(originalControls);
-                
-                // Update the database with original orders
-                await updateOrderInFirestore(originalControls);
-                
-                return Promise.resolve();
-              } catch (error) {
-                console.error("Failed to undo reordering:", error);
-                return Promise.reject(error);
-              }
-            },
-            7000 // 7 seconds to undo
-          );
-          
-          // Reset dragging flag after toast is shown
-          isDraggingRef.current = false;
-        }
-      }, 100);
+      // Show undo toast
+      showUndoToast(
+        `Moved "${movedItemName}" ${oldIndex < newIndex ? 'down' : 'up'}`,
+        async () => {
+          try {
+            // Update the UI immediately
+            setControls(originalControls);
+            
+            // Update the database with original orders
+            await updateOrderInFirestore(originalControls);
+            
+            return Promise.resolve();
+          } catch (error) {
+            console.error("Failed to undo reordering:", error);
+            return Promise.reject(error);
+          }
+        },
+        7000 // 7 seconds to undo
+      );
 
       // Trigger background update to Firestore
       updateOrderInFirestore(itemsWithUpdatedOrder);

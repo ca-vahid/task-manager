@@ -50,11 +50,9 @@ export function ControlGroupView({
   // Configure sensors for improved drag experience
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      // Configure activation constraints to prevent accidental drags
+      // Minimum configuration for reliable drag activation
       activationConstraint: {
-        distance: 10, // Slightly increase minimum drag distance for better detection
-        tolerance: 8, // Allow more movement before drag starts
-        // Remove delay completely as it causes jankiness
+        distance: 3, // Reduce distance to make it easier to start dragging
       },
     })
   );
@@ -312,27 +310,17 @@ export function ControlGroupView({
   
   // Handle drag end
   const handleDragEnd = (event: DragEndEvent) => {
-    // Only process the drag end if we have an active group
-    if (activeGroup) {
-      const { active, over } = event;
-      
-      // Find if the target is in the same group
-      if (over && active.id !== over.id) {
-        const activeId = active.id as string;
-        const overId = over.id as string;
-        
-        // Only allow drag within the same group
-        const isInSameGroup = groups[activeGroup]?.some(control => control.id === overId);
-        
-        if (isInSameGroup) {
-          onDragEnd(event);
-        }
-      }
-    }
-    
-    // Reset state regardless
+    // Reset state
     setActiveControl(null);
     setActiveGroup(null);
+    
+    // Process drag end
+    const { active, over } = event;
+    
+    // Only process if target exists and is different from source
+    if (over && active.id !== over.id) {
+      onDragEnd(event);
+    }
   };
   
   // Clean up on unmount
@@ -402,12 +390,6 @@ export function ControlGroupView({
         collisionDetection={closestCenter}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
-        // Add modifiers and configuration to improve stability
-        autoScroll={{
-          threshold: { x: 0.1, y: 0.2 },
-          acceleration: 5, // Lower acceleration for smoother scrolling
-          interval: 10 // Increased interval for better performance
-        }}
       >
         {/* Outer container clips the scrolling content */}
         <div className="overflow-hidden relative"> 
