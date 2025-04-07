@@ -48,14 +48,14 @@ export function ControlGroupView({
   const containerRef = useRef<HTMLDivElement>(null);
   
   // Configure sensors for improved drag experience
-  const sensors = useSensors(
+  const sensors = useMemo(() => useSensors(
     useSensor(PointerSensor, {
       // Minimum configuration for reliable drag activation
       activationConstraint: {
         distance: 3, // Reduce distance to make it easier to start dragging
       },
     })
-  );
+  ), []);
   
   // Generate groups based on the groupBy parameter
   const groups = useMemo(() => {
@@ -290,6 +290,8 @@ export function ControlGroupView({
     const { active } = event;
     const draggedId = active.id as string;
     
+    console.log(`Drag start: ${draggedId}`);
+    
     // Find which group contains this control
     let foundGroup = null;
     for (const [groupName, groupControls] of Object.entries(groups)) {
@@ -305,6 +307,8 @@ export function ControlGroupView({
     const draggedControl = controls.find(c => c.id === draggedId);
     if (draggedControl) {
       setActiveControl(draggedControl);
+    } else {
+      console.error(`Could not find control with ID ${draggedId}`);
     }
   };
   

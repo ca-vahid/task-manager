@@ -572,31 +572,21 @@ export function ControlList() {
 
   // Function to update order in Firestore
   const updateOrderInFirestore = useCallback(async (orderedControls: Control[]) => {
-    console.log("Updating order in Firestore...");
+    console.log("Preparing order update for Firestore...");
     setError(null); // Clear previous errors
 
+    // Create a map of ID to order for easier comparison later
+    const orderMap = new Map<string, number>();
+    orderedControls.forEach((control, index) => {
+      orderMap.set(control.id, index);
+    });
+    
     // Prepare updates: only send ID and new order
     const updates = orderedControls.map((control, index) => ({
         id: control.id,
         order: index, // Use the index as the new order
     }));
 
-    // --- Option 1: Promise.all (simpler, less efficient for many items) --- 
-    /*
-    try {
-        await Promise.all(
-            updates.map(update => handleUpdateControl(update.id, { order: update.order }))
-        );
-        console.log("Firestore order updated successfully via Promise.all.");
-    } catch (error) {
-        console.error("Failed to update Firestore order:", error);
-        setError("Failed to save new order. Please refetch or try again.");
-        // Refetch data to ensure consistency after partial failure
-        fetchData(); 
-    }
-    */
-
-    // --- Option 2: Dedicated API Route for Batch Updates ---
     try {
         const response = await fetch('/api/controls/batch-update', { 
             method: 'POST',
@@ -610,21 +600,52 @@ export function ControlList() {
             throw new Error(errorMessage);
         }
         
-        // Success - local state is already updated
-        console.log("Firestore order updated successfully via batch update.");
+        // Success - ensure controls are in the updated order
+        console.log("Firestore order updated successfully");
+        
+        // Check if the current state still matches what we expect
+        setControls(prevControls => {
+          // Make sure the order in state matches what we just saved
+          const currentOrderMap = new Map<string, number>();
+          prevControls.forEach((control, index) => {
+            currentOrderMap.set(control.id, index);
+          });
+          
+          // If orders match, no need to update state
+          let needsReordering = false;
+          for (const id of Array.from(orderMap.keys())) {
+            if (currentOrderMap.get(id) !== orderMap.get(id)) {
+              needsReordering = true;
+              break;
+            }
+          }
+          
+          if (needsReordering) {
+            console.log("Detected order mismatch, reordering state");
+            // Sort controls based on the order we just saved
+            return [...prevControls].sort((a, b) => {
+              const orderA = orderMap.get(a.id) ?? 999;
+              const orderB = orderMap.get(b.id) ?? 999;
+              return orderA - orderB;
+            });
+          }
+          
+          return prevControls;
+        });
     } catch (error: any) {
         console.error("Failed to update Firestore order:", error);
         setError(error.message || "Failed to save new order. Please try again.");
-        // Optionally refetch to ensure consistency 
-        fetchData();
     }
-  }, [fetchData, handleUpdateControl, setError]);
+  }, [setControls, setError]);
 
   // Drag End Handler
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     
     if (over && active.id !== over.id) {
+      // Log the operation for debugging
+      console.log(`Dragging ${active.id} over ${over.id}`);
+      
       // Save original controls array for potential undo
       const originalControls = [...controls];
       
@@ -634,8 +655,16 @@ export function ControlList() {
       
       // Ensure indices are found before proceeding
       if (oldIndex === -1 || newIndex === -1) {
+        console.error("Could not find dragged items:", { 
+          activeId: active.id, 
+          overId: over.id, 
+          oldIndex, 
+          newIndex 
+        });
         return; // Return early if invalid indices
       }
+      
+      console.log(`Moving from index ${oldIndex} to ${newIndex}`);
       
       // Create the new array with moved items
       const newItems = arrayMove([...controls], oldIndex, newIndex);
@@ -646,11 +675,14 @@ export function ControlList() {
         order: index 
       }));
       
+      // Store the item name before updating state
+      const movedItemName = controls.find(item => item.id === active.id)?.title || "Control";
+      
       // Update state with the new order
       setControls(itemsWithUpdatedOrder);
       
       // Record this as an undoable action
-      addUndoableAction({
+      const actionId = addUndoableAction({
         type: 'REORDER_CONTROLS',
         data: {
           originalControls,
@@ -658,31 +690,38 @@ export function ControlList() {
         }
       });
       
-      // Get the moved item's name for the toast message
-      const movedItemName = controls.find(item => item.id === active.id)?.title || "Control";
+      // Show undo toast with delay to avoid UI jank
+      setTimeout(() => {
+        showUndoToast(
+          `Moved "${movedItemName}" ${oldIndex < newIndex ? 'down' : 'up'}`,
+          async () => {
+            try {
+              console.log("Undoing reorder operation");
+              // Update the UI immediately
+              setControls(originalControls);
+              
+              // Update the database with original orders - using a timeout for smoother UI
+              setTimeout(() => {
+                updateOrderInFirestore(originalControls)
+                  .catch(error => console.error("Error updating order during undo:", error));
+              }, 300);
+              
+              return Promise.resolve();
+            } catch (error) {
+              console.error("Failed to undo reordering:", error);
+              return Promise.reject(error);
+            }
+          },
+          7000 // 7 seconds to undo
+        );
+      }, 100);
       
-      // Show undo toast
-      showUndoToast(
-        `Moved "${movedItemName}" ${oldIndex < newIndex ? 'down' : 'up'}`,
-        async () => {
-          try {
-            // Update the UI immediately
-            setControls(originalControls);
-            
-            // Update the database with original orders
-            await updateOrderInFirestore(originalControls);
-            
-            return Promise.resolve();
-          } catch (error) {
-            console.error("Failed to undo reordering:", error);
-            return Promise.reject(error);
-          }
-        },
-        7000 // 7 seconds to undo
-      );
-
-      // Trigger background update to Firestore
-      updateOrderInFirestore(itemsWithUpdatedOrder);
+      // Trigger background update to Firestore with delay to let React render complete
+      setTimeout(() => {
+        console.log("Saving new order to database");
+        updateOrderInFirestore(itemsWithUpdatedOrder)
+          .catch(error => console.error("Error updating order:", error));
+      }, 300);
     }
   }, [controls, addUndoableAction, showUndoToast, updateOrderInFirestore]);
 
