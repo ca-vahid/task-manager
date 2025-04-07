@@ -4,12 +4,19 @@ import {
     deleteDocument 
 } from '@/lib/firebase/firebaseUtils'; // Assuming alias @
 
+// Define the type for the route context
+interface RouteContext {
+  params: {
+    id: string;
+  };
+}
+
 const TECHNICIANS_COLLECTION = 'technicians';
 
 // PUT /api/technicians/[id] - Update a technician
 export async function PUT(
   request: NextRequest,
-  context: { params: { id: string } }
+  context: RouteContext
 ) {
   const { id } = context.params;
   try {
@@ -46,7 +53,7 @@ export async function PUT(
 // DELETE /api/technicians/[id] - Delete a technician
 export async function DELETE(
   request: NextRequest,
-  context: { params: { id: string } }
+  context: RouteContext
 ) {
   const { id } = context.params;
   try {

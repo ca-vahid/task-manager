@@ -8,12 +8,19 @@ import { db } from '@/lib/firebase/firebase'; // Import db instance
 import { Control, ControlStatus } from '@/lib/types';
 import { Timestamp } from 'firebase/firestore'; // Import Timestamp
 
+// Define the type for the route context
+interface RouteContext {
+  params: {
+    id: string;
+  };
+}
+
 const CONTROLS_COLLECTION = 'controls';
 
 // PUT /api/controls/[id] - Update a control
 export async function PUT(
   request: NextRequest,
-  context: { params: { id: string } }
+  context: RouteContext
 ) {
   const { id } = context.params;
   try {
@@ -89,7 +96,7 @@ export async function PUT(
 // DELETE /api/controls/[id] - Delete a control
 export async function DELETE(
   request: NextRequest,
-  context: { params: { id: string } }
+  context: RouteContext
 ) {
   const { id } = context.params;
   try {
