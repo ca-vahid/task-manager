@@ -293,6 +293,12 @@ export function ControlList({ initialControls = [] }: ControlListProps) {
       // Optional: update the control with the response data
       const updatedControl = await response.json();
       
+      // Skip showing undo toast for ticket updates
+      const isTicketUpdate = 'ticketNumber' in updates && 'ticketUrl' in updates;
+      if (isTicketUpdate) {
+        return; // No undo toast for ticket creation updates
+      }
+      
       // Show undo toast
       showUndoToast(
         updateDescription,

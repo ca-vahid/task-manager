@@ -370,10 +370,10 @@ export function ControlCard({ control, technicians, onUpdateControl, onDeleteCon
         ticketUrl: responseData.ticketUrl
       });
       
-      setIsCreatingTicket(false);
-      
       // Show success toast instead of alert
       showToast(`Ticket #${responseData.ticketNumber} created successfully!`, 'success');
+      
+      setIsCreatingTicket(false);
     } catch (error: any) {
       const errorMessage = error.message || 'Unknown error';
       setUpdateError(`Failed to create ticket: ${errorMessage}`);
