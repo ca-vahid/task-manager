@@ -1,8 +1,9 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Task, Technician, TaskStatus, ViewDensity, Group } from '@/lib/types';
 import { TaskCard } from './TaskCard';
+import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 
 interface TaskGroupViewProps {
   tasks: Task[];
@@ -29,6 +30,10 @@ export function TaskGroupView({
   onTaskSelection,
   getGroupName
 }: TaskGroupViewProps) {
+  // State for pagination
+  const [currentPage, setCurrentPage] = useState(0);
+  const columnsPerPage = 3;
+  
   // Group tasks by the specified grouping
   const groupedTasks = React.useMemo(() => {
     const taskGroups = new Map<string, Task[]>();
@@ -128,43 +133,105 @@ export function TaskGroupView({
     );
   };
 
+  // Convert Map to Array for pagination
+  const groupEntries = Array.from(groupedTasks.entries());
+  const totalPages = Math.ceil(groupEntries.length / columnsPerPage);
+
+  // Get the current page's groups
+  const currentGroups = groupEntries.slice(
+    currentPage * columnsPerPage,
+    (currentPage + 1) * columnsPerPage
+  );
+
+  // Navigate to previous page
+  const goToPreviousPage = () => {
+    setCurrentPage(prev => Math.max(0, prev - 1));
+  };
+
+  // Navigate to next page
+  const goToNextPage = () => {
+    setCurrentPage(prev => Math.min(totalPages - 1, prev + 1));
+  };
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {/* Render each group */}
-      {Array.from(groupedTasks.entries()).map(([groupKey, groupTasks]) => (
-        <div key={groupKey} className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-          {/* Group header */}
-          <div className="mb-4">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
-              {getGroupTitle(groupKey)}
-            </h3>
-            {getGroupSummary(groupTasks)}
-          </div>
+    <div className="relative">
+      {/* Pagination controls */}
+      {totalPages > 1 && (
+        <>
+          {/* Left arrow */}
+          <button 
+            onClick={goToPreviousPage}
+            disabled={currentPage === 0}
+            className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-12 p-2 rounded-full 
+              ${currentPage === 0 
+                ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' 
+                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+              } transition-colors z-10`}
+            aria-label="Previous page"
+          >
+            <ChevronLeftIcon className="w-6 h-6" />
+          </button>
           
-          {/* Tasks in this group */}
-          <div className="space-y-4">
-            {groupTasks.map(task => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                technicians={technicians}
-                onUpdateTask={onUpdateTask}
-                onDeleteTask={onDeleteTask}
-                viewDensity={viewDensity}
-                isSelected={selectedTaskIds.includes(task.id)}
-                onSelect={(selected) => onTaskSelection(task.id, selected)}
-              />
-            ))}
-          </div>
-          
-          {/* Empty state */}
-          {groupTasks.length === 0 && (
-            <div className="text-center py-6">
-              <p className="text-gray-500 dark:text-gray-400">No tasks in this group</p>
-            </div>
-          )}
+          {/* Right arrow */}
+          <button 
+            onClick={goToNextPage}
+            disabled={currentPage >= totalPages - 1}
+            className={`absolute right-0 top-1/2 -translate-y-1/2 translate-x-12 p-2 rounded-full
+              ${currentPage >= totalPages - 1 
+                ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' 
+                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+              } transition-colors z-10`}
+            aria-label="Next page"
+          >
+            <ChevronRightIcon className="w-6 h-6" />
+          </button>
+        </>
+      )}
+      
+      {/* Page indicator */}
+      {totalPages > 1 && (
+        <div className="flex justify-center mb-4 text-sm text-gray-500 dark:text-gray-400">
+          Page {currentPage + 1} of {totalPages}
         </div>
-      ))}
+      )}
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Render current page groups */}
+        {currentGroups.map(([groupKey, groupTasks]) => (
+          <div key={groupKey} className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+            {/* Group header */}
+            <div className="mb-4">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+                {getGroupTitle(groupKey)}
+              </h3>
+              {getGroupSummary(groupTasks)}
+            </div>
+            
+            {/* Tasks in this group */}
+            <div className="space-y-4">
+              {groupTasks.map(task => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  technicians={technicians}
+                  onUpdateTask={onUpdateTask}
+                  onDeleteTask={onDeleteTask}
+                  viewDensity={viewDensity}
+                  isSelected={selectedTaskIds.includes(task.id)}
+                  onSelect={(selected) => onTaskSelection(task.id, selected)}
+                />
+              ))}
+            </div>
+            
+            {/* Empty state */}
+            {groupTasks.length === 0 && (
+              <div className="text-center py-6">
+                <p className="text-gray-500 dark:text-gray-400">No tasks in this group</p>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 } 
