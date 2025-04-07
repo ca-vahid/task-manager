@@ -43,7 +43,7 @@ function QuillEditor({ value, onChange, placeholder }: QuillEditorProps) {
             modules: {
               toolbar: toolbarRef.current // Use the toolbar container ref
             },
-            formats: ['bold', 'italic', 'underline', 'strike', 'list', 'bullet', 'link']
+            formats: ['bold', 'italic', 'underline', 'strike', 'list', 'link']
           });
           
           // Set initial content
