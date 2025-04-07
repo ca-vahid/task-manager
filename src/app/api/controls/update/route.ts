@@ -77,30 +77,36 @@ export async function POST(request: Request) {
         dataToUpdate.estimatedCompletionDate = null;
       } else {
         try {
-          let jsDate: Date | null = null;
+          // Parse the date value properly to avoid timezone issues
+          let jsDate: Date;
+          
           if (typeof dateValue === 'string') {
-            // If it's a date string (YYYY-MM-DD format from date input)
+            // If it's a YYYY-MM-DD format string
             if (dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
-              const [year, month, day] = dateValue.split('-').map(num => parseInt(num, 10));
-              // Create a JavaScript Date object at UTC midnight
+              const [year, month, day] = dateValue.split('-').map(n => parseInt(n, 10));
+              // Use UTC date to prevent timezone shifts
               jsDate = new Date(Date.UTC(year, month - 1, day));
-            } else {
-              // Try parsing other string formats (like ISO)
+            }
+            // If it's an ISO string
+            else if (dateValue.includes('T')) {
               jsDate = new Date(dateValue);
             }
-          } else if (dateValue instanceof Date) {
-            jsDate = dateValue; // Already a Date object
+            else {
+              throw new Error('Unsupported date format');
+            }
+          } else {
+            // For other formats (like timestamp objects)
+            jsDate = new Date(dateValue);
           }
-
-          // Check if the resulting date is valid
-          if (jsDate && !isNaN(jsDate.getTime())) {
+          
+          if (!isNaN(jsDate.getTime())) {
             // Convert valid JS Date to Firestore Timestamp
             dataToUpdate.estimatedCompletionDate = Timestamp.fromDate(jsDate);
           } else {
-            console.warn("Invalid date value received during update:", dateValue);
+            console.warn("Invalid date value received:", dateValue);
           }
         } catch (error) {
-          console.error("Date conversion error during update:", error);
+          console.error("Date conversion error:", error);
         }
       }
     }

@@ -72,13 +72,27 @@ export function AddControlForm({
     let dateTimestamp = null;
     if (estimatedCompletionDate) {
       try {
-        const dateObj = new Date(estimatedCompletionDate);
-        if (isNaN(dateObj.getTime())) {
+        // Parse the date string directly to ensure it represents the exact date selected by the user
+        const [year, month, day] = estimatedCompletionDate.split('-').map((num: string) => parseInt(num, 10));
+        
+        // Validate date components
+        if (isNaN(year) || isNaN(month) || isNaN(day) || 
+            month < 1 || month > 12 || day < 1 || day > 31) {
           setError("Invalid date format. Please use YYYY-MM-DD.");
           setIsSubmitting(false);
           return;
         }
-        dateTimestamp = Timestamp.fromDate(dateObj);
+        
+        // Use UTC to avoid timezone shifting the date
+        const utcDate = new Date(Date.UTC(year, month - 1, day));
+        
+        if (isNaN(utcDate.getTime())) {
+          setError("Invalid date format. Please use YYYY-MM-DD.");
+          setIsSubmitting(false);
+          return;
+        }
+        
+        dateTimestamp = Timestamp.fromDate(utcDate);
       } catch (error) {
         console.error("Date conversion error:", error);
         setError("Failed to process date. Please use YYYY-MM-DD format.");

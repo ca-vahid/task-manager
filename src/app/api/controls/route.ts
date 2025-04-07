@@ -115,7 +115,15 @@ export async function POST(request: Request) {
                 if (estimatedCompletionDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
                     const [year, month, day] = estimatedCompletionDate.split('-').map(num => parseInt(num, 10));
                     
+                    // Validate date components
+                    if (isNaN(year) || isNaN(month) || isNaN(day) || 
+                        month < 1 || month > 12 || day < 1 || day > 31) {
+                        throw new Error('Invalid date components');
+                    }
+                    
                     // Create a JavaScript Date object at UTC midnight
+                    // This ensures the date stored is exactly what the user selected
+                    // regardless of their timezone
                     const jsDate = new Date(Date.UTC(year, month - 1, day));
                     
                     // Convert to seconds since epoch (what Firestore uses internally)
@@ -126,7 +134,7 @@ export async function POST(request: Request) {
                         seconds: seconds,
                         nanoseconds: 0
                     };
-                } 
+                }
                 // If it's an ISO string with a time component
                 else if (estimatedCompletionDate.includes('T')) {
                     const jsDate = new Date(estimatedCompletionDate);

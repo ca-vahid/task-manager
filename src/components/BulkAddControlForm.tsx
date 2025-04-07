@@ -137,15 +137,28 @@ export function BulkAddControlForm({
     
     try {
       // Prepare controls for submission
-      const controlsToAdd = extractedControls.map((control, index) => {
-        // Validate date before creating a Timestamp
+      const controlsToAdd = extractedControls.filter(control => control.isValid).map((control, index) => {
+        // Convert estimated completion date to Timestamp
         let dateTimestamp = null;
         if (control.estimatedCompletionDate) {
           try {
-            const dateObj = new Date(control.estimatedCompletionDate);
-            if (!isNaN(dateObj.getTime())) {
-              dateTimestamp = Timestamp.fromDate(dateObj);
+            // Parse the date string to preserve the exact selected date
+            const [year, month, day] = control.estimatedCompletionDate.split('-').map((num: string) => parseInt(num, 10));
+            
+            // Validate date components
+            if (isNaN(year) || isNaN(month) || isNaN(day) || 
+                month < 1 || month > 12 || day < 1 || day > 31) {
+              throw new Error('Invalid date');
             }
+            
+            // Use UTC to avoid timezone shifting the date
+            const utcDate = new Date(Date.UTC(year, month - 1, day));
+            
+            if (isNaN(utcDate.getTime())) {
+              throw new Error('Invalid date constructed');
+            }
+            
+            dateTimestamp = Timestamp.fromDate(utcDate);
           } catch (error) {
             console.error("Date conversion error:", error);
           }
