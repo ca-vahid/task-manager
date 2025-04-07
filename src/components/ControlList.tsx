@@ -389,6 +389,35 @@ export function ControlList({ initialControls = [] }: ControlListProps) {
         externalAction: !!deletedControl.ticketNumber
       });
       
+      // Handle Timestamp/Date conversion for the API
+      let dateForApi = null;
+      if (deletedControl.estimatedCompletionDate) {
+        let dateObject = null;
+        const dateValue = deletedControl.estimatedCompletionDate; // Assign to a new variable for type narrowing
+
+        if (dateValue instanceof Timestamp) {
+            dateObject = dateValue.toDate();
+        } else if (typeof dateValue === 'object' && dateValue !== null && 'seconds' in dateValue && 'nanoseconds' in dateValue) {
+            // Safely access properties after checking existence and non-null
+            const ts = dateValue as { seconds: number; nanoseconds: number }; 
+            dateObject = new Date(ts.seconds * 1000 + ts.nanoseconds / 1000000);
+        } else {
+            // Attempt to parse other types (e.g., string, number)
+            try {
+                dateObject = new Date(dateValue);
+            } catch (e) {
+                console.error("Could not parse estimatedCompletionDate during undo:", dateValue, e);
+            }
+        }
+        
+        // Only convert to ISOString if we have a valid Date object
+        if (dateObject && !isNaN(dateObject.getTime())) {
+            dateForApi = dateObject.toISOString();
+        } else {
+            console.warn("Invalid or unparseable estimatedCompletionDate found during undo delete:", deletedControl.estimatedCompletionDate);
+        }
+      }
+      
       // Make the API call to delete
       const response = await fetch(`/api/controls/delete`, { 
         method: 'POST',
@@ -423,12 +452,7 @@ export function ControlList({ initialControls = [] }: ControlListProps) {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 ...deletedControl,
-                // Handle Timestamp/Date conversion for the API
-                estimatedCompletionDate: deletedControl.estimatedCompletionDate
-                  ? (deletedControl.estimatedCompletionDate instanceof Timestamp 
-                    ? deletedControl.estimatedCompletionDate.toDate().toISOString()
-                    : new Date(deletedControl.estimatedCompletionDate).toISOString())
-                  : null,
+                estimatedCompletionDate: dateForApi, // Use the processed date value
               }),
             });
             
