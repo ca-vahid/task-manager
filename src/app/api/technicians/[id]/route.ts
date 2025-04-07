@@ -6,13 +6,12 @@ import {
 
 const TECHNICIANS_COLLECTION = 'technicians';
 
-interface Params {
-  id: string;
-}
-
 // PUT /api/technicians/[id] - Update a technician
-export async function PUT(request: Request, { params }: { params: Params }) {
-  const { id } = params;
+export async function PUT(
+  request: Request,
+  context: { params: { id: string } }
+) {
+  const { id } = context.params;
   try {
     const body = await request.json();
     const { name, email, agentId } = body;
@@ -45,8 +44,11 @@ export async function PUT(request: Request, { params }: { params: Params }) {
 }
 
 // DELETE /api/technicians/[id] - Delete a technician
-export async function DELETE(request: Request, { params }: { params: Params }) {
-  const { id } = params;
+export async function DELETE(
+  request: Request,
+  context: { params: { id: string } }
+) {
+  const { id } = context.params;
   try {
     if (!id) {
       return NextResponse.json({ message: 'Technician ID is required' }, { status: 400 });
