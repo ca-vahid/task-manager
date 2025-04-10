@@ -328,15 +328,15 @@ export function TaskReviewForm({
         </div>
       )}
       
-      {/* Task cards */}
-      <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2">
+      {/* Task cards - Removed the nested scrollbar by adjusting height */}
+      <div className="space-y-4">
         {editedTasks.map((task, index) => (
           <div 
             key={index} 
             className="border rounded-lg p-4 bg-white dark:bg-gray-800 shadow-sm border-gray-200 dark:border-gray-700"
           >
             {/* Task header with title and remove button */}
-            <div className="flex justify-between items-start mb-4">
+            <div className="flex justify-between items-start mb-3">
               <div className="flex-1">
                 <input
                   type="text"
@@ -357,8 +357,8 @@ export function TaskReviewForm({
               </button>
             </div>
             
-            {/* Task details - Use rich text editor */}
-            <div className="mb-4">
+            {/* Task details - Use rich text editor with reduced height */}
+            <div className="mb-3">
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
                 Details
               </label>
@@ -369,8 +369,8 @@ export function TaskReviewForm({
               />
             </div>
             
-            {/* Task metadata */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Task metadata - Using a 3-column grid to use space better */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {/* Assignee */}
               <div>
                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
@@ -464,20 +464,6 @@ export function TaskReviewForm({
                   <option value="High">High</option>
                   <option value="Critical">Critical</option>
                 </select>
-              </div>
-              
-              {/* Ticket number */}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Ticket Number
-                </label>
-                <input
-                  type="text"
-                  value={task.ticketNumber || ''}
-                  onChange={(e) => handleTaskChange(index, 'ticketNumber', e.target.value)}
-                  className="w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800"
-                  placeholder="e.g. TICKET-123"
-                />
               </div>
               
               {/* Category */}

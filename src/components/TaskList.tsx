@@ -914,7 +914,7 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
 
       {/* Modal for bulk adding tasks */}
       {showBulkAddForm && (
-        <Modal onClose={() => setShowBulkAddForm(false)} title="Bulk Add Tasks" size="lg">
+        <Modal onClose={() => setShowBulkAddForm(false)} title="Bulk Add Tasks" size="2xl">
           <BulkAddTaskAI
             technicians={technicians}
             groups={groups}

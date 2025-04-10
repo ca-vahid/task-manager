@@ -7,7 +7,7 @@ export interface ModalProps {
   title: string;
   onClose: () => void;
   isOpen?: boolean; // Made optional but will be treated as always true when the component is rendered
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 }
 
 export function Modal({ children, title, onClose, isOpen = true, size = 'md' }: ModalProps) {
@@ -57,7 +57,8 @@ export function Modal({ children, title, onClose, isOpen = true, size = 'md' }: 
     sm: 'max-w-md',
     md: 'max-w-2xl',
     lg: 'max-w-4xl',
-    xl: 'max-w-6xl'
+    xl: 'max-w-6xl',
+    '2xl': 'max-w-7xl'
   };
   
   return (
@@ -81,8 +82,8 @@ export function Modal({ children, title, onClose, isOpen = true, size = 'md' }: 
             </button>
           </div>
           
-          {/* Modal content */}
-          <div className="max-h-[70vh] overflow-y-auto">
+          {/* Modal content - increased height and improved overflow */}
+          <div className="max-h-[75vh] overflow-y-auto px-6 py-4">
             {children}
           </div>
         </div>

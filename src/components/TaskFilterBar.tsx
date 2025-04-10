@@ -41,10 +41,28 @@ export function TaskFilterBar({
   useEffect(() => {
     const filteredTasks = tasks.filter(task => {
       // Text search (case insensitive)
-      const matchesSearch = !searchTerm || 
-        task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        task.explanation.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (task.ticketNumber && task.ticketNumber.toLowerCase().includes(searchTerm.toLowerCase()));
+      let matchesSearch = !searchTerm;
+      
+      if (searchTerm) {
+        const searchTermLower = searchTerm.toLowerCase();
+        
+        // Check if task title, explanation, or ticket number contains the search term
+        const taskFieldsMatch = 
+          task.title.toLowerCase().includes(searchTermLower) ||
+          task.explanation.toLowerCase().includes(searchTermLower) ||
+          (task.ticketNumber && task.ticketNumber.toLowerCase().includes(searchTermLower));
+        
+        // Check if assigned technician name contains the search term
+        let technicianNameMatches = false;
+        if (task.assigneeId) {
+          const assignedTechnician = technicians.find(tech => tech.id === task.assigneeId);
+          if (assignedTechnician) {
+            technicianNameMatches = assignedTechnician.name.toLowerCase().includes(searchTermLower);
+          }
+        }
+        
+        matchesSearch = taskFieldsMatch || technicianNameMatches;
+      }
       
       // Status filter
       const matchesStatus = selectedStatuses.length === 0 || selectedStatuses.includes(task.status);
@@ -63,7 +81,7 @@ export function TaskFilterBar({
     });
     
     onFilterChange(filteredTasks);
-  }, [tasks, searchTerm, selectedStatuses, selectedAssignees, selectedGroups, onFilterChange]);
+  }, [tasks, searchTerm, selectedStatuses, selectedAssignees, selectedGroups, onFilterChange, technicians]);
 
   // Listen for custom reapplyFilters event
   useEffect(() => {
@@ -119,9 +137,36 @@ export function TaskFilterBar({
 
   return (
     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 shadow-sm">
-      {/* Search bar */}
+      {/* View mode toggle moved to top */}
       <div className="mb-3">
-        <div className="relative">
+        <div className="inline-flex rounded-md shadow-sm" role="group">
+          <button
+            type="button"
+            onClick={() => setViewMode('kanban')}
+            className={`${viewMode === 'kanban' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'} px-3 py-1.5 text-sm font-medium rounded-l-lg border border-gray-200 dark:border-gray-600 focus:z-10 focus:ring-1 focus:ring-indigo-500 dark:focus:ring-indigo-400`}
+          >
+            Kanban
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('timeline')}
+            className={`${viewMode === 'timeline' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'} px-3 py-1.5 text-sm font-medium border-t border-b border-gray-200 dark:border-gray-600 focus:z-10 focus:ring-1 focus:ring-indigo-500 dark:focus:ring-indigo-400`}
+          >
+            Timeline
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('compact')}
+            className={`${viewMode === 'compact' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'} px-3 py-1.5 text-sm font-medium rounded-r-lg border border-gray-200 dark:border-gray-600 focus:z-10 focus:ring-1 focus:ring-indigo-500 dark:focus:ring-indigo-400`}
+          >
+            Compact
+          </button>
+        </div>
+      </div>
+
+      {/* Combined search bar and group by selector */}
+      <div className="flex items-center space-x-2 mb-3">
+        <div className="relative flex-grow">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <svg className="h-5 w-5 text-gray-400 dark:text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
@@ -132,7 +177,7 @@ export function TaskFilterBar({
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md leading-5 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500 dark:focus:border-indigo-400 sm:text-sm"
-            placeholder="Search tasks..."
+            placeholder="Search tasks by title, details, ticket #, or technician..."
           />
           {searchTerm && (
             <button
@@ -145,6 +190,18 @@ export function TaskFilterBar({
             </button>
           )}
         </div>
+
+        {/* Group by selector */}
+        <select
+          value={groupBy}
+          onChange={(e) => setGroupBy(e.target.value as 'status' | 'assignee' | 'group' | 'none')}
+          className="text-sm rounded-md border border-gray-300 dark:border-gray-600 py-2 px-3 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+        >
+          <option value="none">No Grouping</option>
+          <option value="status">Group by Status</option>
+          <option value="assignee">Group by Assignee</option>
+          <option value="group">Group by Group</option>
+        </select>
       </div>
 
       {/* Filter controls */}
@@ -158,50 +215,6 @@ export function TaskFilterBar({
             Clear Filters ({activeFilterCount})
           </button>
         )}
-      </div>
-
-      {/* View controls */}
-      <div className="flex justify-between">
-        <div className="flex space-x-2">
-          {/* View mode toggle */}
-          <div className="inline-flex rounded-md shadow-sm" role="group">
-            <button
-              type="button"
-              onClick={() => setViewMode('kanban')}
-              className={`${viewMode === 'kanban' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'} px-3 py-1.5 text-sm font-medium rounded-l-lg border border-gray-200 dark:border-gray-600 focus:z-10 focus:ring-1 focus:ring-indigo-500 dark:focus:ring-indigo-400`}
-            >
-              Kanban
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('timeline')}
-              className={`${viewMode === 'timeline' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'} px-3 py-1.5 text-sm font-medium border-t border-b border-gray-200 dark:border-gray-600 focus:z-10 focus:ring-1 focus:ring-indigo-500 dark:focus:ring-indigo-400`}
-            >
-              Timeline
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('compact')}
-              className={`${viewMode === 'compact' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'} px-3 py-1.5 text-sm font-medium rounded-r-lg border border-gray-200 dark:border-gray-600 focus:z-10 focus:ring-1 focus:ring-indigo-500 dark:focus:ring-indigo-400`}
-            >
-              Compact
-            </button>
-          </div>
-        </div>
-
-        <div className="flex space-x-2">
-          {/* Group by selector */}
-          <select
-            value={groupBy}
-            onChange={(e) => setGroupBy(e.target.value as 'status' | 'assignee' | 'group' | 'none')}
-            className="text-sm rounded-md border border-gray-300 dark:border-gray-600 py-1.5 px-3 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
-          >
-            <option value="none">No Grouping</option>
-            <option value="status">Group by Status</option>
-            <option value="assignee">Group by Assignee</option>
-            <option value="group">Group by Group</option>
-          </select>
-        </div>
       </div>
     </div>
   );

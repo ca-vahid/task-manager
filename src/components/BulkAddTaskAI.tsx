@@ -249,7 +249,7 @@ export function BulkAddTaskAI({
   const showInputView = parsedTasks === null;
   
   return (
-    <div className="space-y-6 bg-white dark:bg-gray-800 p-4 rounded-md">
+    <div className="space-y-4 bg-white dark:bg-gray-800 rounded-md">
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800/50 rounded-lg p-4">
           <p className="text-red-700 dark:text-red-300">{error}</p>
