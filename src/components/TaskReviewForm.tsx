@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Technician, Group, PriorityLevel } from '@/lib/types';
+import { Technician, Group, PriorityLevel, Category } from '@/lib/types';
 import 'react-quill/dist/quill.snow.css';
 import dynamic from 'next/dynamic';
 
@@ -22,6 +22,7 @@ interface ParsedTask {
   details: string;
   assignee: string | null;
   group: string | null;
+  category: string | null;
   dueDate: string | null;
   priority: string;
   ticketNumber: string | null;
@@ -32,6 +33,7 @@ interface TaskReviewFormProps {
   parsedTasks: ParsedTask[];
   technicians: Technician[];
   groups: Group[];
+  categories: Category[];
   onSubmit: (tasks: ParsedTask[]) => Promise<void>;
   onBack: () => void;
   onCreateGroup?: (name: string, description?: string) => Promise<Group>;
@@ -40,7 +42,8 @@ interface TaskReviewFormProps {
 export function TaskReviewForm({ 
   parsedTasks, 
   technicians, 
-  groups, 
+  groups,
+  categories,
   onSubmit, 
   onBack,
   onCreateGroup
@@ -53,11 +56,43 @@ export function TaskReviewForm({
   const [newGroupDescription, setNewGroupDescription] = useState('');
   const [processingGroup, setProcessingGroup] = useState(false);
   
+  // Track AI-matched categories for visual indicators
+  const [aiMatchedCategories, setAiMatchedCategories] = useState<{[taskIndex: number]: string | null}>({});
+  
+  // On initial load, track all pre-filled categories as AI-matched
+  useEffect(() => {
+    const initialMatches: {[taskIndex: number]: string | null} = {};
+    
+    parsedTasks.forEach((task, index) => {
+      if (task.category) {
+        const matchedCategoryId = findBestCategoryMatch(task.category);
+        if (matchedCategoryId) {
+          initialMatches[index] = matchedCategoryId;
+        }
+      }
+    });
+    
+    setAiMatchedCategories(initialMatches);
+  }, [parsedTasks]);
+  
   // Handle field changes for a specific task
   const handleTaskChange = (index: number, field: keyof ParsedTask, value: any) => {
     const updatedTasks = [...editedTasks];
     updatedTasks[index] = { ...updatedTasks[index], [field]: value };
     setEditedTasks(updatedTasks);
+    
+    // If the category field is manually changed, remove the AI-matched flag
+    if (field === 'category') {
+      setAiMatchedCategories(prev => {
+        const updated = {...prev};
+        // Only remove the flag if the category is actually changed by the user
+        const currentCategoryId = findBestCategoryMatch(updatedTasks[index].category);
+        if (currentCategoryId !== updated[index]) {
+          delete updated[index];
+        }
+        return updated;
+      });
+    }
   };
   
   // Handle final submission
@@ -172,6 +207,26 @@ export function TaskReviewForm({
     const partialMatch = groups.find(group => 
       group.name.toLowerCase().includes(name.toLowerCase()) || 
       name.toLowerCase().includes(group.name.toLowerCase())
+    );
+    if (partialMatch) return partialMatch.id;
+    
+    return '';
+  };
+  
+  // Prioritize matching categories by value
+  const findBestCategoryMatch = (categoryName: string | null): string => {
+    if (!categoryName) return '';
+    
+    // Try to find an exact match
+    const exactMatch = categories.find(category => 
+      category.value.toLowerCase() === categoryName.toLowerCase()
+    );
+    if (exactMatch) return exactMatch.id;
+    
+    // Try to find a partial match
+    const partialMatch = categories.find(category => 
+      category.value.toLowerCase().includes(categoryName.toLowerCase()) || 
+      categoryName.toLowerCase().includes(category.value.toLowerCase())
     );
     if (partialMatch) return partialMatch.id;
     
@@ -423,6 +478,31 @@ export function TaskReviewForm({
                   className="w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800"
                   placeholder="e.g. TICKET-123"
                 />
+              </div>
+              
+              {/* Category */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  Category
+                </label>
+                <select
+                  value={findBestCategoryMatch(task.category)}
+                  onChange={(e) => {
+                    const categoryId = e.target.value;
+                    const categoryValue = categoryId 
+                      ? categories.find(c => c.id === categoryId)?.value || null 
+                      : null;
+                    handleTaskChange(index, 'category', categoryValue);
+                  }}
+                  className={`w-full rounded-md ${aiMatchedCategories[index] ? 'border-2 border-green-300 dark:border-green-700' : 'border border-gray-300 dark:border-gray-700'} shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800`}
+                >
+                  <option value="">No Category</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.value} {aiMatchedCategories[index] === category.id ? '(AI Match)' : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>

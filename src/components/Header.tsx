@@ -51,6 +51,9 @@ export function Header() {
             <Link href="/technicians" className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
               Technicians
             </Link>
+            <Link href="/categories" className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+              Categories
+            </Link>
             <Link href="/analytics" className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
               Analytics
             </Link>

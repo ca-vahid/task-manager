@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Task, Technician, TaskStatus, Group, PriorityLevel } from '@/lib/types';
+import { Task, Technician, TaskStatus, Group, PriorityLevel, Category } from '@/lib/types';
 import { Timestamp } from 'firebase/firestore';
 import { TaskReviewForm } from './TaskReviewForm';
 
 interface BulkAddTaskAIProps {
   technicians: Technician[];
   groups: Group[];
+  categories: Category[];
   currentOrderCount: number;
   onAddTasks: (tasks: Omit<Task, 'id'>[]) => Promise<void>;
   onCancel: () => void;
@@ -94,7 +95,8 @@ function findBestTechnicianMatch(name: string | null, technicianList: Technician
 
 export function BulkAddTaskAI({ 
   technicians, 
-  groups, 
+  groups,
+  categories,
   currentOrderCount, 
   onAddTasks, 
   onCancel,
@@ -132,6 +134,7 @@ export function BulkAddTaskAI({
           text: bulkText,
           technicians: technicians.map(tech => ({ id: tech.id, name: tech.name })),
           groups: groups.map(group => ({ id: group.id, name: group.name })),
+          categories: categories.map(cat => ({ id: cat.id, value: cat.value, displayId: cat.displayId })),
           currentDate
         }),
       });
@@ -182,6 +185,17 @@ export function BulkAddTaskAI({
           }
         }
         
+        // Match category value to category id
+        let categoryId = null;
+        if (task.category) {
+          const matchedCategory = categories.find(category => 
+            category.value.toLowerCase() === task.category.toLowerCase()
+          );
+          if (matchedCategory) {
+            categoryId = matchedCategory.id;
+          }
+        }
+        
         // Convert due date string to Timestamp
         let dueDate = null;
         if (task.dueDate) {
@@ -204,6 +218,7 @@ export function BulkAddTaskAI({
           status: TaskStatus.Open,
           assigneeId,
           groupId,
+          categoryId,
           estimatedCompletionDate: dueDate,
           order: currentOrderCount + index,
           priorityLevel,
@@ -254,10 +269,10 @@ export function BulkAddTaskAI({
               onChange={(e) => setBulkText(e.target.value)}
               rows={10}
               className="block w-full rounded-md border-2 border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 sm:text-sm p-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-              placeholder="Enter task information in any format. Our AI will extract the task titles, details, assignees, due dates, etc."
+              placeholder="Enter task information in any format. Our AI will extract the task titles, details, assignees, categories, due dates, etc."
             ></textarea>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              The AI will extract task information. Include details like titles, descriptions, assignees, due dates, priorities, etc.
+              The AI will extract task information. Include details like titles, descriptions, assignees, categories, due dates, priorities, etc.
             </p>
           </div>
           
@@ -301,6 +316,7 @@ export function BulkAddTaskAI({
           parsedTasks={parsedTasks || []}
           technicians={technicians}
           groups={groups}
+          categories={categories}
           onSubmit={handleSubmitTasks}
           onBack={handleBackToInput}
           onCreateGroup={onCreateGroup}

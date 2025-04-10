@@ -2,7 +2,7 @@
 
 import React, { useState, FormEvent, ChangeEvent, useEffect, useRef } from 'react';
 import { Timestamp } from 'firebase/firestore';
-import { TaskStatus, Technician, Task, Group } from '@/lib/types';
+import { TaskStatus, Technician, Task, Group, Category } from '@/lib/types';
 import Image from 'next/image';
 
 // Import Quill styles
@@ -124,6 +124,7 @@ export function QuillEditor({ value, onChange, placeholder }: QuillEditorProps) 
 interface AddTaskFormProps {
   technicians: Technician[];
   groups: Group[];
+  categories: Category[];
   currentOrderCount: number; // To determine the order of the new task
   onAddTask: (newTaskData: Omit<Task, 'id'>) => Promise<void>;
   onCancel: () => void;
@@ -133,6 +134,7 @@ interface AddTaskFormProps {
 export function AddTaskForm({ 
     technicians, 
     groups,
+    categories,
     currentOrderCount, 
     onAddTask, 
     onCancel,
@@ -143,6 +145,7 @@ export function AddTaskForm({
   const [status, setStatus] = useState<TaskStatus>(TaskStatus.Open);
   const [assigneeId, setAssigneeId] = useState<string | null>(null);
   const [groupId, setGroupId] = useState<string | null>(null);
+  const [categoryId, setCategoryId] = useState<string | null>(null);
   const [estimatedCompletionDate, setEstimatedCompletionDate] = useState<string>(''); // Store as string YYYY-MM-DD
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -157,6 +160,7 @@ export function AddTaskForm({
   const [aiError, setAiError] = useState<string | null>(null);
   const aiProcessedRef = useRef(false); // Track if AI has processed data
   const [aiMatchedTechId, setAiMatchedTechId] = useState<string | null>(null); // Store the ID of the technician matched by AI
+  const [aiMatchedCategoryId, setAiMatchedCategoryId] = useState<string | null>(null); // Store the ID of the category matched by AI
   
   // Form reference for event listening
   const formRef = React.useRef<HTMLFormElement>(null);
@@ -236,6 +240,7 @@ export function AddTaskForm({
       status,
       assigneeId: assigneeId || null,
       groupId: groupId || null,
+      categoryId: categoryId || null,
       estimatedCompletionDate: dateTimestamp,
       order: currentOrderCount, // Set order based on current count
       priorityLevel: null,
@@ -277,6 +282,38 @@ export function AddTaskForm({
     }
   };
 
+  // Function to set category by name, similar to what we do for technicians
+  const forceSetCategoryByName = (categoryName: string) => {
+    if (!categoryName) return;
+    
+    console.log("Force setting category by name:", categoryName);
+    
+    // Try exact match first
+    const exactMatch = categories.find(
+      cat => cat.value.toLowerCase() === categoryName.toLowerCase()
+    );
+    if (exactMatch) {
+      console.log("Found exact category match:", exactMatch.value, "ID:", exactMatch.id);
+      setCategoryId(exactMatch.id);
+      setAiMatchedCategoryId(exactMatch.id);
+      return;
+    }
+    
+    // Try if any category name contains the input name
+    const containsMatch = categories.find(
+      cat => cat.value.toLowerCase().includes(categoryName.toLowerCase()) ||
+             categoryName.toLowerCase().includes(cat.value.toLowerCase())
+    );
+    if (containsMatch) {
+      console.log("Found contains category match:", containsMatch.value, "ID:", containsMatch.id);
+      setCategoryId(containsMatch.id);
+      setAiMatchedCategoryId(containsMatch.id);
+      return;
+    }
+    
+    console.log("No match found for category:", categoryName);
+  };
+
   // Handle AI text extraction
   const handleAiExtract = async () => {
     if (!aiText.trim()) {
@@ -297,7 +334,8 @@ export function AddTaskForm({
         },
         body: JSON.stringify({ 
           text: aiText,
-          technicians: technicians.map(tech => ({ id: tech.id, name: tech.name }))
+          technicians: technicians.map(tech => ({ id: tech.id, name: tech.name })),
+          categories: categories.map(cat => ({ id: cat.id, value: cat.value, displayId: cat.displayId }))
         }),
       });
       
@@ -324,6 +362,11 @@ export function AddTaskForm({
       if (data.technician) {
         console.log("Trying to match technician:", data.technician);
         forceSetAssigneeByName(data.technician);
+      }
+      
+      if (data.category) {
+        console.log("Trying to match category:", data.category);
+        forceSetCategoryByName(data.category);
       }
       
       if (data.estimatedCompletionDate) {
@@ -453,7 +496,7 @@ export function AddTaskForm({
         </div>
         <div className="p-5">
           <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-            Paste any text containing task information (emails, tickets, requirements) and AI will extract the relevant details.
+            Paste any text containing task information (emails, tickets, requirements) and AI will extract the relevant details including title, description, assignee, category, and due date.
           </p>
           
           <div className="space-y-4">
@@ -465,7 +508,7 @@ export function AddTaskForm({
                 onChange={(e) => setAiText(e.target.value)}
                 rows={10}
                 className="block w-full rounded-md border-2 border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 sm:text-sm p-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 dark:placeholder-gray-400"
-                placeholder="Paste email, ticket content, or any text containing task details here. Our AI will extract the relevant information such as title, dates, and more."
+                placeholder="Paste email, ticket content, or any text containing task details here. Our AI will extract the relevant information such as title, category, assignee, dates, and more."
               ></textarea>
               
               {aiError && (
@@ -675,6 +718,28 @@ export function AddTaskForm({
               </button>
             </div>
           )}
+        </div>
+        
+        <div>
+          <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Category
+          </label>
+          <select 
+            id="category"
+            value={categoryId || ""}
+            onChange={(e) => {
+              console.log("Category manually changed to:", e.target.value);
+              setCategoryId(e.target.value || null);
+            }}
+            className={`block w-full rounded-md border-2 ${aiProcessedRef.current && aiMatchedCategoryId ? 'border-green-300 dark:border-green-700' : 'border-gray-300 dark:border-gray-700'} shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 sm:text-sm p-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100`}
+          >
+            <option value="">No Category</option>
+            {categories.map(category => (
+              <option key={category.id} value={category.id}>
+                {category.value} {aiProcessedRef.current && aiMatchedCategoryId === category.id ? '(AI Match)' : ''}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
       

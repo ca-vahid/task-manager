@@ -8,8 +8,8 @@ const openai = new OpenAI({
 
 export async function POST(request: Request) {
   try {
-    // Get the text content and technicians from the request body
-    const { text, technicians = [] } = await request.json();
+    // Get the text content, technicians, and categories from the request body
+    const { text, technicians = [], categories = [] } = await request.json();
     
     if (!text || typeof text !== 'string') {
       return NextResponse.json(
@@ -25,11 +25,18 @@ export async function POST(request: Request) {
       ? `Available technicians: ${technicians.map((tech: any) => tech.name).join(', ')}.` 
       : '';
     
+    // Create a context string for categories
+    const categoryContext = categories.length > 0
+      ? `Available categories: ${categories.map((cat: any) => cat.value).join(', ')}.`
+      : '';
+    
     // Prepare the system message with detailed instructions
     const systemMessage = `
       You are an assistant that extracts information about a task from unstructured text.
       
       ${technicianContext}
+      
+      ${categoryContext}
       
       For the task described in the text, extract the following fields:
       - Title (the main name or title of the task)
@@ -38,20 +45,24 @@ export async function POST(request: Request) {
       - Due date (in YYYY-MM-DD format)
       - Priority (Low, Medium, High, or Critical)
       - External URL or ticket number (if mentioned)
+      - Category (select from available categories)
       
       Rules for extraction:
       1. If a technician is mentioned, match it to one of the available technicians if possible.
          Even if only a first name is mentioned, try to match it to the full name of a technician.
-      2. If a due date is mentioned in natural language (like "next Wednesday" or "due in 2 weeks"), 
+      2. If a category is mentioned or implied, match it to the closest one from the available categories list.
+         Look for keywords or themes in the text that might indicate a specific category.
+      3. If a due date is mentioned in natural language (like "next Wednesday" or "due in 2 weeks"), 
          convert it to a YYYY-MM-DD format based on the current date.
-      3. If no due date is specified, set it to null.
-      4. If priority is not explicitly mentioned, infer it from language used (urgent = High/Critical).
+      4. If no due date is specified, set it to null.
+      5. If priority is not explicitly mentioned, infer it from language used (urgent = High/Critical).
       
       Return a JSON object containing the extracted task:
       {
         "title": "...",
         "explanation": "...",
         "technician": "...", // or null if not found, use full name from the available technicians
+        "category": "...", // or null if not found, use exact name from available categories
         "dueDate": "YYYY-MM-DD", // or null if not specified
         "priority": "Low|Medium|High|Critical", // Medium if not specified
         "ticketNumber": "...", // or null if not found
@@ -93,6 +104,7 @@ export async function POST(request: Request) {
         title: extractedData.title || "",
         explanation: extractedData.explanation || "",
         technician: extractedData.technician || null,
+        category: extractedData.category || null,
         estimatedCompletionDate: extractedData.dueDate || null,
         priority: extractedData.priority || "Medium",
         ticketNumber: extractedData.ticketNumber || null,

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Task, Technician, TaskStatus, ViewDensity, Group } from '@/lib/types';
+import { Task, Technician, TaskStatus, ViewDensity, Group, Category } from '@/lib/types';
 import { TaskCard } from './TaskCard';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 
@@ -9,6 +9,7 @@ interface TaskGroupViewProps {
   tasks: Task[];
   technicians: Technician[];
   groups: Group[];
+  categories?: Category[];
   groupBy: 'status' | 'assignee' | 'group' | 'none';
   onUpdateTask: (id: string, updates: Partial<Omit<Task, 'id'>>) => Promise<void>;
   onDeleteTask: (id: string) => Promise<void>;
@@ -22,6 +23,7 @@ export function TaskGroupView({
   tasks,
   technicians,
   groups,
+  categories = [],
   groupBy,
   onUpdateTask,
   onDeleteTask,
@@ -262,6 +264,7 @@ export function TaskGroupView({
                   key={task.id}
                   task={task}
                   technicians={technicians}
+                  categories={categories}
                   onUpdateTask={onUpdateTask}
                   onDeleteTask={onDeleteTask}
                   viewDensity={viewDensity}

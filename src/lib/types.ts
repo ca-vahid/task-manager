@@ -7,6 +7,12 @@ export interface Technician {
   agentId: string;
 }
 
+export interface Category {
+  id: string;
+  value: string;
+  displayId: number;
+}
+
 // Interface for tickets
 export interface Ticket {
   id: string;
@@ -51,6 +57,7 @@ export interface Task {
   groupId: string | null; // Group the task belongs to
   ticketNumber: string | null;
   ticketUrl: string | null;
+  categoryId: string | null; // Category ID from Freshservice
 }
 
 // Interface for search and filter options

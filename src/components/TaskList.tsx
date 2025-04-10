@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Task, Technician, TaskStatus, ViewMode, BatchOperation, ViewDensity, PriorityLevel, Group } from '@/lib/types';
+import { Task, Technician, TaskStatus, ViewMode, BatchOperation, ViewDensity, PriorityLevel, Group, Category } from '@/lib/types';
 import { TaskCard } from './TaskCard'; 
 import { Timestamp } from 'firebase/firestore';
 import { TaskFilterBar } from './TaskFilterBar';
@@ -39,6 +39,7 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
   const [filteredTasks, setFilteredTasks] = useState<Task[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -72,17 +73,18 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
   const lastDragOperationTimeRef = useRef(0);
   const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Fetch initial data (tasks, technicians, and groups)
+  // Fetch initial data (tasks, technicians, groups, and categories)
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     
     try {
-      // Fetch tasks, technicians, and groups in parallel using the API
-      const [tasksResponse, techniciansResponse, groupsResponse] = await Promise.all([
+      // Fetch tasks, technicians, groups, and categories in parallel using the API
+      const [tasksResponse, techniciansResponse, groupsResponse, categoriesResponse] = await Promise.all([
         fetch('/api/tasks'), 
         fetch('/api/technicians'),
-        fetch('/api/groups')
+        fetch('/api/groups'),
+        fetch('/api/categories')
       ]);
 
       if (!tasksResponse.ok) {
@@ -97,10 +99,26 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
         throw new Error(`Failed to fetch groups: ${groupsResponse.statusText}`);
       }
 
+      if (!categoriesResponse.ok) {
+        console.warn(`Failed to fetch categories: ${categoriesResponse.statusText}`);
+      }
+
       // Get data from API responses
       const tasksApiData = await tasksResponse.json();
       const techniciansData: Technician[] = await techniciansResponse.json();
       const groupsData: Group[] = await groupsResponse.json();
+      
+      // Parse categories data if available
+      let categoriesData: Category[] = [];
+      try {
+        if (categoriesResponse.ok) {
+          const categoriesResult = await categoriesResponse.json();
+          categoriesData = categoriesResult.categories || [];
+          console.log("Loaded categories:", categoriesData.length);
+        }
+      } catch (err) {
+        console.error("Error parsing categories data:", err);
+      }
       
       // Debug API response data
       console.log("API tasks data - first item:", tasksApiData[0]);
@@ -108,6 +126,7 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
       setTasks(tasksApiData);
       setTechnicians(techniciansData);
       setGroups(groupsData);
+      setCategories(categoriesData);
 
     } catch (err: any) {
       console.error("Failed to fetch data:", err);
@@ -835,6 +854,7 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
             tasks={filteredTasks} 
             technicians={technicians}
             groups={groups}
+            categories={categories}
             onUpdateTask={handleUpdateTask}
             viewDensity={viewDensity}
           />
@@ -843,6 +863,7 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
             tasks={filteredTasks}
             technicians={technicians}
             groups={groups}
+            categories={categories}
             groupBy={groupBy}
             onUpdateTask={handleUpdateTask}
             onDeleteTask={handleDeleteTask}
@@ -863,6 +884,7 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
                   key={task.id}
                   task={task}
                   technicians={technicians}
+                  categories={categories}
                   onUpdateTask={handleUpdateTask}
                   onDeleteTask={handleDeleteTask}
                   viewDensity={viewDensity}
@@ -881,6 +903,7 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
           <AddTaskForm
             technicians={technicians}
             groups={groups}
+            categories={categories}
             currentOrderCount={tasks.length}
             onAddTask={handleAddTask}
             onCancel={() => setShowAddForm(false)}
@@ -895,6 +918,7 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
           <BulkAddTaskAI
             technicians={technicians}
             groups={groups}
+            categories={categories}
             currentOrderCount={tasks.length}
             onAddTasks={handleBulkAddTasks}
             onCancel={() => setShowBulkAddForm(false)}

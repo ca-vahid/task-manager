@@ -9,7 +9,7 @@ const openai = new OpenAI({
 export async function POST(request: Request) {
   try {
     // Get the text content and additional context from the request body
-    const { text, technicians, groups, currentDate } = await request.json();
+    const { text, technicians, groups, categories, currentDate } = await request.json();
     
     if (!text || typeof text !== 'string') {
       return NextResponse.json(
@@ -29,6 +29,10 @@ export async function POST(request: Request) {
       ? `Available groups: ${groups.map((group: any) => group.name).join(', ')}.` 
       : '';
     
+    const categoryContext = categories && categories.length > 0
+      ? `Available categories: ${categories.map((cat: any) => cat.value).join(', ')}.`
+      : '';
+    
     const dateContext = currentDate 
       ? `Today's date is ${currentDate}. If no due date is provided, set it to one week from today.` 
       : 'If no due date is provided, set it to one week from today.';
@@ -39,6 +43,7 @@ export async function POST(request: Request) {
       
       ${technicianContext}
       ${groupContext}
+      ${categoryContext}
       ${dateContext}
       
       For each task found in the text, extract the following fields:
@@ -46,6 +51,7 @@ export async function POST(request: Request) {
       - Details/explanation (a longer description of what the task involves - format this as HTML with proper paragraphs, lists, and basic formatting)
       - Assignee/Technician name (the person assigned to the task)
       - Group (the group this task belongs to)
+      - Category (the category this task belongs to)
       - Due date (in YYYY-MM-DD format)
       - Priority (Low, Medium, High, or Critical)
       - External URL or ticket number (if mentioned)
@@ -55,12 +61,15 @@ export async function POST(request: Request) {
          Even if only a first name is mentioned, try to match it to the full name of an available technician.
          For example, if "John" is mentioned and there's a technician named "John Smith" in the list, use "John Smith".
       2. If a group is mentioned, match it to one of the available groups if possible.
-      3. If a due date is mentioned in natural language (like "next Wednesday" or "due in 2 weeks"), 
+      3. If a category is mentioned or implied, match it to the closest one from the available categories list.
+         Look for keywords or themes in the text that might indicate a specific category.
+         Each task can have a different category based on the content of that task.
+      4. If a due date is mentioned in natural language (like "next Wednesday" or "due in 2 weeks"), 
          convert it to a YYYY-MM-DD format based on the current date.
-      4. If no due date is specified, set it to one week from today.
-      5. If priority is not explicitly mentioned, infer it from language used (urgent = High/Critical).
-      6. Multiple tasks may be separated by new lines, numbers, bullet points, or other formatting.
-      7. For the details field, format the output as HTML with proper paragraphs (<p>), lists (<ul>/<ol>, <li>), and 
+      5. If no due date is specified, set it to one week from today.
+      6. If priority is not explicitly mentioned, infer it from language used (urgent = High/Critical).
+      7. Multiple tasks may be separated by new lines, numbers, bullet points, or other formatting.
+      8. For the details field, format the output as HTML with proper paragraphs (<p>), lists (<ul>/<ol>, <li>), and 
          basic formatting (<strong>, <em>, <u>) as appropriate to preserve structure and emphasis.
       
       Be thorough and extract ALL tasks described in the text, even if the format is inconsistent.
@@ -73,6 +82,7 @@ export async function POST(request: Request) {
             "details": "<p>HTML formatted details...</p>", // Formatted as HTML
             "assignee": "...", // Full name from available technicians, or null if not found
             "group": "...", // or null if not found
+            "category": "...", // or null if not found, use exact name from available categories
             "dueDate": "YYYY-MM-DD", // one week from today if not specified
             "priority": "Low|Medium|High|Critical", // Medium if not specified
             "ticketNumber": "...", // or null if not found
@@ -151,6 +161,7 @@ export async function POST(request: Request) {
           details: task.details || "",
           assignee: task.assignee || null,
           group: task.group || null,
+          category: task.category || null,
           dueDate: task.dueDate || null,
           priority: task.priority || "Medium",
           ticketNumber: task.ticketNumber || null,
