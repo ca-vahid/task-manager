@@ -33,6 +33,13 @@ export function TechnicianSync({ technicians, onSyncComplete }: TechnicianSyncPr
     added?: number,
     updated?: number
   } | null>(null);
+  // Store the current technicians state for comparison after sync
+  const [localTechnicians, setLocalTechnicians] = useState<Technician[]>(technicians);
+  
+  // Update local technicians when prop changes
+  useEffect(() => {
+    setLocalTechnicians(technicians);
+  }, [technicians]);
 
   // Function to fetch agents from FreshService
   const fetchAgents = async () => {
@@ -48,13 +55,13 @@ export function TechnicianSync({ technicians, onSyncComplete }: TechnicianSyncPr
       
       const data = await response.json();
       
-      // Mark agents that already exist in our system
+      // Mark agents that already exist in our system - use localTechnicians which is updated post-sync
       const syncAgents: SyncAgent[] = data.agents.map((agent: Omit<SyncAgent, 'selected' | 'outOfSync'>) => {
         // Check if agent exists by exact ID match
-        const exactIdMatch = technicians.find(tech => tech.agentId === agent.agentId);
+        const exactIdMatch = localTechnicians.find(tech => tech.agentId === agent.agentId);
         
         // Check if agent exists by email match but has different ID (out of sync)
-        const emailMatch = technicians.find(tech => 
+        const emailMatch = localTechnicians.find(tech => 
           tech.email && 
           agent.email && 
           tech.email.toLowerCase() === agent.email.toLowerCase() && 
@@ -81,6 +88,20 @@ export function TechnicianSync({ technicians, onSyncComplete }: TechnicianSyncPr
       setError(error instanceof Error ? error.message : "Failed to fetch agents");
     } finally {
       setLoading(false);
+    }
+  };
+  
+  // Function to fetch latest technicians from API
+  const refreshLocalTechnicians = async () => {
+    try {
+      const response = await fetch('/api/technicians');
+      if (response.ok) {
+        const data = await response.json();
+        // Update our local copy of technicians
+        setLocalTechnicians(data);
+      }
+    } catch (error) {
+      console.error("Error refreshing technicians data:", error);
     }
   };
   
@@ -112,6 +133,9 @@ export function TechnicianSync({ technicians, onSyncComplete }: TechnicianSyncPr
       const result = await response.json();
       console.log("Sync result:", result);
       
+      // Refresh our local copy of technicians to reflect the changes
+      await refreshLocalTechnicians();
+      
       // Show success message with detailed results
       setSyncResults({
         success: result.results?.added + result.results?.updated || selectedAgents.length,
@@ -123,10 +147,12 @@ export function TechnicianSync({ technicians, onSyncComplete }: TechnicianSyncPr
       // Notify parent component that sync is complete
       onSyncComplete();
       
+      // Refetch agents to show updated status
+      fetchAgents();
+      
       // Close the modal after a delay
       setTimeout(() => {
-        setIsOpen(false);
-        setSyncResults(null);
+        closeModal();
       }, 3000);
       
     } catch (error) {
@@ -156,9 +182,26 @@ export function TechnicianSync({ technicians, onSyncComplete }: TechnicianSyncPr
   };
   
   // Function to open modal and fetch agents
-  const openSyncModal = () => {
+  const openSyncModal = async () => {
+    // Clear any previous state
     setIsOpen(true);
+    setAgents([]);
+    setSyncResults(null);
+    setError(null);
+    
+    // Make sure we have the latest technicians data
+    await refreshLocalTechnicians();
+    
+    // Fetch agents with fresh technician data
     fetchAgents();
+  };
+  
+  // Function to close modal and clear state
+  const closeModal = () => {
+    setIsOpen(false);
+    setAgents([]);
+    setSyncResults(null);
+    setError(null);
   };
   
   return (
@@ -186,7 +229,7 @@ export function TechnicianSync({ technicians, onSyncComplete }: TechnicianSyncPr
                 Sync Technicians from FreshService
               </h2>
               <button
-                onClick={() => setIsOpen(false)}
+                onClick={closeModal}
                 className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -368,7 +411,7 @@ export function TechnicianSync({ technicians, onSyncComplete }: TechnicianSyncPr
             
             <div className="mt-6 flex justify-end">
               <button
-                onClick={() => setIsOpen(false)}
+                onClick={closeModal}
                 className="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-md mr-3"
               >
                 Close
