@@ -12,6 +12,7 @@ interface SyncAgent {
   location_id?: number | null;
   location_name?: string | null;
   exists?: boolean;
+  outOfSync?: boolean;
   selected: boolean;
 }
 
@@ -26,7 +27,12 @@ export function TechnicianSync({ technicians, onSyncComplete }: TechnicianSyncPr
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [syncResults, setSyncResults] = useState<{success: number, errors: number} | null>(null);
+  const [syncResults, setSyncResults] = useState<{
+    success: number, 
+    errors: number,
+    added?: number,
+    updated?: number
+  } | null>(null);
 
   // Function to fetch agents from FreshService
   const fetchAgents = async () => {
@@ -43,17 +49,29 @@ export function TechnicianSync({ technicians, onSyncComplete }: TechnicianSyncPr
       const data = await response.json();
       
       // Mark agents that already exist in our system
-      const syncAgents: SyncAgent[] = data.agents.map((agent: Omit<SyncAgent, 'selected'>) => {
-        // Check if agent already exists by comparing ID
-        const exists = technicians.some(tech => 
-          tech.agentId === agent.agentId || 
-          (tech.email && tech.email.toLowerCase() === agent.email.toLowerCase())
+      const syncAgents: SyncAgent[] = data.agents.map((agent: Omit<SyncAgent, 'selected' | 'outOfSync'>) => {
+        // Check if agent exists by exact ID match
+        const exactIdMatch = technicians.find(tech => tech.agentId === agent.agentId);
+        
+        // Check if agent exists by email match but has different ID (out of sync)
+        const emailMatch = technicians.find(tech => 
+          tech.email && 
+          agent.email && 
+          tech.email.toLowerCase() === agent.email.toLowerCase() && 
+          tech.agentId !== agent.agentId
         );
+        
+        // Agent exists if we have an exact ID match or an email match
+        const exists = !!exactIdMatch || !!emailMatch;
+        // Agent is out of sync if we have an email match but different ID
+        const outOfSync = !!emailMatch;
         
         return {
           ...agent,
           exists,
-          selected: !exists // Pre-select agents that don't exist yet
+          outOfSync,
+          // Pre-select new agents and out-of-sync agents
+          selected: !exists || outOfSync 
         };
       });
       
@@ -94,10 +112,12 @@ export function TechnicianSync({ technicians, onSyncComplete }: TechnicianSyncPr
       const result = await response.json();
       console.log("Sync result:", result);
       
-      // Show success message
+      // Show success message with detailed results
       setSyncResults({
-        success: selectedAgents.length,
-        errors: 0
+        success: result.results?.added + result.results?.updated || selectedAgents.length,
+        errors: result.results?.failed || 0,
+        added: result.results?.added || 0,
+        updated: result.results?.updated || 0
       });
       
       // Notify parent component that sync is complete
@@ -185,8 +205,12 @@ export function TechnicianSync({ technicians, onSyncComplete }: TechnicianSyncPr
             {/* Success message */}
             {syncResults && (
               <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/30 text-green-700 dark:text-green-300 p-3 rounded-md mb-4">
-                Successfully synced {syncResults.success} technicians!
-                {syncResults.errors > 0 && ` (${syncResults.errors} errors)`}
+                <div className="font-medium">Sync completed successfully!</div>
+                <div className="mt-1 text-sm">
+                  {syncResults.added ? <div>• {syncResults.added} new technicians added</div> : null}
+                  {syncResults.updated ? <div>• {syncResults.updated} existing technicians updated</div> : null}
+                  {syncResults.errors > 0 && <div className="text-orange-700 dark:text-orange-300">• {syncResults.errors} errors encountered</div>}
+                </div>
               </div>
             )}
             
@@ -199,7 +223,7 @@ export function TechnicianSync({ technicians, onSyncComplete }: TechnicianSyncPr
             ) : (
               <>
                 {/* Table header with select all */}
-                <div className="mb-4 flex items-center">
+                <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-3">
                   <div className="flex items-center gap-2">
                     <input
                       type="checkbox"
@@ -210,6 +234,22 @@ export function TechnicianSync({ technicians, onSyncComplete }: TechnicianSyncPr
                     <span className="text-sm text-gray-700 dark:text-gray-300">
                       Select All ({agents.filter(a => a.selected).length}/{agents.length})
                     </span>
+                  </div>
+                  
+                  {/* Stats summary */}
+                  <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
+                    <div className="flex items-center">
+                      <span className="inline-block w-3 h-3 rounded-full bg-green-100 dark:bg-green-900/30 mr-1"></span>
+                      New: {agents.filter(a => !a.exists).length}
+                    </div>
+                    <div className="flex items-center">
+                      <span className="inline-block w-3 h-3 rounded-full bg-orange-100 dark:bg-orange-900/30 mr-1"></span>
+                      Out of Sync: {agents.filter(a => a.outOfSync).length}
+                    </div>
+                    <div className="flex items-center">
+                      <span className="inline-block w-3 h-3 rounded-full bg-yellow-100 dark:bg-yellow-900/30 mr-1"></span>
+                      Existing: {agents.filter(a => a.exists && !a.outOfSync).length}
+                    </div>
                   </div>
                   
                   <div className="ml-auto">
@@ -293,7 +333,17 @@ export function TechnicianSync({ technicians, onSyncComplete }: TechnicianSyncPr
                               </div>
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
-                              {agent.exists ? (
+                              {agent.outOfSync ? (
+                                <div className="relative group">
+                                  <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 cursor-help">
+                                    ID Out of Sync
+                                  </span>
+                                  <div className="absolute left-0 bottom-full mb-2 w-60 bg-black text-white text-xs rounded p-2 hidden group-hover:block z-10">
+                                    This agent exists in your system with a different ID. 
+                                    Syncing will update the local ID to match FreshService.
+                                  </div>
+                                </div>
+                              ) : agent.exists ? (
                                 <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300">
                                   Already Exists
                                 </span>

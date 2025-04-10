@@ -46,7 +46,7 @@ export async function GET() {
     const encodedToken = Buffer.from(`${FRESHSERVICE_API_TOKEN}:X`).toString('base64');
 
     // Make API call to Freshservice
-    const response = await fetch(`https://${FRESHSERVICE_DOMAIN}/api/v2/agents`, {
+    const response = await fetch(`https://${FRESHSERVICE_DOMAIN}/api/v2/agents?active=true&state=fulltime`, {
       method: 'GET',
       headers: {
         'Authorization': `Basic ${encodedToken}`,
@@ -125,18 +125,39 @@ export async function POST(request: Request) {
     // Process each agent
     for (const agent of agents) {
       try {
-        // Check if technician with this agent ID already exists
-        const existingTech = existingTechnicians.find(tech => 
-          tech.agentId === agent.agentId || 
-          (tech.email && agent.email && tech.email.toLowerCase() === agent.email.toLowerCase())
+        // Check if technician exactly matches by agentId
+        const exactIdMatch = existingTechnicians.find(tech => 
+          tech.agentId === agent.agentId
         );
         
-        if (existingTech) {
-          // Update existing technician
-          await updateDocument('technicians', existingTech.id, {
+        // Check if technician exists by email but has different ID (out of sync)
+        const emailMatch = existingTechnicians.find(tech => 
+          tech.email && 
+          agent.email && 
+          tech.email.toLowerCase() === agent.email.toLowerCase() && 
+          tech.agentId !== agent.agentId
+        );
+        
+        if (exactIdMatch) {
+          // Update existing technician with exact ID match
+          await updateDocument('technicians', exactIdMatch.id, {
             name: agent.name,
             email: agent.email,
             agentId: agent.agentId,
+            // Add additional fields if needed
+            location: agent.location_name,
+            department_ids: agent.department_ids,
+            // Add timestamp for last update
+            lastUpdated: new Date().toISOString()
+          });
+          results.updated++;
+        } else if (emailMatch) {
+          // Update existing technician with email match but different ID
+          // This is an out-of-sync agent - we'll update the ID to match FreshService
+          await updateDocument('technicians', emailMatch.id, {
+            name: agent.name,
+            email: agent.email,
+            agentId: agent.agentId, // Update to the correct FreshService ID
             // Add additional fields if needed
             location: agent.location_name,
             department_ids: agent.department_ids,
