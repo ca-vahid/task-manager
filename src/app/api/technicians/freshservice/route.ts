@@ -46,7 +46,7 @@ export async function GET() {
     const encodedToken = Buffer.from(`${FRESHSERVICE_API_TOKEN}:X`).toString('base64');
 
     // Make API call to Freshservice
-    const response = await fetch(`https://${FRESHSERVICE_DOMAIN}/api/v2/agents?active=true&state=fulltime`, {
+    const response = await fetch(`https://${FRESHSERVICE_DOMAIN}/api/v2/agents?active=true&state=fulltime&per_page=100`, {
       method: 'GET',
       headers: {
         'Authorization': `Basic ${encodedToken}`,
