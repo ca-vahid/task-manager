@@ -85,6 +85,13 @@ const AVAILABLE_COLUMNS = [
   { id: 'externalUrl', label: 'External URL' }
 ];
 
+// List of companies to ensure we don't rely on the enum directly
+const COMPANIES = [
+  Company.BGC,
+  Company.Cambio,
+  Company.None
+];
+
 export function ReportGenerator({ controls, technicians }: ReportGeneratorProps) {
   const [reportConfig, setReportConfig] = useState<ReportConfig>({
     title: 'Compliance Status Report',
@@ -93,6 +100,7 @@ export function ReportGenerator({ controls, technicians }: ReportGeneratorProps)
   
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
 
   // Handle report type change
@@ -193,135 +201,170 @@ export function ReportGenerator({ controls, technicians }: ReportGeneratorProps)
 
   // Generate report data based on configuration
   const generateReportData = () => {
-    setIsGenerating(true);
-    
-    // Filter controls based on report config
-    let filteredControls = [...controls];
-    
-    // Apply status filter
-    if (reportConfig.filters.status && reportConfig.filters.status.length > 0) {
-      filteredControls = filteredControls.filter(control => 
-        reportConfig.filters.status?.includes(control.status)
-      );
-    }
-    
-    // Apply company filter
-    if (reportConfig.filters.company && reportConfig.filters.company.length > 0) {
-      filteredControls = filteredControls.filter(control => 
-        control.company && reportConfig.filters.company?.includes(control.company)
-      );
-    }
-    
-    // Apply assignee filter
-    if (reportConfig.filters.assignee && reportConfig.filters.assignee.length > 0) {
-      filteredControls = filteredControls.filter(control => 
-        control.assigneeId && reportConfig.filters.assignee?.includes(control.assigneeId)
-      );
-    }
-    
-    // Apply date range filter if specified
-    if (reportConfig.filters.dateRange?.start || reportConfig.filters.dateRange?.end) {
-      filteredControls = filteredControls.filter(control => {
-        if (!control.estimatedCompletionDate) return false;
-        
-        const controlDate = control.estimatedCompletionDate.toDate();
-        
-        if (reportConfig.filters.dateRange?.start && controlDate < reportConfig.filters.dateRange.start) {
-          return false;
-        }
-        
-        if (reportConfig.filters.dateRange?.end) {
-          const endDate = new Date(reportConfig.filters.dateRange.end);
-          endDate.setHours(23, 59, 59, 999);
+    try {
+      setIsGenerating(true);
+      setErrorMessage(null);
+      
+      console.log("Starting report generation. Controls count:", controls.length);
+      
+      if (!controls || controls.length === 0) {
+        throw new Error("No control data available. Please ensure you have control data loaded.");
+      }
+      
+      // Filter controls based on report config
+      let filteredControls = [...controls];
+      console.log("Initial controls:", filteredControls);
+      
+      // Apply status filter
+      if (reportConfig.filters.status && reportConfig.filters.status.length > 0) {
+        console.log("Applying status filter:", reportConfig.filters.status);
+        filteredControls = filteredControls.filter(control => 
+          reportConfig.filters.status?.includes(control.status)
+        );
+      }
+      
+      // Apply company filter
+      if (reportConfig.filters.company && reportConfig.filters.company.length > 0) {
+        console.log("Applying company filter:", reportConfig.filters.company);
+        filteredControls = filteredControls.filter(control => 
+          control.company && reportConfig.filters.company?.includes(control.company)
+        );
+      }
+      
+      // Apply assignee filter
+      if (reportConfig.filters.assignee && reportConfig.filters.assignee.length > 0) {
+        console.log("Applying assignee filter:", reportConfig.filters.assignee);
+        filteredControls = filteredControls.filter(control => 
+          control.assigneeId && reportConfig.filters.assignee?.includes(control.assigneeId)
+        );
+      }
+      
+      // Apply date range filter if specified
+      if (reportConfig.filters.dateRange?.start || reportConfig.filters.dateRange?.end) {
+        console.log("Applying date range filter:", reportConfig.filters.dateRange);
+        filteredControls = filteredControls.filter(control => {
+          if (!control.estimatedCompletionDate) return false;
           
-          if (controlDate > endDate) {
+          try {
+            const controlDate = control.estimatedCompletionDate.toDate();
+            
+            if (reportConfig.filters.dateRange?.start && controlDate < reportConfig.filters.dateRange.start) {
+              return false;
+            }
+            
+            if (reportConfig.filters.dateRange?.end) {
+              const endDate = new Date(reportConfig.filters.dateRange.end);
+              endDate.setHours(23, 59, 59, 999);
+              
+              if (controlDate > endDate) {
+                return false;
+              }
+            }
+            
+            return true;
+          } catch (error) {
+            console.error("Error processing date for control:", control.id, error);
             return false;
+          }
+        });
+      }
+      
+      console.log("Filtered controls count:", filteredControls.length);
+      
+      if (filteredControls.length === 0) {
+        throw new Error("No controls match the selected filters. Please try different filter criteria.");
+      }
+      
+      // Transform data based on selected columns
+      console.log("Transforming data with columns:", reportConfig.columns);
+      const reportData = filteredControls.map(control => {
+        const rowData: Record<string, any> = {};
+        
+        for (const column of reportConfig.columns) {
+          switch (column) {
+            case 'dcfId':
+              rowData['Control ID'] = control.dcfId;
+              break;
+            case 'title':
+              rowData['Title'] = control.title;
+              break;
+            case 'explanation':
+              rowData['Description'] = control.explanation || '';
+              break;
+            case 'status':
+              rowData['Status'] = control.status;
+              break;
+            case 'company':
+              rowData['Company'] = control.company || Company.None;
+              break;
+            case 'assignee':
+              rowData['Assignee'] = control.assigneeId 
+                ? technicians.find(tech => tech.id === control.assigneeId)?.name || 'Unknown'
+                : 'Unassigned';
+              break;
+            case 'estimatedCompletionDate':
+              rowData['Due Date'] = control.estimatedCompletionDate 
+                ? formatDate(control.estimatedCompletionDate)
+                : 'No due date';
+              break;
+            case 'progress':
+              rowData['Progress'] = control.progress ? `${control.progress}%` : '0%';
+              break;
+            case 'tags':
+              rowData['Tags'] = control.tags?.join(', ') || '';
+              break;
+            case 'lastUpdated':
+              rowData['Last Updated'] = control.lastUpdated 
+                ? formatDate(control.lastUpdated)
+                : 'Never';
+              break;
+            case 'externalUrl':
+              rowData['External URL'] = control.externalUrl || 'None';
+              break;
           }
         }
         
-        return true;
+        return rowData;
       });
-    }
-    
-    // Transform data based on selected columns
-    const reportData = filteredControls.map(control => {
-      const rowData: Record<string, any> = {};
       
-      for (const column of reportConfig.columns) {
-        switch (column) {
-          case 'dcfId':
-            rowData['Control ID'] = control.dcfId;
-            break;
-          case 'title':
-            rowData['Title'] = control.title;
-            break;
-          case 'explanation':
-            rowData['Description'] = control.explanation;
-            break;
-          case 'status':
-            rowData['Status'] = control.status;
-            break;
-          case 'company':
-            rowData['Company'] = control.company || 'None';
-            break;
-          case 'assignee':
-            rowData['Assignee'] = control.assigneeId 
-              ? technicians.find(tech => tech.id === control.assigneeId)?.name || 'Unknown'
-              : 'Unassigned';
-            break;
-          case 'estimatedCompletionDate':
-            rowData['Due Date'] = control.estimatedCompletionDate 
-              ? formatDate(control.estimatedCompletionDate)
-              : 'No due date';
-            break;
-          case 'progress':
-            rowData['Progress'] = `${control.progress}%`;
-            break;
-          case 'tags':
-            rowData['Tags'] = control.tags.join(', ');
-            break;
-          case 'lastUpdated':
-            rowData['Last Updated'] = control.lastUpdated 
-              ? formatDate(control.lastUpdated)
-              : 'Never';
-            break;
-          case 'externalUrl':
-            rowData['External URL'] = control.externalUrl || 'None';
-            break;
-        }
+      console.log("Generated report data rows:", reportData.length);
+      
+      // Sort data based on group by
+      if (reportConfig.groupBy && reportConfig.groupBy !== 'none') {
+        console.log("Sorting by:", reportConfig.groupBy);
+        reportData.sort((a, b) => {
+          let valueA, valueB;
+          
+          switch (reportConfig.groupBy) {
+            case 'status':
+              valueA = a['Status'];
+              valueB = b['Status'];
+              break;
+            case 'company':
+              valueA = a['Company'];
+              valueB = b['Company'];
+              break;
+            case 'assignee':
+              valueA = a['Assignee'];
+              valueB = b['Assignee'];
+              break;
+            default:
+              return 0;
+          }
+          
+          return valueA.localeCompare(valueB);
+        });
       }
       
-      return rowData;
-    });
-    
-    // Sort data based on group by
-    if (reportConfig.groupBy && reportConfig.groupBy !== 'none') {
-      reportData.sort((a, b) => {
-        let valueA, valueB;
-        
-        switch (reportConfig.groupBy) {
-          case 'status':
-            valueA = a['Status'];
-            valueB = b['Status'];
-            break;
-          case 'company':
-            valueA = a['Company'];
-            valueB = b['Company'];
-            break;
-          case 'assignee':
-            valueA = a['Assignee'];
-            valueB = b['Assignee'];
-            break;
-          default:
-            return 0;
-        }
-        
-        return valueA.localeCompare(valueB);
-      });
+      setPreviewData(reportData);
+      console.log("Report generation complete");
+    } catch (error) {
+      console.error("Error generating report:", error);
+      setErrorMessage(error instanceof Error ? error.message : "An unknown error occurred generating the report");
+      setPreviewData([]);
+    } finally {
+      setIsGenerating(false);
     }
-    
-    setPreviewData(reportData);
-    setIsGenerating(false);
   };
 
   // Export to CSV
@@ -410,6 +453,18 @@ export function ReportGenerator({ controls, technicians }: ReportGeneratorProps)
       
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
         <h2 className="text-xl font-semibold text-gray-800 mb-4">Report Configuration</h2>
+        
+        {/* Show error message if present */}
+        {errorMessage && (
+          <div className="mb-4 p-4 bg-red-50 text-red-700 rounded-md border border-red-200">
+            <p className="flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              {errorMessage}
+            </p>
+          </div>
+        )}
         
         <div className="space-y-6">
           {/* Report Title */}
@@ -501,7 +556,7 @@ export function ReportGenerator({ controls, technicians }: ReportGeneratorProps)
                 Company Filter
               </label>
               <div className="space-y-1">
-                {Object.values(Company).map((company) => (
+                {COMPANIES.map((company) => (
                   <div key={company} className="flex items-center">
                     <input
                       type="checkbox"

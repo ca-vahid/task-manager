@@ -41,6 +41,20 @@ export enum PriorityLevel {
   Critical = "Critical",
 }
 
+// Control status enum used by Dashboard component
+export enum ControlStatus {
+  InProgress = "In Progress",
+  InReview = "In Review",
+  Complete = "Complete"
+}
+
+// Companies enum used in ReportGenerator
+export enum Company {
+  BGC = "BGC Engineering",
+  Cambio = "Cambio Consulting",
+  None = "None"
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -58,6 +72,23 @@ export interface Task {
   ticketNumber: string | null;
   ticketUrl: string | null;
   categoryId: string | null; // Category ID from Freshservice
+}
+
+// Interface for Control - used in Dashboard component
+export interface Control {
+  id: string;
+  dcfId: string;
+  title: string;
+  status: ControlStatus;
+  priorityLevel?: PriorityLevel | null;
+  estimatedCompletionDate?: Timestamp | null;
+  assigneeId?: string | null;
+  company?: Company;
+  tags?: string[];
+  progress?: number;
+  explanation?: string;
+  lastUpdated?: Timestamp | null;
+  externalUrl?: string | null;
 }
 
 // Interface for search and filter options
