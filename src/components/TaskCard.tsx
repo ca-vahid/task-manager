@@ -424,14 +424,19 @@ export function TaskCard({
   const [isRemoving, setIsRemoving] = useState(false); // Animation state for removal
   const [showDescription, setShowDescription] = useState(false); // For collapsible description
   const [menuOpen, setMenuOpen] = useState(false); // For three-dot menu
-  const [isUpdatingCategory, setIsUpdatingCategory] = useState(false); // Add state for category update UI
+  const [isUpdatingCategory, setIsUpdatingCategory] = useState(false); // For bottom category update UI
+  const [isEditingCategoryInPlace, setIsEditingCategoryInPlace] = useState(false); // For in-place category editing
+  const [isCreatingTicket, setIsCreatingTicket] = useState(false); // Add state for ticket creation
+  const [isCheckingExistingTickets, setIsCheckingExistingTickets] = useState(false);
+  const [isDeletingTicket, setIsDeletingTicket] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const toggleButtonRef = useRef<HTMLButtonElement>(null);
   const menuContainerRef = useRef<HTMLDivElement>(null);
+  const categorySelectRef = useRef<HTMLSelectElement>(null); // Ref for the category select element
   
   // Menu positioning
   const [menuPosition, setMenuPosition] = useState({ vertical: 'bottom', horizontal: 'right' });
-  const [menuCoords, setMenuCoords] = useState({ top: 0, left: 0 });
+  const [menuCoords, setMenuCoords] = useState({ top: 0, left: 0, maxHeight: '80vh' });
 
   // Derived State & Styles
   const timeRemaining = getTimeRemaining(task.estimatedCompletionDate, task.status);
@@ -459,34 +464,69 @@ export function TaskCard({
       const buttonRect = toggleButtonRef.current.getBoundingClientRect();
       const windowHeight = window.innerHeight;
       const windowWidth = window.innerWidth;
+      const menuHeight = 350; // Approximate max height of the menu
+      const menuWidth = 224; // Width of the menu
       
-      // Calculate available space in different directions
+      // Calculate available spaces
       const spaceBelow = windowHeight - buttonRect.bottom;
+      const spaceAbove = buttonRect.top;
       const spaceRight = windowWidth - buttonRect.right;
       
-      // Determine best position (vertical)
-      const vertical = spaceBelow < 250 ? 'top' : 'bottom';
+      // Initialize variables for position
+      let top = 0;
+      let maxMenuHeight = 0;
       
-      // Determine best position (horizontal)
-      const horizontal = spaceRight < 200 ? 'left' : 'right';
-      
-      // Set the absolute coordinates for the menu
-      if (vertical === 'top') {
-        // Position above the button
-        setMenuCoords({
-          top: buttonRect.top - 5, // slight offset
-          left: horizontal === 'left' ? buttonRect.right - 224 : buttonRect.left
-        });
-      } else {
-        // Position below the button
-        setMenuCoords({
-          top: buttonRect.bottom + 5, // slight offset
-          left: horizontal === 'left' ? buttonRect.right - 224 : buttonRect.left
-        });
+      // Use more adaptive positioning to minimize scrolling and improve appearance
+      if (spaceBelow >= 250) {
+        // Plenty of space below - position normally
+        top = buttonRect.bottom + 5;
+        maxMenuHeight = Math.min(menuHeight, windowHeight - top - 20);
+      } 
+      else if (spaceBelow >= 150) {
+        // Some space below, but not a lot - use a more compact menu
+        top = buttonRect.bottom + 5;
+        maxMenuHeight = spaceBelow - 15; // Use almost all available space
+      }
+      else if (spaceAbove >= 200) {
+        // Not much room below, but plenty above - show above the button
+        maxMenuHeight = Math.min(menuHeight, spaceAbove - 15);
+        top = buttonRect.top - maxMenuHeight - 5;
+      }
+      else {
+        // Limited space both above and below - center the menu on the button
+        // and make it fill most of the screen height
+        const totalSpace = windowHeight - 30; // Allow for margin at top and bottom
+        maxMenuHeight = Math.min(menuHeight, totalSpace);
+        
+        // Center vertically on the toggle button
+        const buttonCenter = buttonRect.top + buttonRect.height / 2;
+        top = Math.max(15, Math.min(buttonCenter - maxMenuHeight / 2, windowHeight - maxMenuHeight - 15));
       }
       
-      // Update position state
-      setMenuPosition({ vertical, horizontal });
+      // Set horizontal position first (easier)
+      const horizontal = spaceRight < menuWidth ? 'left' : 'right';
+      let left;
+      if (horizontal === 'left') {
+        left = Math.max(10, buttonRect.right - menuWidth);
+      } else {
+        left = Math.min(buttonRect.left, windowWidth - menuWidth - 10);
+      }
+      
+      // Make sure we have at least a minimum usable height
+      maxMenuHeight = Math.max(100, maxMenuHeight);
+      
+      // Set the coordinates and maxHeight
+      setMenuCoords({ 
+        top,
+        left,
+        maxHeight: `${maxMenuHeight}px`
+      });
+      
+      // Update position state for any UI that depends on it
+      setMenuPosition({ 
+        vertical: top < buttonRect.top ? 'top' : 'bottom',
+        horizontal
+      });
     }
   }, [menuOpen]);
 
@@ -512,6 +552,64 @@ export function TaskCard({
     };
   }, [menuOpen]);
 
+  // Update this effect
+  useEffect(() => {
+    // Only check if the task doesn't already have a ticket number
+    // and it's not already creating/checking tickets
+    if (!task.ticketNumber && !isCreatingTicket && !isCheckingExistingTickets) {
+      // Use a flag to prevent multiple checks for the same task
+      const taskCheckedFlag = sessionStorage.getItem(`ticket-checked-${task.id}`);
+      if (!taskCheckedFlag) {
+        checkForExistingTickets();
+        // Mark this task as checked to prevent future API calls
+        sessionStorage.setItem(`ticket-checked-${task.id}`, 'true');
+      }
+    }
+  }, [task.id, task.ticketNumber, isCreatingTicket, isCheckingExistingTickets, onUpdateTask]);
+
+  // Then update the function to better handle errors
+  const checkForExistingTickets = async () => {
+    try {
+      setIsCheckingExistingTickets(true);
+      
+      // Make API call to search for tickets with the same subject
+      const response = await fetch('/api/freshservice/tickets/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          subject: task.title
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        console.error("FreshService API error:", data.error || "Unknown error", data.details || "");
+        return; // Just return without throwing to avoid the error in the UI
+      }
+      
+      // If we found any tickets, use the first one's ID
+      if (data.tickets && data.tickets.length > 0) {
+        const firstTicket = data.tickets[0];
+        
+        // Update the task with the existing ticket information
+        await onUpdateTask(task.id, {
+          ticketNumber: String(firstTicket.id),
+          ticketUrl: firstTicket.url
+        });
+        
+        console.log(`Found existing ticket #${firstTicket.id} for task ${task.id}`);
+      }
+    } catch (error) {
+      console.error('Error checking for existing tickets:', error);
+      // Don't show errors to the user for this automatic check
+    } finally {
+      setIsCheckingExistingTickets(false);
+    }
+  };
+
   // Handler for status change
   const handleStatusChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newStatus = e.target.value as TaskStatus;
@@ -535,6 +633,7 @@ export function TaskCard({
   // Handler for category change
   const handleCategoryChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newCategoryId = e.target.value || null;
+    setIsEditingCategoryInPlace(false);
     setIsUpdatingCategory(false);
     setMenuOpen(false);
     
@@ -612,7 +711,161 @@ export function TaskCard({
       from { transform: scale(0.95); }
       to { transform: scale(1); }
     }
+    
+    /* WebKit scrollbar styling */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background-color: rgba(156, 163, 175, 0.5);
+      border-radius: 3px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+      background-color: rgba(156, 163, 175, 0.7);
+    }
   `;
+
+  // Add a handler to create a FreshService ticket
+  const handleCreateTicket = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    
+    // Close menu if open
+    if (menuOpen) {
+      setMenuOpen(false);
+    }
+    
+    try {
+      setIsCreatingTicket(true);
+      setUpdateError(null);
+      
+      // Get category name
+      const categoryName = task.categoryId ? categories.find(c => c.id === task.categoryId)?.value : null;
+      
+      // Format due date if available
+      const dueDate = task.estimatedCompletionDate ? 
+        formatDateForInput(task.estimatedCompletionDate) : null;
+      
+      // If no due date is available, set it to a week from now
+      const oneDueDate = dueDate || (() => {
+        const date = new Date();
+        date.setDate(date.getDate() + 7);
+        return date.toISOString().split('T')[0];
+      })();
+      
+      // Prepare the request data
+      const requestData = {
+        taskId: task.id,
+        subject: task.title,
+        description: task.explanation,
+        responderId: task.assigneeId,
+        dueDate: oneDueDate,
+        categoryName
+      };
+      
+      // Call the API endpoint
+      const response = await fetch('/api/freshservice/tickets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create ticket');
+      }
+      
+      // Process successful response
+      const data = await response.json();
+      
+      // Update the task with ticket information
+      await onUpdateTask(task.id, {
+        ticketNumber: String(data.ticketId),
+        ticketUrl: data.ticketUrl
+      });
+      
+    } catch (error: any) {
+      console.error('Error creating ticket:', error);
+      setUpdateError(`Failed to create ticket: ${error.message}`);
+    } finally {
+      setIsCreatingTicket(false);
+    }
+  };
+  
+  // Handle opening the ticket URL
+  const openTicketUrl = (e: React.MouseEvent<HTMLButtonElement | HTMLAnchorElement | HTMLDivElement>) => {
+    e.stopPropagation();
+    if (task.ticketUrl) {
+      window.open(task.ticketUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  // Function to delete a ticket
+  const handleDeleteTicket = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    
+    if (!task.ticketNumber) return;
+
+    // Close menu if open
+    if (menuOpen) {
+      setMenuOpen(false);
+    }
+    
+    try {
+      setIsDeletingTicket(true);
+      setUpdateError(null);
+      
+      // First, call the FreshService API to delete the ticket
+      const response = await fetch(`/api/freshservice/tickets/${task.ticketNumber}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete ticket');
+      }
+      
+      // Then update the task to remove the ticket information
+      await onUpdateTask(task.id, {
+        ticketNumber: null,
+        ticketUrl: null
+      });
+      
+      console.log(`Deleted ticket #${task.ticketNumber} for task ${task.id}`);
+      
+    } catch (error: any) {
+      console.error('Error deleting ticket:', error);
+      setUpdateError(`Failed to delete ticket: ${error.message}`);
+    } finally {
+      setIsDeletingTicket(false);
+    }
+  };
+
+  // Effect to programmatically open the select dropdown when editing starts
+  useEffect(() => {
+    if (isEditingCategoryInPlace && categorySelectRef.current) {
+      // Use setTimeout to ensure the element is rendered and focused before trying to open
+      setTimeout(() => {
+        // For modern browsers, showPicker() is the standard way
+        if (categorySelectRef.current?.showPicker) {
+          categorySelectRef.current.showPicker();
+        } else {
+          // Fallback for older browsers or environments where showPicker isn't available
+          // This might not work reliably everywhere, but it's the best fallback
+          const event = new MouseEvent('mousedown');
+          categorySelectRef.current?.dispatchEvent(event);
+        }
+      }, 0); // Execute immediately after the current rendering cycle
+    }
+  }, [isEditingCategoryInPlace]);
 
   return (
     <>
@@ -657,11 +910,15 @@ export function TaskCard({
                     top: `${menuCoords.top}px`,
                     left: `${menuCoords.left}px`,
                     width: '224px',
-                    maxHeight: '80vh', 
+                    maxHeight: menuCoords.maxHeight, 
                     overflowY: 'auto',
+                    overflowX: 'hidden',
                     backgroundColor: 'white',
                     backgroundImage: 'none',
-                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                    scrollbarWidth: 'thin', // For Firefox
+                    scrollbarColor: 'rgba(156, 163, 175, 0.5) transparent', // For Firefox
+                    msOverflowStyle: 'none' // For IE and Edge
                   }}
                 >
                   <div className="py-1 divide-y divide-gray-100 dark:divide-gray-700 bg-white dark:bg-gray-800">
@@ -684,6 +941,35 @@ export function TaskCard({
                         Mark as Complete
                       </button>
                       
+                      {/* Add improved ticket actions */}
+                      {task.ticketNumber ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            openTicketUrl(e);
+                            setMenuOpen(false);
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+                            <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5z" />
+                          </svg>
+                          View Ticket #{task.ticketNumber}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleCreateTicket}
+                          className="w-full text-left px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5z" clipRule="evenodd" />
+                          </svg>
+                          Create Ticket
+                        </button>
+                      )}
+                      
                       <button
                         type="button"
                         onClick={() => {
@@ -695,7 +981,7 @@ export function TaskCard({
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
                           <path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z" />
-                          <path d="M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5zM15 11h2a1 1 0 110 2h-2v-2z" />
+                          <path d="M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5zM15 11h2a1 1 0 110 2h-2v-2z" />
                         </svg>
                         Copy Task Title
                       </button>
@@ -703,7 +989,7 @@ export function TaskCard({
                       <button
                         type="button"
                         onClick={() => {
-                          setIsUpdatingCategory(true);
+                          setIsEditingCategoryInPlace(true);
                           setMenuOpen(false);
                         }}
                         className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
@@ -718,6 +1004,21 @@ export function TaskCard({
                     {/* Danger zone section */}
                     <div>
                       <div className="px-2 py-1 text-xs text-gray-500 dark:text-gray-400">Danger Zone</div>
+                      {task.ticketNumber && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            handleDeleteTicket(e);
+                            setMenuOpen(false);
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                          Delete Ticket
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={handleDeleteClick}
@@ -744,34 +1045,90 @@ export function TaskCard({
           </div>
         )}
 
-        {/* Category display next to ticket ID for better space usage */}
-        <div className="flex flex-wrap items-center gap-2 mb-3">
-          {/* Ticket ID */}
-          <div className="text-xs text-gray-500 dark:text-gray-400">
-            {task.ticketNumber ? (
-              <a
-                href={task.ticketUrl || '#'}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 dark:text-blue-400 hover:underline flex items-center"
+        {/* Integrated Category and Ticket section */}
+        <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
+          {/* Category with in-place editing */}
+          {isEditingCategoryInPlace ? (
+            <div className="relative flex items-center">
+              <select
+                value={task.categoryId || ""}
+                onChange={(e) => {
+                  handleCategoryChange(e);
+                  setIsEditingCategoryInPlace(false);
+                }}
+                className="text-xs rounded-full pl-7 pr-6 py-1 border border-blue-300 dark:border-blue-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent appearance-none cursor-pointer"
+                autoFocus
+                onBlur={() => setIsEditingCategoryInPlace(false)}
+                ref={categorySelectRef}
               >
-                <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-2 py-0.5 rounded">
-                  Ticket ID: {task.ticketNumber}
-                </span>
-              </a>
-            ) : (
-              <span className="bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded">
-                Ticket ID: Pending
-              </span>
-            )}
-          </div>
-          
-          {/* Category with icon */}
-          {categoryName && (
-            <div className={`text-xs ${categoryStyles.color} ${categoryStyles.darkColor} ${categoryStyles.background} ${categoryStyles.darkBackground} border ${categoryStyles.border} px-2 py-0.5 rounded-full flex items-center`}>
-              <span className="mr-1">{categoryStyles.icon}</span>
-              <span className="text-sm">{categoryName}</span>
+                <option value="">No Category</option>
+                {categories.map(category => (
+                  <option key={category.id} value={category.id}>
+                    {category.value}
+                  </option>
+                ))}
+              </select>
+              <span className="absolute left-2 top-1/2 transform -translate-y-1/2 pointer-events-none">🏷️</span>
             </div>
+          ) : categoryName ? (
+            <div 
+              onClick={() => setIsEditingCategoryInPlace(true)}
+              className={`text-xs ${categoryStyles.color} ${categoryStyles.darkColor} ${categoryStyles.background} ${categoryStyles.darkBackground} border ${categoryStyles.border} px-2 py-1 rounded-full flex items-center cursor-pointer hover:opacity-80 transition-opacity`}
+              title="Click to update category"
+            >
+              <span className="mr-1">{categoryStyles.icon}</span>
+              <span>{categoryName}</span>
+            </div>
+          ) : (
+            <button
+              onClick={() => setIsEditingCategoryInPlace(true)}
+              className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 px-2 py-1 rounded-full flex items-center transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+              </svg>
+              <span>Add Category</span>
+            </button>
+          )}
+          
+          {/* Ticket badge and actions */}
+          {task.ticketNumber ? (
+            <div 
+              onClick={openTicketUrl}
+              className="text-xs bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-800/40 text-blue-800 dark:text-blue-300 px-2 py-1 rounded-md flex items-center cursor-pointer transition-colors"
+              title="View ticket in FreshService"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+              </svg>
+              Ticket: {task.ticketNumber}
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 ml-1 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </div>
+          ) : (
+            <button
+              onClick={handleCreateTicket}
+              disabled={isCreatingTicket}
+              className="text-xs bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-2 py-1 rounded-md transition-colors flex items-center"
+            >
+              {isCreatingTicket ? (
+                <>
+                  <svg className="animate-spin h-3.5 w-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>Creating...</span>
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+                  </svg>
+                  <span>Create Ticket</span>
+                </>
+              )}
+            </button>
           )}
         </div>
 
@@ -853,47 +1210,6 @@ export function TaskCard({
             </div>
           </div>
         </div>
-
-        {/* Category update UI */}
-        {isUpdatingCategory && (
-          <div className="mt-4 p-3 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/70 dark:to-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-md">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h5c.256 0 .512.098.707.293l7 7zM5 6a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-              </svg>
-              Update Category
-            </label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 items-center">
-              <select
-                value={task.categoryId || ""}
-                onChange={handleCategoryChange}
-                className="w-full rounded-md border border-gray-300 dark:border-gray-600 py-1.5 px-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent"
-              >
-                <option value="">No Category</option>
-                {categories.map(category => (
-                  <option key={category.id} value={category.id}>
-                    {category.value}
-                  </option>
-                ))}
-              </select>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setIsUpdatingCategory(false)}
-                  className="px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 rounded text-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-                >
-                  Cancel
-                </button>
-                {/* Preview of the selected category if any */}
-                {categoryName && (
-                  <div className={`flex items-center px-3 py-1.5 rounded-md ${categoryStyles.background} ${categoryStyles.darkBackground} ${categoryStyles.color} ${categoryStyles.darkColor} border ${categoryStyles.border}`}>
-                    <span className="mr-1">{categoryStyles.icon}</span>
-                    <span className="text-sm">{categoryName}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </>
   );
