@@ -469,12 +469,7 @@ export function TaskCard({
 
   // Determine dropdown position when menu opens
   useEffect(() => {
-    // Only run this effect when the menu is actually open
-    if (!menuOpen || !toggleButtonRef.current || !canUseDOM) {
-      return;
-    }
-
-    try {
+    if (menuOpen && toggleButtonRef.current) {
       const buttonRect = toggleButtonRef.current.getBoundingClientRect();
       const windowHeight = window.innerHeight;
       const windowWidth = window.innerWidth;
@@ -541,54 +536,30 @@ export function TaskCard({
         vertical: top < buttonRect.top ? 'top' : 'bottom',
         horizontal
       });
-    } catch (error) {
-      console.error('Error calculating menu position:', error);
-      // Fallback position if there's an error
-      setMenuCoords({
-        top: 100,
-        left: 100,
-        maxHeight: '300px'
-      });
     }
-  }, [menuOpen, canUseDOM]);
+  }, [menuOpen]);
 
   // Create portal for menu to avoid z-index issues with neighboring cards
   useEffect(() => {
-    if (!menuOpen || !canUseDOM) return;
-    
     // Handler for global click outside to close menu
     const handleGlobalClick = (event: MouseEvent) => {
-      try {
-        // Only process if menu is open
-        if (!menuOpen) return;
-        
-        // Get the target as Node for contains() checks
-        const targetNode = event.target as Node;
-        
-        // Don't close if clicking on the toggle button (that has its own handler)
-        if (toggleButtonRef.current?.contains(targetNode)) {
-          return;
-        }
-        
-        // Close if clicking outside menu
-        if (menuContainerRef.current && !menuContainerRef.current.contains(targetNode)) {
-          setMenuOpen(false);
-        }
-      } catch (error) {
-        console.error('Error in click handler:', error);
-        // Always close menu if there's an error to prevent it being stuck open
+      // Don't close if clicking on the toggle button (that has its own handler)
+      if (toggleButtonRef.current?.contains(event.target as Node)) return;
+      
+      // Close if clicking outside menu
+      if (menuContainerRef.current && !menuContainerRef.current.contains(event.target as Node)) {
         setMenuOpen(false);
       }
     };
     
-    // Add the handler
-    document.addEventListener('mousedown', handleGlobalClick);
+    if (menuOpen) {
+      document.addEventListener('mousedown', handleGlobalClick);
+    }
     
-    // Clean up
     return () => {
       document.removeEventListener('mousedown', handleGlobalClick);
     };
-  }, [menuOpen, canUseDOM]);
+  }, [menuOpen]);
 
   // Update this effect
   useEffect(() => {
@@ -712,21 +683,10 @@ export function TaskCard({
     }
   };
 
-  // Toggle description
-  const toggleDescription = () => {
-    setShowDescription(!showDescription);
-  };
-
   // Toggle menu
   const toggleMenu = (e: React.MouseEvent) => {
-    // Prevent any default browser behavior
-    e.preventDefault();
-    // Stop propagation to prevent parent elements from catching the event
-    e.stopPropagation();
-    // Close any other open UI elements that might interfere
-    setIsEditingCategoryInPlace(false);
-    setIsUpdatingCategory(false);
-    // Toggle the menu state
+    e.preventDefault(); // Prevent any default button behavior
+    e.stopPropagation(); // Stop the click from bubbling up
     setMenuOpen(!menuOpen);
   };
 
@@ -938,13 +898,13 @@ export function TaskCard({
             )}
             
             {/* Menu button and dropdown */}
-            <div className="relative" ref={menuRef}>
+            <div className="relative z-10" ref={menuRef}>
               <button
                 ref={toggleButtonRef}
                 onClick={toggleMenu}
-                aria-label="Task menu"
-                type="button" 
-                className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                aria-label="Options menu"
+                style={{ touchAction: 'manipulation' }}
               >
                 <EllipsisVerticalIcon className="h-5 w-5" />
               </button>
@@ -1134,11 +1094,7 @@ export function TaskCard({
             </div>
           ) : categoryName ? (
             <div 
-              onClick={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                setIsEditingCategoryInPlace(true);
-              }}
+              onClick={() => setIsEditingCategoryInPlace(true)}
               className={`text-xs ${categoryStyles.color} ${categoryStyles.darkColor} ${categoryStyles.background} ${categoryStyles.darkBackground} border ${categoryStyles.border} px-2 py-1 rounded-full flex items-center cursor-pointer hover:opacity-80 transition-opacity`}
               title="Click to update category"
             >
@@ -1147,12 +1103,7 @@ export function TaskCard({
             </div>
           ) : (
             <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                setIsEditingCategoryInPlace(true);
-              }}
+              onClick={() => setIsEditingCategoryInPlace(true)}
               className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 px-2 py-1 rounded-full flex items-center transition-colors"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">

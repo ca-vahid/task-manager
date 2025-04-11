@@ -272,7 +272,7 @@ export function BulkAddControlForm({
           progress: 0,
           lastUpdated: Timestamp.now(),
           externalUrl: null, // Set to null as we're removing the field
-          company: Company.Both, // Default company to Both
+          company: Company.None, // Use proper enum value Company.None
           ticketNumber: null,    // Add ticketNumber
           ticketUrl: null        // Add ticketUrl
         } as Omit<Control, 'id'>;
