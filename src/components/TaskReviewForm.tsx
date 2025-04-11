@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Technician, Group, PriorityLevel, Category } from '@/lib/types';
-import 'react-quill/dist/quill.snow.css';
 import dynamic from 'next/dynamic';
 
 // Import editor component

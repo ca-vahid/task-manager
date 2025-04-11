@@ -5,8 +5,8 @@ import { Timestamp } from 'firebase/firestore';
 import { ControlStatus, Technician, Control, Company } from '@/lib/types';
 import Image from 'next/image';
 
-// Import Quill styles
-import 'react-quill/dist/quill.snow.css';
+// Remove static CSS import
+// import 'react-quill/dist/quill.snow.css';
 
 // Loading placeholder for the editor
 const EditorFallback = () => (

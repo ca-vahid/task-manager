@@ -5,6 +5,7 @@ import { AuthProvider } from "@/lib/contexts/AuthContext"; // Assuming alias
 import { ThemeProvider } from "@/lib/contexts/ThemeContext"; // Import ThemeProvider
 import { NotificationProvider } from "@/lib/contexts/NotificationContext"; // Import NotificationProvider
 import { UndoProvider } from "@/lib/contexts/UndoContext"; // Import UndoProvider
+import React from "react"; // Import React
 import { usePathname } from 'next/navigation'; // Import usePathname
 import { Header } from '@/components/Header'; // Import the Header component
 

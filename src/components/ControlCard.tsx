@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, ChangeEvent, FocusEvent, useEffect } from 'react';
+import React, { useState, ChangeEvent, FocusEvent, useEffect, useRef, useMemo } from 'react';
 import { Control, ControlStatus, Technician, ViewDensity, PriorityLevel, Company } from '@/lib/types'; // Add Company to imports
 import { Timestamp } from 'firebase/firestore';
 import Image from 'next/image';
@@ -10,7 +10,7 @@ import dynamic from 'next/dynamic';
 
 // Import ReactQuill dynamically to avoid SSR issues
 const ReactQuill = dynamic(() => import('react-quill'), { ssr: false });
-import 'react-quill/dist/quill.snow.css'; // Import Quill styles
+// import 'react-quill/dist/quill.snow.css'; // Import Quill styles
 
 interface ControlCardProps {
   control: Control;
@@ -178,6 +178,16 @@ export function ControlCard({ control, technicians, onUpdateControl, onDeleteCon
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Add CSS import in a client-side effect
+  // useEffect(() => {
+  //   // Import CSS only on client-side
+  //   if (typeof window !== 'undefined') {
+  //     import('react-quill/dist/quill.snow.css').catch(err => 
+  //       console.error('Error loading Quill CSS:', err)
+  //     );
+  //   }
+  // }, []);
 
   // --- Handlers --- 
   const handleFieldUpdate = async (fieldName: keyof Control, value: any) => {

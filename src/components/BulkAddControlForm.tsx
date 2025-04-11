@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { ControlStatus, Technician, Control, PriorityLevel, Company } from '@/lib/types';
-import 'react-quill/dist/quill.snow.css';
 
 // Loading placeholder for the editor
 const EditorFallback = () => (

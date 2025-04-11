@@ -6,7 +6,6 @@ import { Timestamp } from 'firebase/firestore';
 import { ChevronDownIcon, ChevronUpIcon, EllipsisVerticalIcon } from '@heroicons/react/24/outline';
 import DOMPurify from 'dompurify';
 import { createPortal } from 'react-dom';
-import { EditDescriptionModal } from './EditDescriptionModal';
 
 interface TaskCardProps {
   task: Task;
@@ -868,16 +867,6 @@ export function TaskCard({
     }
   }, [isEditingCategoryInPlace]);
 
-  const [isEditingDescription, setIsEditingDescription] = useState(false);
-
-  // Handler for saving the description from the modal
-  const handleSaveDescription = async (newDescription: string) => {
-    // Call the parent update function
-    await onUpdateTask(task.id, { explanation: newDescription });
-    // Optionally: You might want to show a success message or handle errors specifically here
-    // For simplicity, error handling is inside the modal for now.
-  };
-
   return (
     <>
       <style>{animationStyles}</style>
@@ -1144,32 +1133,34 @@ export function TaskCard({
         </div>
 
         {/* Description toggle button */}
-        <div className="mt-2 text-sm">
-          <button
-            onClick={toggleDescription}
-            className="flex items-center text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors text-xs mb-1 focus:outline-none"
-          >
-            {showDescription ? (
-              <ChevronUpIcon className="h-4 w-4 mr-1" />
-            ) : (
-              <ChevronDownIcon className="h-4 w-4 mr-1" />
-            )}
-            {showDescription ? 'Hide Description' : 'Show Description'}
-          </button>
-          {showDescription && (
-            <div 
-              className="prose prose-sm max-w-none dark:prose-invert text-gray-700 dark:text-gray-300 mt-1 p-2 rounded bg-gray-50 dark:bg-gray-800/50 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/60 transition-colors"
-              onClick={() => setIsEditingDescription(true)} // Open modal on click
-              title="Click to edit description"
+        {task.explanation && (
+          <div>
+            <button 
+              onClick={toggleDescription}
+              className="text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 flex items-center mb-3 bg-gray-50 dark:bg-gray-800/70 px-2 py-1 rounded"
             >
-              {task.explanation ? (
-                <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(task.explanation) }} />
+              {showDescription ? (
+                <>
+                  <ChevronUpIcon className="h-4 w-4 mr-1" />
+                  Hide Description
+                </>
               ) : (
-                <p className="italic text-gray-500 dark:text-gray-400">No description provided.</p>
+                <>
+                  <ChevronDownIcon className="h-4 w-4 mr-1" />
+                  Show Description
+                </>
               )}
-            </div>
-          )}
-        </div>
+            </button>
+            
+            {/* Collapsible description */}
+            {showDescription && (
+              <div 
+                className="mb-4 text-sm text-gray-700 dark:text-gray-300 bg-white/50 dark:bg-black/20 p-3 rounded-md border border-gray-200 dark:border-gray-700 transition-all duration-200 ease-in rich-text-content"
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(task.explanation || '') }}
+              />
+            )}
+          </div>
+        )}
         
         {/* Task details */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
@@ -1220,18 +1211,6 @@ export function TaskCard({
           </div>
         </div>
       </div>
-
-      {/* Add EditDescriptionModal, rendered conditionally */}
-      {canUseDOM && createPortal(
-        <EditDescriptionModal
-          isOpen={isEditingDescription}
-          onClose={() => setIsEditingDescription(false)}
-          initialDescription={task.explanation || ''}
-          onSave={handleSaveDescription}
-          taskTitle={task.title}
-        />,
-        document.body
-      )}
     </>
   );
 } 

@@ -5,8 +5,8 @@ import { Timestamp } from 'firebase/firestore';
 import { TaskStatus, Technician, Task, Group, Category } from '@/lib/types';
 import Image from 'next/image';
 
-// Import Quill styles
-import 'react-quill/dist/quill.snow.css';
+// Import Quill styles - remove this static import
+// import 'react-quill/dist/quill.snow.css';
 
 // Loading placeholder for the editor
 const EditorFallback = () => (
@@ -30,6 +30,8 @@ export function QuillEditor({ value, onChange, placeholder }: QuillEditorProps) 
   // Check if we're on the client
   useEffect(() => {
     setIsClient(true);
+    
+    // CSS is now imported globally in globals.css
   }, []);
   
   // Initialize Quill on mount

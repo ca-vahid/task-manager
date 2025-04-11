@@ -35,6 +35,7 @@
     "react-calendar-timeline": "^0.30.0-beta.3",
     "react-dom": "^18.3.1",
     "react-markdown": "^9.1.0",
+    "react-quill": "^2.0.0",
     "react-tooltip": "^5.28.1",
     "recharts": "^2.15.2",
     "replicate": "^0.32.0",

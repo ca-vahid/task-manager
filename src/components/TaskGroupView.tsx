@@ -24,7 +24,7 @@ import {
 } from '@dnd-kit/sortable';
 import { createPortal } from 'react-dom';
 import { QuillEditor } from './AddTaskForm';
-import 'react-quill/dist/quill.snow.css';
+// CSS import moved to inside an effect to prevent SSR issues
 
 interface TaskGroupViewProps {
   tasks: Task[];
