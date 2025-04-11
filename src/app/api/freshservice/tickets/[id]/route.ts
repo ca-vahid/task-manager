@@ -4,11 +4,10 @@ import { NextRequest, NextResponse } from "next/server";
  * Deletes a ticket in FreshService
  */
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest
 ) {
   try {
-    const ticketId = params.id;
+    const ticketId = request.url.split('/').pop();
     
     if (!ticketId) {
       return NextResponse.json(
