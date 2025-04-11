@@ -3,7 +3,25 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Task, Technician, TaskStatus, ViewDensity, Group, Category } from '@/lib/types';
 import { TaskCard } from './TaskCard';
-import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragStartEvent,
+  DragOverlay
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable
+} from '@dnd-kit/sortable';
 
 interface TaskGroupViewProps {
   tasks: Task[];
@@ -17,6 +35,97 @@ interface TaskGroupViewProps {
   selectedTaskIds: string[];
   onTaskSelection: (taskId: string, selected: boolean) => void;
   getGroupName: (groupId: string | null) => string;
+}
+
+// Sortable Group Component
+function SortableGroupItem({
+  id,
+  groupKey,
+  groupTitle,
+  groupTasks,
+  isCollapsed,
+  onToggleCollapse,
+  children
+}: {
+  id: string;
+  groupKey: string;
+  groupTitle: string;
+  groupTasks: Task[];
+  isCollapsed: boolean;
+  onToggleCollapse: (key: string) => void;
+  children: React.ReactNode;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id });
+
+  const style = {
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    transition,
+    zIndex: isDragging ? 10 : 1,
+    opacity: isDragging ? 0.5 : 1
+  };
+
+  return (
+    <div 
+      ref={setNodeRef} 
+      style={style}
+      className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"
+    >
+      {/* Group header - draggable */}
+      <div 
+        className="mb-0 px-4 py-3 flex justify-between items-center cursor-grab bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
+        {...attributes}
+        {...listeners}
+      >
+        <div>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 flex items-center">
+            {groupTitle}
+            <span className="ml-2 text-xs bg-gray-100 dark:bg-gray-700 rounded-full px-2 py-0.5 text-gray-700 dark:text-gray-300">
+              {groupTasks.length}
+            </span>
+          </h3>
+        </div>
+        
+        {/* Collapse/Expand button */}
+        <button 
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent dragging when clicking the button
+            onToggleCollapse(groupKey);
+          }}
+          className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+          aria-label={isCollapsed ? "Expand group" : "Collapse group"}
+        >
+          {isCollapsed ? (
+            <ChevronDownIcon className="w-5 h-5" />
+          ) : (
+            <ChevronUpIcon className="w-5 h-5" />
+          )}
+        </button>
+      </div>
+      
+      {/* Group content - collapsible */}
+      <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isCollapsed ? 'max-h-0' : 'max-h-[2000px]'}`}>
+        <div className="p-4">
+          <div className="space-y-4">
+            {children}
+          </div>
+          
+          {/* Empty state */}
+          {groupTasks.length === 0 && (
+            <div className="text-center py-6">
+              <p className="text-gray-500 dark:text-gray-400">No tasks in this group</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function TaskGroupView({
@@ -36,8 +145,17 @@ export function TaskGroupView({
   const [currentPage, setCurrentPage] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [animationDirection, setAnimationDirection] = useState<'left' | 'right' | null>(null);
-  const columnsPerPage = 3;
+  const [columnsPerPage, setColumnsPerPage] = useState(3); // Default to 3 columns
   
+  // State for collapsed groups
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  
+  // State for group order
+  const [groupOrder, setGroupOrder] = useState<string[]>([]);
+  
+  // State for active dragged group
+  const [activeGroup, setActiveGroup] = useState<string | null>(null);
+
   // Group tasks by the specified grouping
   const groupedTasks = React.useMemo(() => {
     const taskGroups = new Map<string, Task[]>();
@@ -137,8 +255,25 @@ export function TaskGroupView({
     );
   };
 
-  // Convert Map to Array for pagination
-  const groupEntries = Array.from(groupedTasks.entries());
+  // Update group order when groupedTasks changes
+  useEffect(() => {
+    const keys = Array.from(groupedTasks.keys());
+    if (!groupOrder.length || !arraysHaveSameElements(groupOrder, keys)) {
+      setGroupOrder(keys);
+    }
+  }, [groupedTasks, groupOrder]);
+
+  // Helper to compare arrays
+  function arraysHaveSameElements(arr1: string[], arr2: string[]) {
+    if (arr1.length !== arr2.length) return false;
+    const set1 = new Set(arr1);
+    return arr2.every(item => set1.has(item));
+  }
+
+  // Convert Map to Array for pagination based on groupOrder
+  const groupEntries = groupOrder
+    .filter(key => groupedTasks.has(key))
+    .map(key => [key, groupedTasks.get(key)!]);
   const totalPages = Math.ceil(groupEntries.length / columnsPerPage);
 
   // Get the current page's groups
@@ -146,6 +281,39 @@ export function TaskGroupView({
     currentPage * columnsPerPage,
     (currentPage + 1) * columnsPerPage
   );
+
+  // Sensors for drag and drop
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 } // Requires dragging at least 8px to start
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates
+    })
+  );
+  
+  // Handle drag start
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveGroup(event.active.id as string);
+  }, []);
+  
+  // Handle drag end
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (over && active.id !== over.id) {
+      // Find the indices of the dragged group and the target position
+      const oldIndex = groupOrder.indexOf(active.id as string);
+      const newIndex = groupOrder.indexOf(over.id as string);
+      
+      // Reorder the groups
+      if (oldIndex !== -1 && newIndex !== -1) {
+        setGroupOrder(arrayMove(groupOrder, oldIndex, newIndex));
+      }
+    }
+    
+    setActiveGroup(null);
+  }, [groupOrder]);
 
   // Navigate to previous page with animation
   const goToPreviousPage = useCallback(() => {
@@ -224,6 +392,32 @@ export function TaskGroupView({
 
   return (
     <div className="relative">
+      {/* Column count selector */}
+      <div className="mb-4 flex justify-end">
+        <div className="inline-flex rounded-md shadow-sm">
+          <button
+            onClick={() => setColumnsPerPage(3)}
+            className={`px-3 py-2 text-sm font-medium rounded-l-md ${
+              columnsPerPage === 3 
+                ? 'bg-indigo-600 text-white' 
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
+            } border border-gray-300 dark:border-gray-600`}
+          >
+            3 Columns
+          </button>
+          <button
+            onClick={() => setColumnsPerPage(4)}
+            className={`px-3 py-2 text-sm font-medium rounded-r-md ${
+              columnsPerPage === 4 
+                ? 'bg-indigo-600 text-white' 
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
+            } border border-gray-300 dark:border-gray-600 border-l-0`}
+          >
+            4 Columns
+          </button>
+        </div>
+      </div>
+      
       {/* Pagination controls - now fixed to viewport edges */}
       {totalPages > 1 && (
         <>
@@ -268,44 +462,67 @@ export function TaskGroupView({
         </div>
       )}
       
-      <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 ${getAnimationClasses()}`}>
-        {/* Render current page groups */}
-        {currentGroups.map(([groupKey, groupTasks]) => (
-          <div key={groupKey} className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-            {/* Group header */}
-            <div className="mb-4">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
-                {getGroupTitle(groupKey)}
-              </h3>
-              {getGroupSummary(groupTasks)}
-            </div>
-            
-            {/* Tasks in this group */}
-            <div className="space-y-4">
-              {groupTasks.map(task => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  technicians={technicians}
-                  categories={categories}
-                  onUpdateTask={onUpdateTask}
-                  onDeleteTask={onDeleteTask}
-                  viewDensity={viewDensity}
-                  isSelected={selectedTaskIds.includes(task.id)}
-                  onSelect={(selected) => onTaskSelection(task.id, selected)}
-                />
-              ))}
-            </div>
-            
-            {/* Empty state */}
-            {groupTasks.length === 0 && (
-              <div className="text-center py-6">
-                <p className="text-gray-500 dark:text-gray-400">No tasks in this group</p>
+      {/* Main content with drag and drop for groups */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <div className={`grid grid-cols-1 md:grid-cols-2 ${
+          columnsPerPage === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'
+        } gap-6 ${getAnimationClasses()}`}>
+          <SortableContext items={currentGroups.map(([groupKey]) => groupKey)} strategy={verticalListSortingStrategy}>
+            {/* Render current page groups */}
+            {currentGroups.map(([groupKey, groupTasks]) => (
+              <SortableGroupItem
+                key={groupKey}
+                id={groupKey}
+                groupKey={groupKey}
+                groupTitle={getGroupTitle(groupKey)}
+                groupTasks={groupTasks as Task[]}
+                isCollapsed={collapsedGroups[groupKey] || false}
+                onToggleCollapse={(key) => setCollapsedGroups(prev => ({
+                  ...prev,
+                  [key]: !prev[key]
+                }))}
+              >
+                {(groupTasks as Task[]).map(task => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    technicians={technicians}
+                    categories={categories}
+                    onUpdateTask={onUpdateTask}
+                    onDeleteTask={onDeleteTask}
+                    viewDensity={viewDensity}
+                    isSelected={selectedTaskIds.includes(task.id)}
+                    onSelect={(selected) => onTaskSelection(task.id, selected)}
+                  />
+                ))}
+              </SortableGroupItem>
+            ))}
+          </SortableContext>
+          
+          {/* Drag Overlay */}
+          <DragOverlay>
+            {activeGroup && (
+              <div className="bg-white dark:bg-gray-800 shadow-lg rounded-lg border border-gray-200 dark:border-gray-700 opacity-75">
+                <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+                    {getGroupTitle(activeGroup)}
+                  </h3>
+                </div>
+                <div className="p-4">
+                  <div className="h-24 flex items-center justify-center">
+                    <p className="text-gray-500 dark:text-gray-400">Moving group...</p>
+                  </div>
+                </div>
               </div>
             )}
-          </div>
-        ))}
-      </div>
+          </DragOverlay>
+        </div>
+      </DndContext>
     </div>
   );
 } 
