@@ -27,13 +27,6 @@ export function Header() {
                 height={60}
                 className="object-contain"
               />
-              <Image
-                src="/logos/cambio-logo.png"
-                alt="Cambio Logo"
-                width={60}
-                height={60}
-                className="object-contain"
-              />
             </div>
           </div>
 

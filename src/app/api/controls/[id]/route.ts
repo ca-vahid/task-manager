@@ -64,7 +64,6 @@ export async function PUT(
       }
     }
     if (assigneeId !== undefined) updateData.assigneeId = assigneeId; // Allow null
-    if (order !== undefined) updateData.order = order;
     if (priorityLevel !== undefined) updateData.priorityLevel = priorityLevel;
     if (tags !== undefined) updateData.tags = tags;
     if (progress !== undefined) updateData.progress = progress;
