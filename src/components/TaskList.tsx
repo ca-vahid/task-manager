@@ -757,9 +757,8 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
 
           <div className="mt-4 md:mt-0 space-x-2 flex">
             <div className="relative inline-block text-left group">
-              <button
-                onClick={() => setShowBulkAddForm(true)}
-                className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded hover:from-indigo-600 hover:to-purple-700 shadow flex items-center"
+              <div
+                className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded hover:from-indigo-600 hover:to-purple-700 shadow flex items-center cursor-pointer"
               >
                 <span>Bulk Add</span>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-1" viewBox="0 0 20 20" fill="currentColor">
@@ -768,7 +767,7 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
                 <div className="hidden absolute right-0 z-10 mt-1 w-56 origin-top-right divide-y divide-gray-100 rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 dark:bg-gray-800 dark:divide-gray-700 dark:ring-gray-700 group-hover:block">
                   <div className="p-1">
                     <button
-                      onClick={(e) => { e.stopPropagation(); setShowBulkAddForm(true); }}
+                      onClick={() => setShowBulkAddForm(true)}
                       className="flex w-full items-center rounded-md px-2 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
@@ -778,7 +777,7 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
                       Text Analysis
                     </button>
                     <button
-                      onClick={(e) => { e.stopPropagation(); setShowBulkAddPDFForm(true); }}
+                      onClick={() => setShowBulkAddPDFForm(true)}
                       className="flex w-full items-center rounded-md px-2 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-purple-500" viewBox="0 0 20 20" fill="currentColor">
@@ -788,7 +787,7 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
                     </button>
                   </div>
                 </div>
-              </button>
+              </div>
             </div>
             <button
               onClick={() => setShowAddForm(true)}
