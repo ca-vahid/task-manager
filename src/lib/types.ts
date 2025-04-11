@@ -89,6 +89,9 @@ export interface Control {
   explanation?: string;
   lastUpdated?: Timestamp | null;
   externalUrl?: string | null;
+  order?: number;
+  ticketNumber?: string | null;
+  ticketUrl?: string | null;
 }
 
 // Interface for search and filter options

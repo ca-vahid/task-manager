@@ -10,7 +10,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase'; // Import db instance
-import { Control, ControlStatus } from '@/lib/types';
+import { Control, ControlStatus, Company } from '@/lib/types';
 import { Timestamp } from 'firebase/firestore'; // Import Timestamp
 
 const CONTROLS_COLLECTION = 'controls';
@@ -182,7 +182,7 @@ export async function POST(request: Request) {
       progress: 0,
       lastUpdated: serverTimestamp(),
       externalUrl: body.externalUrl || null,
-      company: body.company || "Both", // Add company field to Firestore data with default
+      company: body.company || Company.None, // Use the enum value instead of string
       ticketNumber: null, // Initialize with null
       ticketUrl: null // Initialize with null
     };
@@ -232,7 +232,7 @@ export async function POST(request: Request) {
       progress: newControlData.progress,
       lastUpdated: null, // We don't need to send the server timestamp back
       externalUrl: newControlData.externalUrl,
-      company: body.company || "Both", // Add company field to response with default
+      company: body.company || Company.None, // Use enum value instead of string
       ticketNumber: null, // New control doesn't have a ticket yet
       ticketUrl: null // New control doesn't have a ticket URL yet
     };
