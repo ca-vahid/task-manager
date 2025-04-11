@@ -938,6 +938,21 @@ export function TaskCard({
                       <button
                         type="button"
                         onClick={() => {
+                          // Toggle description visibility
+                          setShowDescription(!showDescription);
+                          setMenuOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                        </svg>
+                        {showDescription ? 'Hide' : 'Show'} Details
+                      </button>
+                      
+                      <button
+                        type="button"
+                        onClick={() => {
                           // Mark as complete action
                           onUpdateTask(task.id, { status: TaskStatus.Resolved });
                           setMenuOpen(false);
@@ -1143,27 +1158,7 @@ export function TaskCard({
 
         {/* Description toggle button and due date */}
         <div className="flex flex-wrap items-center gap-3 mb-3">
-          {/* Description toggle button */}
-          {task.explanation && (
-            <button 
-              onClick={toggleDescription}
-              className="text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 flex items-center bg-gray-50 dark:bg-gray-800/70 px-2 py-1 rounded"
-            >
-              {showDescription ? (
-                <>
-                  <ChevronUpIcon className="h-4 w-4 mr-1" />
-                  Hide Description
-                </>
-              ) : (
-                <>
-                  <ChevronDownIcon className="h-4 w-4 mr-1" />
-                  Show Description
-                </>
-              )}
-            </button>
-          )}
-          
-          {/* Due date - moved next to explanation button */}
+          {/* Due date - moved next to where description button was */}
           <div className={`text-sm py-1 px-2 rounded-md flex items-center ${timeRemaining.overdue ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300' : timeRemaining.urgent ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-300' : 'bg-gray-50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-300'}`}>
             <ClockIcon className="h-3.5 w-3.5 mr-1.5 text-current" />
             {task.estimatedCompletionDate ? 
@@ -1175,10 +1170,22 @@ export function TaskCard({
             
         {/* Collapsible description */}
         {showDescription && task.explanation && (
-          <div 
-            className="mb-4 text-sm text-gray-700 dark:text-gray-300 bg-white/50 dark:bg-black/20 p-3 rounded-md border border-gray-200 dark:border-gray-700 transition-all duration-200 ease-in rich-text-content"
-            dangerouslySetInnerHTML={{ __html: sanitizeHtml(task.explanation || '') }}
-          />
+          <>
+            {/* Description toggle button for hiding */}
+            <div className="flex justify-end mb-1">
+              <button 
+                onClick={() => setShowDescription(false)}
+                className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 py-1 px-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center"
+              >
+                <ChevronUpIcon className="h-3.5 w-3.5 mr-1" />
+                Hide Details
+              </button>
+            </div>
+            <div 
+              className="mb-4 text-sm text-gray-700 dark:text-gray-300 bg-white/50 dark:bg-black/20 p-3 rounded-md border border-gray-200 dark:border-gray-700 transition-all duration-200 ease-in rich-text-content"
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(task.explanation || '') }}
+            />
+          </>
         )}
         
         {/* Task details */}
