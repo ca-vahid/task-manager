@@ -1306,16 +1306,6 @@ export function TaskCard({
         {/* Collapsible description */}
         {showDescription && task.explanation && (
           <>
-            {/* Description toggle button for hiding */}
-            <div className="flex justify-end mb-1">
-              <button 
-                onClick={() => setShowDescription(false)}
-                className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 py-1 px-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center"
-              >
-                <ChevronUpIcon className="h-3.5 w-3.5 mr-1" />
-                Hide Details
-              </button>
-            </div>
             <div 
               className="mb-4 text-sm text-gray-700 dark:text-gray-300 bg-white/50 dark:bg-black/20 p-3 rounded-md border border-gray-200 dark:border-gray-700 transition-all duration-200 ease-in rich-text-content"
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(task.explanation || '') }}
