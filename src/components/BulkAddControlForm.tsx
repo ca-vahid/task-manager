@@ -84,7 +84,7 @@ function QuillEditor({ value, onChange, placeholder }: QuillEditorProps) {
         quillRef.current.clipboard.dangerouslyPasteHTML(value || '');
       }
     }
-  }, [value, isClient]);
+  }, [isClient, value]);
   
   // Show loading placeholder until client-side code is ready
   if (!isClient) {

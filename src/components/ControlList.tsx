@@ -518,95 +518,68 @@ export function ControlList({ initialControls = [] }: ControlListProps) {
 
   // Handler for adding a new control (called by AddControlForm)
   const handleAddControl = useCallback(async (newControlData: Omit<Control, 'id'>) => {
-      setError(null);
-      
-      // --- Optimistic Update --- 
-      // Create a temporary ID for the optimistic update (Firestore will assign the real one)
+      // Create a unique temp ID
       const tempId = `temp-${Date.now()}`;
-      
-      // Create a safe copy of the estimatedCompletionDate for optimistic update
-      let safeEstimatedCompletionDate = null;
-      if (newControlData.estimatedCompletionDate) {
-        try {
-          if (newControlData.estimatedCompletionDate instanceof Timestamp) {
-            // Check if the Timestamp is valid
-            const testDate = newControlData.estimatedCompletionDate.toDate();
-            if (!isNaN(testDate.getTime())) {
-              safeEstimatedCompletionDate = newControlData.estimatedCompletionDate;
-            }
-          }
-        } catch (error) {
-          console.error("Invalid timestamp for optimistic update:", error);
-          // Keep as null
-        }
-      }
-      
-      const optimisticControl: Control = {
+      // Create a safe copy of the control data for optimistic update
+      const tempControl: Control = {
           ...newControlData,
           id: tempId,
-          // Use the validated date or null
-          estimatedCompletionDate: safeEstimatedCompletionDate,
-          // Ensure externalUrl is included optimistically
           externalUrl: newControlData.externalUrl
       };
+
+      // Optimistically add to UI first
+      setControls(prevControls => [...prevControls, tempControl]);
       
-      // Add to the end of the list
-      setControls(prevControls => [...prevControls, optimisticControl]);
-      setShowAddForm(false); // Hide modal immediately
-      // --- End Optimistic Update ---
+      // Close the form immediately after optimistic update
+      setShowAddForm(false);
       
       try {
+          // Ensure any date objects are converted properly
+          const apiControlData = {
+              ...newControlData,
+              estimatedCompletionDate: newControlData.estimatedCompletionDate
+                ? (newControlData.estimatedCompletionDate as Timestamp).toDate().toISOString()
+                : null,
+          };
+          
+          // Send to API
           const response = await fetch('/api/controls', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              // Convert Timestamp to string/null for API
-              body: JSON.stringify({
-                  ...newControlData,
-                  estimatedCompletionDate: newControlData.estimatedCompletionDate
-                      ? (newControlData.estimatedCompletionDate as Timestamp).toDate().toISOString()
-                      : null,
-              }),
+              body: JSON.stringify(apiControlData),
           });
-
+          
           if (!response.ok) {
               const errorData = await response.json();
-              // Rollback: Remove the optimistically added control
-              setControls(prevControls => prevControls.filter(c => c.id !== tempId)); 
-              setShowAddForm(true); // Re-show modal on error
               throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
           }
-
+          
+          // Handle actual saved control with real ID
           const savedControl: Control = await response.json();
-
-          // If the backend returns a Timestamp object, convert it to a JS Date
-          // If it returns an ISO string, convert it to JS Date
-          let finalDate = null;
-          if (savedControl.estimatedCompletionDate) {
-            if (typeof savedControl.estimatedCompletionDate === 'string') {
-              finalDate = Timestamp.fromDate(new Date(savedControl.estimatedCompletionDate));
-            } else if ((savedControl.estimatedCompletionDate as any).seconds) {
-              finalDate = savedControl.estimatedCompletionDate; // Assume it's already a Timestamp
-            }
-          }
-
-          // Replace the optimistic item with the saved one
-          setControls(prevControls => 
-              prevControls.map(c => {
-                  if (c.id === tempId) {
+          
+          // Replace the temp control with the real one
+          setControls(prevControls => {
+              return prevControls.map(control => {
+                  if (control.id === tempId) {
+                      // Process dates that may have been converted to strings
+                      let finalDate = null;
+                      if (savedControl.estimatedCompletionDate) {
+                          if (typeof savedControl.estimatedCompletionDate === 'string') {
+                              finalDate = Timestamp.fromDate(new Date(savedControl.estimatedCompletionDate));
+                          } else if ((savedControl.estimatedCompletionDate as any).seconds) {
+                              finalDate = savedControl.estimatedCompletionDate;
+                          }
+                      }
+                      
                       return {
                           ...savedControl,
                           estimatedCompletionDate: finalDate,
-                          // Make sure externalUrl from response is included
-                          externalUrl: savedControl.externalUrl
+                          externalUrl: savedControl.externalUrl,
                       };
                   }
-                  return c;
-              })
-          );
-          
-          // Form already hidden optimistically
-          // setShowAddForm(false); 
-
+                  return control;
+              });
+          });
       } catch (err: any) {
           console.error("Failed to add control:", err);
           setError(err.message || "Failed to add control.");
@@ -616,7 +589,7 @@ export function ControlList({ initialControls = [] }: ControlListProps) {
           // Re-throw so AddControlForm can also catch it and display inline error
           throw err; 
       }
-  }, [controls]); // Add controls to dependency array
+  }, []); // Remove the unnecessary 'controls' dependency
 
   // Function to update order in Firestore
   const updateOrderInFirestore = useCallback(async (orderedControls: Control[]) => {
@@ -802,9 +775,10 @@ export function ControlList({ initialControls = [] }: ControlListProps) {
 
   // Clean up any pending timeouts on unmount
   useEffect(() => {
+    const timeoutRef = undoTimeoutRef.current;
     return () => {
-      if (undoTimeoutRef.current) {
-        clearTimeout(undoTimeoutRef.current);
+      if (timeoutRef) {
+        clearTimeout(timeoutRef);
       }
     };
   }, []);

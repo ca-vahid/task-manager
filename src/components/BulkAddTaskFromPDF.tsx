@@ -590,7 +590,7 @@ export function BulkAddTaskFromPDF({
                 </svg>
               </button>
               <div className="absolute hidden group-hover:block bg-black text-white text-xs rounded py-1 px-2 z-10 bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-60">
-                Uses Gemini 2.5 Pro's enhanced reasoning capabilities for better task extraction. May improve accuracy for complex documents.
+                Uses Gemini 2.5 Pro&apos;s enhanced reasoning capabilities for better task extraction. May improve accuracy for complex documents.
                 <div className="absolute left-1/2 transform -translate-x-1/2 top-full">
                   <div className="w-2 h-2 bg-black rotate-45"></div>
                 </div>

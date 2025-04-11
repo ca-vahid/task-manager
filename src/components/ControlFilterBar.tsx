@@ -172,7 +172,7 @@ export function ControlFilterBar({
     if (hasActiveFilters(filters)) {
       applyFiltersWithState(filters);
     }
-  }, [controls]);
+  }, [controls, applyFiltersWithState, filters]);
   
   // Helper to check if there are any active filters
   const hasActiveFilters = (filterState: ControlFilters): boolean => {
