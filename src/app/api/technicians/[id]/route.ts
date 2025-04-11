@@ -8,9 +8,10 @@ const TECHNICIANS_COLLECTION = 'technicians';
 
 // PUT /api/technicians/[id] - Update a technician
 export async function PUT(
-  request: Request
+  request: Request,
+  { params }: { params: { id: string } }
 ) {
-  const id = request.url.split('/').pop();
+  const id = params.id;
   try {
     const body = await request.json();
     const { name, email, agentId } = body;
@@ -44,9 +45,10 @@ export async function PUT(
 
 // DELETE /api/technicians/[id] - Delete a technician
 export async function DELETE(
-  request: Request
+  request: Request,
+  { params }: { params: { id: string } }
 ) {
-  const id = request.url.split('/').pop();
+  const id = params.id;
   try {
     if (!id) {
       return NextResponse.json({ message: 'Technician ID is required' }, { status: 400 });

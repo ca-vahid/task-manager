@@ -687,10 +687,10 @@ export function TaskCard({
 
   // Determine card size based on view density
   const cardClasses = viewDensity === 'compact' 
-    ? 'p-3 text-sm' 
+    ? 'p-2 text-sm' 
     : viewDensity === 'medium' 
-      ? 'p-4' 
-      : 'p-5';
+      ? 'p-3' 
+      : 'p-4';
 
   // Sanitize HTML content
   const sanitizeHtml = (html: string) => {

@@ -81,7 +81,7 @@ function SortableGroupItem({
     >
       {/* Group header - draggable */}
       <div 
-        className="mb-0 px-4 py-3 flex justify-between items-center cursor-grab bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
+        className="mb-0 px-3 py-2 flex justify-between items-center cursor-grab bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
         {...attributes}
         {...listeners}
       >
@@ -113,14 +113,14 @@ function SortableGroupItem({
       
       {/* Group content - collapsible */}
       <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isCollapsed ? 'max-h-0' : 'max-h-[2000px]'}`}>
-        <div className="p-4">
-          <div className="space-y-4">
+        <div className="p-3">
+          <div className="space-y-3">
             {children}
           </div>
           
           {/* Empty state */}
           {groupTasks.length === 0 && (
-            <div className="text-center py-6">
+            <div className="text-center py-4">
               <p className="text-gray-500 dark:text-gray-400">No tasks in this group</p>
             </div>
           )}
@@ -450,8 +450,8 @@ export function TaskGroupView({
       
       {/* Page indicator */}
       {totalPages > 1 && (
-        <div className="flex justify-center mb-4 py-2 text-sm font-medium bg-white dark:bg-gray-800 rounded-full shadow-sm border border-gray-200 dark:border-gray-700 px-3 mx-auto w-fit">
-          Page {currentPage + 1} of {totalPages}
+        <div className="fixed bottom-4 right-4 text-xs py-1 px-2 bg-white dark:bg-gray-800 rounded-full shadow-sm border border-gray-200 dark:border-gray-700 opacity-80 z-40">
+          {currentPage + 1}/{totalPages}
         </div>
       )}
       
