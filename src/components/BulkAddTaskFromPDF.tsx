@@ -248,6 +248,9 @@ export function BulkAddTaskFromPDF({
           const MAX_POLLS = 60; // 2 minutes with 2-second intervals
           const POLL_INTERVAL = 2000; // 2 seconds
           
+          // Initialize streamContent for thinking model
+          let lastStreamContent = '';
+          
           while (!jobComplete && pollCount < MAX_POLLS) {
             // Wait for the polling interval
             await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL));
@@ -273,10 +276,25 @@ export function BulkAddTaskFromPDF({
             
             const statusData = await statusResponse.json();
             
+            // Display both job status and any streaming content
+            if (statusData.streamContent && statusData.streamContent !== lastStreamContent) {
+              // Compute the new content since last update
+              const newContent = statusData.streamContent.substring(lastStreamContent.length);
+              if (newContent.trim()) {
+                // Add a prefix to clearly distinguish model thinking output from job status
+                setStreamedOutput(prev => 
+                  prev + `\n${newContent.trim().split('\n').map((line: string) => 
+                    line.trim() ? `🤔 ${line}` : line
+                  ).join('\n')}\n`
+                );
+                lastStreamContent = statusData.streamContent;
+              }
+            }
+            
             // Update UI with status
             if (statusData.status !== 'pending') {
               setStreamedOutput(prev => 
-                prev + `\nJob status: ${statusData.status} (Poll ${pollCount})\n`
+                prev + `\n⏱️ Job status: ${statusData.status} (Poll ${pollCount})\n`
               );
             } else if (pollCount % 5 === 0) {
               // Only show pending status occasionally to avoid flooding
@@ -985,8 +1003,16 @@ export function BulkAddTaskFromPDF({
                 } rounded-lg p-4 h-64 overflow-auto font-mono text-xs relative`}
               >
                 {streamedOutput.split('\n').map((line, i) => (
-                  <div key={i} className={`leading-relaxed ${i === streamedOutput.split('\n').length - 1 ? `${useThinkingModel ? 'text-purple-600 dark:text-purple-400' : 'text-green-600 dark:text-green-400'} font-semibold animate-pulse` : ''}`}>
-                    {line || <br />}
+                  <div key={i} className={`leading-relaxed ${
+                    i === streamedOutput.split('\n').length - 1 
+                      ? `${useThinkingModel ? 'text-purple-600 dark:text-purple-400' : 'text-green-600 dark:text-green-400'} font-semibold animate-pulse` 
+                      : line.startsWith('🤔 ') 
+                        ? 'text-indigo-600 dark:text-indigo-400 font-medium' 
+                        : line.startsWith('⏱️ Job status:') 
+                          ? 'text-gray-500 dark:text-gray-400 text-sm italic'
+                          : ''
+                  }`}>
+                    {line}
                   </div>
                 ))}
                 <div className="h-4"></div> {/* Extra space to ensure auto-scroll works */}
@@ -1086,13 +1112,15 @@ export function BulkAddTaskFromPDF({
             >
               {streamedOutput.split('\n').map((line, i) => (
                 <div key={i} className={`leading-relaxed ${
-                  line.includes('ERROR:') 
-                    ? 'text-red-600 dark:text-red-400 font-semibold' 
-                    : i === streamedOutput.split('\n').length - 1 && !error 
-                      ? `${useThinkingModel ? 'text-purple-600 dark:text-purple-400' : 'text-green-600 dark:text-green-400'} font-semibold animate-pulse` 
-                      : ''
+                  i === streamedOutput.split('\n').length - 1 
+                    ? `${useThinkingModel ? 'text-purple-600 dark:text-purple-400' : 'text-green-600 dark:text-green-400'} font-semibold animate-pulse` 
+                    : line.startsWith('🤔 ') 
+                      ? 'text-indigo-600 dark:text-indigo-400 font-medium' 
+                      : line.startsWith('⏱️ Job status:') 
+                        ? 'text-gray-500 dark:text-gray-400 text-sm italic'
+                        : ''
                 }`}>
-                  {line || <br />}
+                  {line}
                 </div>
               ))}
             </div>

@@ -37,11 +37,10 @@ const TASK_SCHEMA = {
   required: ["tasks"]
 };
 
-// In-memory job storage (would use a database in production)
-const jobStorage = new Map<string, {
+// Job storage (in-memory for this demo)
+// In a production app, you'd use a database or external service
+interface Job {
   status: 'pending' | 'processing' | 'completed' | 'failed';
-  result?: any;
-  error?: string;
   startTime: number;
   pdfData: string;
   processingOptions: {
@@ -50,7 +49,13 @@ const jobStorage = new Map<string, {
     categories: any[];
     useThinkingModel: boolean;
   };
-}>();
+  streamContent?: string; // Add field to store streaming content for thinking model
+  result?: any;
+  error?: string;
+}
+
+// In-memory job storage (would use a database in production)
+const jobStorage = new Map<string, Job>();
 
 // Cleanup function to remove old jobs (run periodically)
 const cleanupJobs = () => {
@@ -194,21 +199,26 @@ async function processPdfJob(jobId: string): Promise<void> {
     // Select the appropriate model based on user preference
     const MODEL = useThinkingModel ? THINKING_MODEL : STANDARD_MODEL;
     
+    // Create context strings for technicians, groups, and categories
+    const technicianContext = technicians.length > 0 
+      ? `Available technicians: ${technicians.map((tech: any) => tech.name).join(', ')}.`
+      : 'No technicians specified.';
+    
+    const groupContext = groups.length > 0 
+      ? `Available groups: ${groups.map((group: any) => group.name).join(', ')}.`
+      : 'No groups specified.';
+    
+    const categoryContext = categories.length > 0
+      ? `Available categories: ${categories.map((cat: any) => cat.value).join(', ')}.`
+      : 'No categories specified.';
+    
     // Generate the initial prompt for Gemini
     const initialPrompt = `
       You are a task extraction assistant that analyzes PDFs to identify tasks.
       
-      ${technicians.length > 0 
-        ? `Available technicians: ${technicians.map((tech: any) => tech.name).join(', ')}.`
-        : 'No technicians specified.'}
-      
-      ${groups.length > 0 
-        ? `Available groups: ${groups.map((group: any) => group.name).join(', ')}.`
-        : 'No groups specified.'}
-      
-      ${categories.length > 0
-        ? `Available categories: ${categories.map((cat: any) => cat.value).join(', ')}.`
-        : 'No categories specified.'}
+      ${technicianContext}
+      ${groupContext}
+      ${categoryContext}
       
       Please analyze the attached PDF document and extract tasks that need to be done.
       
@@ -266,167 +276,189 @@ async function processPdfJob(jobId: string): Promise<void> {
       ...(useThinkingModel ? { generationConfig } : {})
     });
 
-    // Start with the initial PDF content
+    // Process and capture both response text and streaming content
     let responseText = '';
     
-    try {
-      // Send the initial message with PDF
-      const chatResponse = await chat.sendMessage({
-        message: initialMessageContent
+    // Send the initial message with PDF
+    const chatStream = await chat.sendMessageStream({
+      message: initialMessageContent
+    });
+    
+    // Process the initial stream
+    for await (const chunk of chatStream) {
+      if (chunk && chunk.text) {
+        responseText += chunk.text;
+        // Store streaming content in job for thinking model
+        if (useThinkingModel) {
+          job.streamContent = (job.streamContent || '') + chunk.text;
+        }
+      }
+    }
+    
+    // For thinking models, capture and store the model's thought process
+    if (useThinkingModel) {
+      // Add an explicit marker to show thought process phase
+      job.streamContent = (job.streamContent || '') + "\n\n[System: Model is analyzing and reasoning through the document...]\n\n";
+      
+      // Send a follow-up message to get the model's reasoning
+      const reasoningStream = await chat.sendMessageStream({
+        message: "Can you explain your analysis process? What tasks did you identify and why? What were the key parts of the document that led to your task extraction decisions?"
       });
       
-      responseText += chatResponse.text || '';
+      // Process the reasoning stream
+      for await (const chunk of reasoningStream) {
+        if (chunk && chunk.text) {
+          responseText += chunk.text;
+          job.streamContent = (job.streamContent || '') + chunk.text;
+        }
+      }
+    }
+    
+    // Check if response is incomplete and continue as needed
+    if (isResponseIncomplete(responseText)) {
+      // Send a follow-up message asking to continue
+      console.log("Response seems incomplete. Requesting continuation...");
       
-      // Check if the response seems complete
-      if (isResponseIncomplete(responseText)) {
-        // Send a follow-up message asking to continue
-        console.log("Response seems incomplete. Requesting continuation...");
+      const continuationResponse = await chat.sendMessage({
+        message: "Please continue. It seems your response was cut off. Complete the JSON output of the tasks you were extracting."
+      });
+      
+      responseText += continuationResponse.text || '';
+      
+      // Check if we need a final message to complete/wrap up - only for standard model
+      if (!useThinkingModel && isResponseIncomplete(responseText)) {
+        console.log("Response still incomplete. Sending final request...");
         
-        const continuationResponse = await chat.sendMessage({
-          message: "Please continue. It seems your response was cut off. Complete the JSON output of the tasks you were extracting."
+        const finalResponse = await chat.sendMessage({
+          message: "Please ensure your response is complete and properly formatted as JSON. If you're done, please state 'EXTRACTION COMPLETE'."
         });
         
-        responseText += continuationResponse.text || '';
-        
-        // Check if we need a final message to complete/wrap up - only for standard model
-        if (!useThinkingModel && isResponseIncomplete(responseText)) {
-          console.log("Response still incomplete. Sending final request...");
-          
-          const finalResponse = await chat.sendMessage({
-            message: "Please ensure your response is complete and properly formatted as JSON. If you're done, please state 'EXTRACTION COMPLETE'."
-          });
-          
-          responseText += finalResponse.text || '';
-        }
+        responseText += finalResponse.text || '';
       }
+    }
 
-      // Try to extract tasks from the response
-      let extractedTasks = [];
-      try {
-        // More aggressive patterns to find JSON
-        let jsonData = null;
+    // Try to extract tasks from the response
+    let extractedTasks = [];
+    try {
+      // More aggressive patterns to find JSON
+      let jsonData = null;
+      
+      // First, try to find a tasks array pattern
+      const tasksArrayPattern = /"tasks"\s*:\s*\[([\s\S]*?)\]/;
+      const tasksMatch = responseText.match(tasksArrayPattern);
+      
+      if (tasksMatch) {
+        // Try to extract the tasks array by reconstructing it
+        try {
+          const tasksJsonText = `{"tasks":[${tasksMatch[1]}]}`;
+          jsonData = JSON.parse(tasksJsonText);
+        } catch (arrayParseError) {
+          console.error("Failed to parse tasks array:", arrayParseError);
+        }
+      }
+      
+      // If tasks array extraction failed, try for complete JSON object
+      if (!jsonData) {
+        // Try to extract the JSON object with more permissive pattern
+        const jsonPattern = /\{[\s\S]*?("tasks"\s*:[\s\S]*?|\[[\s\S]*?\])[\s\S]*?\}/g;
+        const jsonMatches = [...responseText.matchAll(jsonPattern)];
         
-        // First, try to find a tasks array pattern
-        const tasksArrayPattern = /"tasks"\s*:\s*\[([\s\S]*?)\]/;
-        const tasksMatch = responseText.match(tasksArrayPattern);
-        
-        if (tasksMatch) {
-          // Try to extract the tasks array by reconstructing it
+        if (jsonMatches.length > 0) {
+          // Try each match until we find one that parses
+          for (const match of jsonMatches) {
+            try {
+              const possibleJson = match[0];
+              jsonData = JSON.parse(possibleJson);
+              break; // If parsing succeeds, break out of the loop
+            } catch (err) {
+              // Continue to the next match
+            }
+          }
+        }
+      }
+      
+      // Standard fallback for basic JSON object
+      if (!jsonData) {
+        const basicJsonMatch = responseText.match(/\{[\s\S]*?\}/);
+        if (basicJsonMatch) {
           try {
-            const tasksJsonText = `{"tasks":[${tasksMatch[1]}]}`;
-            jsonData = JSON.parse(tasksJsonText);
-          } catch (arrayParseError) {
-            console.error("Failed to parse tasks array:", arrayParseError);
+            jsonData = JSON.parse(basicJsonMatch[0]);
+          } catch (e) {
+            console.error("Failed to parse even basic JSON match");
           }
         }
-        
-        // If tasks array extraction failed, try for complete JSON object
-        if (!jsonData) {
-          // Try to extract the JSON object with more permissive pattern
-          const jsonPattern = /\{[\s\S]*?("tasks"\s*:[\s\S]*?|\[[\s\S]*?\])[\s\S]*?\}/g;
-          const jsonMatches = [...responseText.matchAll(jsonPattern)];
-          
-          if (jsonMatches.length > 0) {
-            // Try each match until we find one that parses
-            for (const match of jsonMatches) {
-              try {
-                const possibleJson = match[0];
-                jsonData = JSON.parse(possibleJson);
-                break; // If parsing succeeds, break out of the loop
-              } catch (err) {
-                // Continue to the next match
-              }
-            }
-          }
-        }
-        
-        // Standard fallback for basic JSON object
-        if (!jsonData) {
-          const basicJsonMatch = responseText.match(/\{[\s\S]*?\}/);
-          if (basicJsonMatch) {
-            try {
-              jsonData = JSON.parse(basicJsonMatch[0]);
-            } catch (e) {
-              console.error("Failed to parse even basic JSON match");
-            }
-          }
-        }
-        
-        // Process whatever JSON data we found
-        if (jsonData) {
-          if (jsonData.tasks && Array.isArray(jsonData.tasks)) {
-            extractedTasks = jsonData.tasks;
-          } else if (Array.isArray(jsonData)) {
-            extractedTasks = jsonData;
-          } else {
-            // Check if this is actually a task object itself
-            if (jsonData.title && typeof jsonData.title === 'string') {
-              extractedTasks = [jsonData]; // Single task object
-            }
-          }
-        }
-        
-        // Last resort: Try to find an array pattern directly
-        if (extractedTasks.length === 0) {
-          const arrayPattern = /\[\s*\{\s*"title"[\s\S]*?\}\s*\]/;
-          const arrayMatch = responseText.match(arrayPattern);
-          if (arrayMatch) {
-            try {
-              const possibleArray = JSON.parse(arrayMatch[0]);
-              if (Array.isArray(possibleArray)) {
-                extractedTasks = possibleArray;
-              }
-            } catch (e) {
-              console.error("Failed to parse array pattern");
-            }
-          }
-        }
-        
-        // Ensure each task has all required fields
-        if (extractedTasks.length > 0) {
-          extractedTasks = extractedTasks.map((task: any) => ({
-            title: task.title || "Untitled Task",
-            details: task.details || task.explanation || "",
-            assignee: task.assignee || null,
-            group: task.group || null,
-            category: task.category || null,
-            dueDate: task.dueDate || null,
-            priority: task.priority || "Medium",
-            ticketNumber: task.ticketNumber || null,
-            externalUrl: task.externalUrl || null
-          }));
-        }
-      } catch (e: unknown) {
-        console.error("Failed to parse JSON from response:", e);
-        const errorMessage = e instanceof Error ? e.message : 'Unknown error';
-        throw new Error(`Failed to parse tasks from Gemini response: ${errorMessage}`);
       }
       
-      // If still no tasks after all attempts, throw an error
+      // Process whatever JSON data we found
+      if (jsonData) {
+        if (jsonData.tasks && Array.isArray(jsonData.tasks)) {
+          extractedTasks = jsonData.tasks;
+        } else if (Array.isArray(jsonData)) {
+          extractedTasks = jsonData;
+        } else {
+          // Check if this is actually a task object itself
+          if (jsonData.title && typeof jsonData.title === 'string') {
+            extractedTasks = [jsonData]; // Single task object
+          }
+        }
+      }
+      
+      // Last resort: Try to find an array pattern directly
       if (extractedTasks.length === 0) {
-        throw new Error("No tasks could be extracted from the document");
+        const arrayPattern = /\[\s*\{\s*"title"[\s\S]*?\}\s*\]/;
+        const arrayMatch = responseText.match(arrayPattern);
+        if (arrayMatch) {
+          try {
+            const possibleArray = JSON.parse(arrayMatch[0]);
+            if (Array.isArray(possibleArray)) {
+              extractedTasks = possibleArray;
+            }
+          } catch (e) {
+            console.error("Failed to parse array pattern");
+          }
+        }
       }
       
-      // Optimize tasks if we have them
+      // Ensure each task has all required fields
       if (extractedTasks.length > 0) {
-        console.log(`Extracted ${extractedTasks.length} tasks. Optimizing...`);
-        const optimizedTasks = await optimizeTasks(extractedTasks);
-        
-        // Update job with successful result
-        job.status = 'completed';
-        job.result = optimizedTasks;
-      } else {
-        throw new Error("No tasks could be extracted from the document");
+        extractedTasks = extractedTasks.map((task: any) => ({
+          title: task.title || "Untitled Task",
+          details: task.details || task.explanation || "",
+          assignee: task.assignee || null,
+          group: task.group || null,
+          category: task.category || null,
+          dueDate: task.dueDate || null,
+          priority: task.priority || "Medium",
+          ticketNumber: task.ticketNumber || null,
+          externalUrl: task.externalUrl || null
+        }));
       }
-    } catch (error: any) {
-      console.error("Error processing PDF:", error);
-      job.status = 'failed';
-      job.error = error.message || "Unknown error occurred during processing";
+    } catch (e: unknown) {
+      console.error("Failed to parse JSON from response:", e);
+      const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+      throw new Error(`Failed to parse tasks from Gemini response: ${errorMessage}`);
+    }
+    
+    // If still no tasks after all attempts, throw an error
+    if (extractedTasks.length === 0) {
+      throw new Error("No tasks could be extracted from the document");
+    }
+    
+    // Optimize tasks if we have them
+    if (extractedTasks.length > 0) {
+      console.log(`Extracted ${extractedTasks.length} tasks. Optimizing...`);
+      const optimizedTasks = await optimizeTasks(extractedTasks);
+      
+      // Update job with successful result
+      job.status = 'completed';
+      job.result = optimizedTasks;
+    } else {
+      throw new Error("No tasks could be extracted from the document");
     }
   } catch (error: any) {
-    console.error("Error in processPdfJob:", error);
+    console.error("Error processing PDF:", error);
     job.status = 'failed';
-    job.error = error.message || "Unknown error occurred";
+    job.error = error.message || "Unknown error occurred during processing";
   }
 }
 
@@ -455,7 +487,8 @@ export async function POST(req: Request) {
         status: job.status,
         result: job.status === 'completed' ? job.result : undefined,
         error: job.status === 'failed' ? job.error : undefined,
-        elapsedTime: Date.now() - job.startTime
+        elapsedTime: Date.now() - job.startTime,
+        streamContent: job.streamContent || '' // Include streaming content for UI display
       });
     }
     
