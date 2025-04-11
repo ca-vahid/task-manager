@@ -106,9 +106,14 @@ export function ControlFilterBar({
     // Company filter
     if (filterState.company && filterState.company.length > 0) {
       filtered = filtered.filter(control => {
-        // Company.Both should match all companies
-        if (control.company === Company.Both) {
+        // Company.None should match all companies
+        if (control.company === Company.None) {
           return true;
+        }
+        
+        // If control.company is undefined or null, don't include it
+        if (!control.company) {
+          return false;
         }
         
         return filterState.company?.includes(control.company);
@@ -399,7 +404,7 @@ export function ControlFilterBar({
                       bgColor = isActive ? "bg-emerald-200 dark:bg-emerald-700" : "bg-emerald-50 dark:bg-emerald-900/50 hover:bg-emerald-100 dark:hover:bg-emerald-800/60";
                       textColor = isActive ? "text-emerald-800 dark:text-emerald-100" : "text-emerald-600 dark:text-emerald-300";
                       break;
-                    case Company.Both:
+                    case Company.None:
                       bgColor = isActive ? "bg-purple-200 dark:bg-cyan-700" : "bg-purple-50 dark:bg-cyan-900/50 hover:bg-purple-100 dark:hover:bg-cyan-800/60";
                       textColor = isActive ? "text-purple-800 dark:text-cyan-100" : "text-purple-600 dark:text-cyan-300";
                       break;
@@ -440,7 +445,7 @@ export function ControlFilterBar({
                         </div>
                       )}
                       
-                      {company === Company.Both && (
+                      {company === Company.None && (
                         <div className="w-4 h-4 mr-1 relative">
                           <div className="absolute inset-0 flex items-center justify-center">
                             <div className="w-4 h-4 relative">

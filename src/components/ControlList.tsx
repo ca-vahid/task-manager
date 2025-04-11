@@ -122,7 +122,7 @@ export function ControlList({ initialControls = [] }: ControlListProps) {
         // Ensure the control has a company field
         if (!control.company) {
           console.warn(`Control ${control.id} is missing company field, setting default`);
-          control.company = Company.Both; // Set default
+          control.company = Company.None; // Set default
         }
         return control;
       });
