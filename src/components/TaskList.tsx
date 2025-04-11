@@ -25,6 +25,7 @@ import { CollapsibleGroup } from './CollapsibleGroup';
 import { BatchOperationsToolbar } from './BatchOperationsToolbar';
 import { Modal } from './Modal';
 import { BulkAddTaskAI } from './BulkAddTaskAI';
+import { BulkAddTaskFromPDF } from './BulkAddTaskFromPDF';
 import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import { useUndo, UndoableActionType } from '@/lib/contexts/UndoContext';
@@ -45,6 +46,7 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showBulkAddForm, setShowBulkAddForm] = useState(false);
+  const [showBulkAddPDFForm, setShowBulkAddPDFForm] = useState(false);
   const [groupBy, setGroupBy] = useState<'status' | 'assignee' | 'group' | 'none'>('status');
   const [viewMode, setViewMode] = useState<ViewMode>('kanban');
   const [viewDensity, setViewDensity] = useState<ViewDensity>('full');
@@ -754,12 +756,40 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
           </h1>
 
           <div className="mt-4 md:mt-0 space-x-2 flex">
-            <button
-              onClick={() => setShowBulkAddForm(true)}
-              className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded hover:from-indigo-600 hover:to-purple-700 shadow"
-            >
-              Bulk Add
-            </button>
+            <div className="relative inline-block text-left group">
+              <button
+                onClick={() => setShowBulkAddForm(true)}
+                className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded hover:from-indigo-600 hover:to-purple-700 shadow flex items-center"
+              >
+                <span>Bulk Add</span>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-1" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+                <div className="hidden absolute right-0 z-10 mt-1 w-56 origin-top-right divide-y divide-gray-100 rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 dark:bg-gray-800 dark:divide-gray-700 dark:ring-gray-700 group-hover:block">
+                  <div className="p-1">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setShowBulkAddForm(true); }}
+                      className="flex w-full items-center rounded-md px-2 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
+                        <path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
+                      </svg>
+                      Text Analysis
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setShowBulkAddPDFForm(true); }}
+                      className="flex w-full items-center rounded-md px-2 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-purple-500" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                      </svg>
+                      PDF Analysis
+                    </button>
+                  </div>
+                </div>
+              </button>
+            </div>
             <button
               onClick={() => setShowAddForm(true)}
               className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded hover:from-blue-600 hover:to-indigo-700 shadow flex items-center"
@@ -914,7 +944,7 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
 
       {/* Modal for bulk adding tasks */}
       {showBulkAddForm && (
-        <Modal onClose={() => setShowBulkAddForm(false)} title="Bulk Add Tasks" size="2xl">
+        <Modal onClose={() => setShowBulkAddForm(false)} title="Bulk Add Tasks with AI" size="2xl">
           <BulkAddTaskAI
             technicians={technicians}
             groups={groups}
@@ -922,6 +952,26 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
             currentOrderCount={tasks.length}
             onAddTasks={handleBulkAddTasks}
             onCancel={() => setShowBulkAddForm(false)}
+            onCreateGroup={handleCreateGroup}
+          />
+        </Modal>
+      )}
+
+      {/* Modal for bulk adding tasks from PDF */}
+      {showBulkAddPDFForm && (
+        <Modal 
+          onClose={() => setShowBulkAddPDFForm(false)} 
+          title="Extract Tasks from PDF" 
+          size="2xl"
+          preventOutsideClose={true} 
+        >
+          <BulkAddTaskFromPDF
+            technicians={technicians}
+            groups={groups}
+            categories={categories}
+            currentOrderCount={tasks.length}
+            onAddTasks={handleBulkAddTasks}
+            onCancel={() => setShowBulkAddPDFForm(false)}
             onCreateGroup={handleCreateGroup}
           />
         </Modal>

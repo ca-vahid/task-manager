@@ -8,9 +8,17 @@ export interface ModalProps {
   onClose: () => void;
   isOpen?: boolean; // Made optional but will be treated as always true when the component is rendered
   size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
+  preventOutsideClose?: boolean; // Add this prop to prevent closing on outside click
 }
 
-export function Modal({ children, title, onClose, isOpen = true, size = 'md' }: ModalProps) {
+export function Modal({ 
+  children, 
+  title, 
+  onClose, 
+  isOpen = true, 
+  size = 'md', 
+  preventOutsideClose = false 
+}: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   
   // Handle escape key to close modal
@@ -30,6 +38,9 @@ export function Modal({ children, title, onClose, isOpen = true, size = 'md' }: 
   
   // Handle clicking outside the modal
   useEffect(() => {
+    // If preventOutsideClose is true, don't add the event listener
+    if (preventOutsideClose) return;
+    
     const handleClickOutside = (e: MouseEvent) => {
       if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
         onClose();
@@ -41,7 +52,7 @@ export function Modal({ children, title, onClose, isOpen = true, size = 'md' }: 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [onClose]);
+  }, [onClose, preventOutsideClose]);
   
   // Prevent scrolling on body when modal is open
   useEffect(() => {
@@ -83,7 +94,7 @@ export function Modal({ children, title, onClose, isOpen = true, size = 'md' }: 
           </div>
           
           {/* Modal content - increased height and improved overflow */}
-          <div className="max-h-[75vh] overflow-y-auto px-6 py-4">
+          <div className="max-h-[85vh] overflow-y-auto px-6 py-4">
             {children}
           </div>
         </div>

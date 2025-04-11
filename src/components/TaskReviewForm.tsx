@@ -11,10 +11,12 @@ const DynamicQuillEditor = dynamic(
     const { QuillEditor } = await import('./AddTaskForm');
     // Create a wrapper component that matches the expected props
     return ({ value, onChange, placeholder }: { value: string, onChange: (value: string) => void, placeholder?: string }) => (
-      <QuillEditor value={value} onChange={onChange} placeholder={placeholder} />
+      <div className="h-32 task-review-editor">
+        <QuillEditor value={value} onChange={onChange} placeholder={placeholder} />
+      </div>
     );
   },
-  { ssr: false, loading: () => <div className="p-3 border-2 border-gray-300 dark:border-gray-700 rounded-md h-48 animate-pulse bg-gray-50 dark:bg-gray-800/50"></div> }
+  { ssr: false, loading: () => <div className="p-3 border-2 border-gray-300 dark:border-gray-700 rounded-md h-32 animate-pulse bg-gray-50 dark:bg-gray-800/50"></div> }
 );
 
 interface ParsedTask {
@@ -37,6 +39,7 @@ interface TaskReviewFormProps {
   onSubmit: (tasks: ParsedTask[]) => Promise<void>;
   onBack: () => void;
   onCreateGroup?: (name: string, description?: string) => Promise<Group>;
+  isThinkingModel?: boolean;
 }
 
 export function TaskReviewForm({ 
@@ -46,7 +49,8 @@ export function TaskReviewForm({
   categories,
   onSubmit, 
   onBack,
-  onCreateGroup
+  onCreateGroup,
+  isThinkingModel = false
 }: TaskReviewFormProps) {
   const [editedTasks, setEditedTasks] = useState<ParsedTask[]>(parsedTasks);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -56,23 +60,27 @@ export function TaskReviewForm({
   const [newGroupDescription, setNewGroupDescription] = useState('');
   const [processingGroup, setProcessingGroup] = useState(false);
   
-  // Track AI-matched categories for visual indicators
-  const [aiMatchedCategories, setAiMatchedCategories] = useState<{[taskIndex: number]: string | null}>({});
+  // Track AI-matched fields for visual indicators
+  const [aiMatchedFields, setAiMatchedFields] = useState<{[taskIndex: number]: {[field: string]: boolean}}>({});
   
-  // On initial load, track all pre-filled categories as AI-matched
+  // On initial load, track all pre-filled fields as AI-matched
   useEffect(() => {
-    const initialMatches: {[taskIndex: number]: string | null} = {};
+    const initialMatches: {[taskIndex: number]: {[field: string]: boolean}} = {};
     
     parsedTasks.forEach((task, index) => {
-      if (task.category) {
-        const matchedCategoryId = findBestCategoryMatch(task.category);
-        if (matchedCategoryId) {
-          initialMatches[index] = matchedCategoryId;
-        }
-      }
+      initialMatches[index] = {};
+      
+      // Check each field that should be highlighted
+      if (task.title) initialMatches[index].title = true;
+      if (task.details) initialMatches[index].details = true;
+      if (task.assignee) initialMatches[index].assignee = true;
+      if (task.group) initialMatches[index].group = true;
+      if (task.category) initialMatches[index].category = true;
+      if (task.dueDate) initialMatches[index].dueDate = true;
+      if (task.priority) initialMatches[index].priority = true;
     });
     
-    setAiMatchedCategories(initialMatches);
+    setAiMatchedFields(initialMatches);
   }, [parsedTasks]);
   
   // Handle field changes for a specific task
@@ -81,18 +89,14 @@ export function TaskReviewForm({
     updatedTasks[index] = { ...updatedTasks[index], [field]: value };
     setEditedTasks(updatedTasks);
     
-    // If the category field is manually changed, remove the AI-matched flag
-    if (field === 'category') {
-      setAiMatchedCategories(prev => {
-        const updated = {...prev};
-        // Only remove the flag if the category is actually changed by the user
-        const currentCategoryId = findBestCategoryMatch(updatedTasks[index].category);
-        if (currentCategoryId !== updated[index]) {
-          delete updated[index];
-        }
-        return updated;
-      });
-    }
+    // If a field is manually changed, remove the AI-matched flag
+    setAiMatchedFields(prev => {
+      const updated = {...prev};
+      if (updated[index] && updated[index][field]) {
+        updated[index] = {...updated[index], [field]: false};
+      }
+      return updated;
+    });
   };
   
   // Handle final submission
@@ -107,6 +111,9 @@ export function TaskReviewForm({
     
     try {
       await onSubmit(editedTasks);
+      // Success! The modal will close but we should still reset the loading state
+      // in case the component doesn't unmount immediately
+      setIsSubmitting(false);
     } catch (err: any) {
       setError(err.message || 'Failed to add tasks');
       setIsSubmitting(false);
@@ -234,10 +241,19 @@ export function TaskReviewForm({
   };
   
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 flex items-center">
           Review Tasks ({editedTasks.length})
+          {isThinkingModel && (
+            <span className="ml-2 px-2 py-1 text-xs rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 flex items-center">
+              <svg className="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-1.04Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-1.04Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Thinking Model
+            </span>
+          )}
         </h3>
         
         <div className="flex gap-2">
@@ -328,21 +344,34 @@ export function TaskReviewForm({
         </div>
       )}
       
-      {/* Task cards - Removed the nested scrollbar by adjusting height */}
-      <div className="space-y-4">
+      {/* Task cards */}
+      <div className="space-y-3">
         {editedTasks.map((task, index) => (
           <div 
             key={index} 
-            className="border rounded-lg p-4 bg-white dark:bg-gray-800 shadow-sm border-gray-200 dark:border-gray-700"
+            className={`border rounded-lg p-3 bg-white dark:bg-gray-800 shadow-sm ${
+              isThinkingModel 
+                ? 'border-purple-200 dark:border-purple-800'
+                : 'border-blue-100 dark:border-blue-900'
+            }`}
           >
             {/* Task header with title and remove button */}
-            <div className="flex justify-between items-start mb-3">
+            <div className="flex justify-between items-start mb-2">
               <div className="flex-1">
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  Title
+                </label>
                 <input
                   type="text"
                   value={task.title}
                   onChange={(e) => handleTaskChange(index, 'title', e.target.value)}
-                  className="w-full text-lg font-medium rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800"
+                  className={`w-full text-md font-medium rounded-md ${
+                    aiMatchedFields[index]?.title
+                      ? isThinkingModel 
+                        ? 'border border-purple-300 dark:border-purple-700' 
+                        : 'border border-blue-300 dark:border-blue-700'
+                      : 'border border-gray-300 dark:border-gray-700'
+                  } shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800`}
                   placeholder="Task title"
                 />
               </div>
@@ -358,7 +387,7 @@ export function TaskReviewForm({
             </div>
             
             {/* Task details - Use rich text editor with reduced height */}
-            <div className="mb-3">
+            <div className="mb-2">
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
                 Details
               </label>
@@ -369,8 +398,8 @@ export function TaskReviewForm({
               />
             </div>
             
-            {/* Task metadata - Using a 3-column grid to use space better */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {/* Task metadata - All on one line */}
+            <div className="grid grid-cols-3 gap-2">
               {/* Assignee */}
               <div>
                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
@@ -385,7 +414,13 @@ export function TaskReviewForm({
                       : null;
                     handleTaskChange(index, 'assignee', techName);
                   }}
-                  className="w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800"
+                  className={`w-full rounded-md text-sm ${
+                    aiMatchedFields[index]?.assignee
+                      ? isThinkingModel 
+                        ? 'border border-purple-300 dark:border-purple-700' 
+                        : 'border border-blue-300 dark:border-blue-700'
+                      : 'border border-gray-300 dark:border-gray-700'
+                  } shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800`}
                 >
                   <option value="">Unassigned</option>
                   {technicians.map((tech) => (
@@ -393,76 +428,6 @@ export function TaskReviewForm({
                       {tech.name}
                     </option>
                   ))}
-                </select>
-              </div>
-              
-              {/* Group */}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Group
-                </label>
-                <div className="flex gap-2">
-                  <select
-                    value={findBestGroupMatch(task.group)}
-                    onChange={(e) => {
-                      const groupId = e.target.value;
-                      const groupName = groupId 
-                        ? groups.find(g => g.id === groupId)?.name || null 
-                        : null;
-                      handleTaskChange(index, 'group', groupName);
-                    }}
-                    className="w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800"
-                  >
-                    <option value="">No Group</option>
-                    {groups.map((group) => (
-                      <option key={group.id} value={group.id}>
-                        {group.name}
-                      </option>
-                    ))}
-                  </select>
-                  
-                  {!showNewGroupForm && onCreateGroup && (
-                    <button
-                      type="button"
-                      onClick={() => setShowNewGroupForm(true)}
-                      className="px-2 flex-none bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded hover:bg-indigo-200 dark:hover:bg-indigo-800/30"
-                      title="Create new group"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-              </div>
-              
-              {/* Due date */}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Due Date
-                </label>
-                <input
-                  type="date"
-                  value={task.dueDate || ''}
-                  onChange={(e) => handleTaskChange(index, 'dueDate', e.target.value)}
-                  className="w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800"
-                />
-              </div>
-              
-              {/* Priority */}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Priority
-                </label>
-                <select
-                  value={task.priority || 'Medium'}
-                  onChange={(e) => handleTaskChange(index, 'priority', e.target.value)}
-                  className="w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800"
-                >
-                  <option value="Low">Low</option>
-                  <option value="Medium">Medium</option>
-                  <option value="High">High</option>
-                  <option value="Critical">Critical</option>
                 </select>
               </div>
               
@@ -480,16 +445,45 @@ export function TaskReviewForm({
                       : null;
                     handleTaskChange(index, 'category', categoryValue);
                   }}
-                  className={`w-full rounded-md ${aiMatchedCategories[index] ? 'border-2 border-green-300 dark:border-green-700' : 'border border-gray-300 dark:border-gray-700'} shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800`}
+                  className={`w-full rounded-md text-sm ${
+                    aiMatchedFields[index]?.category
+                      ? isThinkingModel 
+                        ? 'border border-purple-300 dark:border-purple-700' 
+                        : 'border border-blue-300 dark:border-blue-700'
+                      : 'border border-gray-300 dark:border-gray-700'
+                  } shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800`}
                 >
                   <option value="">No Category</option>
                   {categories.map((category) => (
                     <option key={category.id} value={category.id}>
-                      {category.value} {aiMatchedCategories[index] === category.id ? '(AI Match)' : ''}
+                      {category.value}
                     </option>
                   ))}
                 </select>
               </div>
+              
+              {/* Due date */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  Due Date
+                </label>
+                <input
+                  type="date"
+                  value={task.dueDate || ''}
+                  onChange={(e) => handleTaskChange(index, 'dueDate', e.target.value)}
+                  className={`w-full rounded-md text-sm ${
+                    aiMatchedFields[index]?.dueDate
+                      ? isThinkingModel 
+                        ? 'border border-purple-300 dark:border-purple-700' 
+                        : 'border border-blue-300 dark:border-blue-700'
+                      : 'border border-gray-300 dark:border-gray-700'
+                  } shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800`}
+                />
+              </div>
+              
+              {/* Hidden fields to preserve data */}
+              <input type="hidden" value={task.priority || 'Medium'} />
+              <input type="hidden" value={findBestGroupMatch(task.group) || ''} />
             </div>
           </div>
         ))}
