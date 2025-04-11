@@ -18,7 +18,7 @@ interface RouteParams {
 }
 
 // PUT /api/controls/[id] - Update a control
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
+export async function PUT(request: Request, { params }: RouteParams) {
   const id = params.id;
   try {
     const body = await request.json();
@@ -89,7 +89,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 }
 
 // DELETE /api/controls/[id] - Delete a control
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, { params }: RouteParams) {
   const id = params.id;
   try {
     if (!id) {

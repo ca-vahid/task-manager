@@ -3,7 +3,16 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Task, TaskStatus, Technician, ViewDensity, PriorityLevel, Category } from '@/lib/types';
 import { Timestamp } from 'firebase/firestore';
-import { ChevronDownIcon, ChevronUpIcon, EllipsisVerticalIcon } from '@heroicons/react/24/outline';
+import { 
+  ChevronDownIcon, 
+  ChevronUpIcon, 
+  EllipsisVerticalIcon,
+  UserIcon,
+  ClockIcon,
+  CheckIcon,
+  ClipboardDocumentListIcon,
+  PauseIcon
+} from '@heroicons/react/24/outline';
 import DOMPurify from 'dompurify';
 import { createPortal } from 'react-dom';
 
@@ -1163,32 +1172,18 @@ export function TaskCard({
         )}
         
         {/* Task details */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
-          {/* Status selector */}
-          <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-              Status
-            </label>
-            <select
-              value={task.status}
-              onChange={handleStatusChange}
-              className={`w-full ${statusStyles.color} ${statusStyles.darkColor} text-sm rounded-md border ${statusStyles.border} ${statusStyles.darkBorder} py-1.5 px-2 bg-white/50 dark:bg-black/20`}
-            >
-              <option value={TaskStatus.Open}>Open</option>
-              <option value={TaskStatus.Pending}>Pending</option>
-              <option value={TaskStatus.Resolved}>Resolved</option>
-            </select>
-          </div>
-
-          {/* Assignee selector */}
-          <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-              Assignee
-            </label>
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mt-2">
+          {/* Assignee selector - moved to first position with more space */}
+          <div className="md:col-span-5">
+            <div className="flex items-center space-x-1 mb-1">
+              <UserIcon className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400" />
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Assignee</span>
+            </div>
             <select
               value={task.assigneeId || ""}
               onChange={handleAssigneeChange}
-              className="w-full text-sm rounded-md border border-gray-100 dark:border-gray-700 py-1.5 px-2 bg-white/50 dark:bg-black/20 text-gray-700 dark:text-gray-200"
+              className="w-full text-sm truncate rounded-md border border-gray-100 dark:border-gray-700 py-1.5 px-2 bg-white/50 dark:bg-black/20 text-gray-700 dark:text-gray-200"
+              title={assigneeName} // Add title for tooltip on hover
             >
               <option value="">Unassigned</option>
               {technicians.map(tech => (
@@ -1197,11 +1192,55 @@ export function TaskCard({
             </select>
           </div>
 
-          {/* Due date - without the days left text */}
-          <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-              Due Date
-            </label>
+          {/* Status selector - replaced with buttons */}
+          <div className="md:col-span-4">
+            <div className="flex items-center space-x-1 mb-1">
+              <ClipboardDocumentListIcon className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400" />
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Status</span>
+            </div>
+            <div className="flex space-x-1">
+              <button
+                onClick={() => handleStatusChange({ target: { value: TaskStatus.Open } } as React.ChangeEvent<HTMLSelectElement>)}
+                className={`flex-1 flex items-center justify-center text-xs py-1.5 px-2 rounded-md transition-colors duration-200 ${
+                  task.status === TaskStatus.Open 
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 font-medium' 
+                    : 'bg-gray-50 text-gray-500 hover:bg-gray-100 dark:bg-gray-800/30 dark:text-gray-400 dark:hover:bg-gray-700/50'
+                }`}
+              >
+                <ClipboardDocumentListIcon className="h-3.5 w-3.5 mr-1" />
+                Open
+              </button>
+              <button
+                onClick={() => handleStatusChange({ target: { value: TaskStatus.Pending } } as React.ChangeEvent<HTMLSelectElement>)}
+                className={`flex-1 flex items-center justify-center text-xs py-1.5 px-2 rounded-md transition-colors duration-200 ${
+                  task.status === TaskStatus.Pending 
+                    ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 font-medium' 
+                    : 'bg-gray-50 text-gray-500 hover:bg-gray-100 dark:bg-gray-800/30 dark:text-gray-400 dark:hover:bg-gray-700/50'
+                }`}
+              >
+                <PauseIcon className="h-3.5 w-3.5 mr-1" />
+                Pending
+              </button>
+              <button
+                onClick={() => handleStatusChange({ target: { value: TaskStatus.Resolved } } as React.ChangeEvent<HTMLSelectElement>)}
+                className={`flex-1 flex items-center justify-center text-xs py-1.5 px-2 rounded-md transition-colors duration-200 ${
+                  task.status === TaskStatus.Resolved 
+                    ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 font-medium' 
+                    : 'bg-gray-50 text-gray-500 hover:bg-gray-100 dark:bg-gray-800/30 dark:text-gray-400 dark:hover:bg-gray-700/50'
+                }`}
+              >
+                <CheckIcon className="h-3.5 w-3.5 mr-1" />
+                Done
+              </button>
+            </div>
+          </div>
+
+          {/* Due date - with icon */}
+          <div className="md:col-span-3">
+            <div className="flex items-center space-x-1 mb-1">
+              <ClockIcon className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400" />
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Due Date</span>
+            </div>
             <div className={`w-full text-sm py-1.5 px-2 rounded-md ${timeRemaining.overdue ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300' : timeRemaining.urgent ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-300' : 'bg-gray-50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-300'}`}>
               {task.estimatedCompletionDate ? 
                 formatDateForInput(task.estimatedCompletionDate) :

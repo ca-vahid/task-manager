@@ -6,10 +6,17 @@ import {
 
 const TECHNICIANS_COLLECTION = 'technicians';
 
+// Define the route params interface
+interface RouteParams {
+  params: {
+    id: string;
+  };
+}
+
 // PUT /api/technicians/[id] - Update a technician
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: RouteParams
 ) {
   const id = params.id;
   try {
@@ -46,7 +53,7 @@ export async function PUT(
 // DELETE /api/technicians/[id] - Delete a technician
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: RouteParams
 ) {
   const id = params.id;
   try {
