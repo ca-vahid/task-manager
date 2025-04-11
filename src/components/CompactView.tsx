@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Task, Technician, Group, ViewDensity, TaskStatus, PriorityLevel, Category } from '@/lib/types';
 import { Timestamp } from 'firebase/firestore';
-import { ChevronUpIcon, ChevronDownIcon, EllipsisHorizontalIcon, CheckIcon, ClockIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { ChevronUpIcon, ChevronDownIcon, EllipsisHorizontalIcon, CheckIcon, ClockIcon, ArrowPathIcon, DocumentIcon, LinkIcon, PlusIcon } from '@heroicons/react/24/outline';
 
 interface CompactViewProps {
   tasks: Task[];
@@ -35,6 +35,8 @@ export function CompactView({
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
   const [expandedTaskIds, setExpandedTaskIds] = useState<string[]>([]);
+  const [isCreatingTicket, setIsCreatingTicket] = useState<string | null>(null);
+  const [isDeletingTicket, setIsDeletingTicket] = useState<string | null>(null);
 
   // Row height based on view density
   const rowHeight = useMemo(() => {
@@ -300,6 +302,111 @@ export function CompactView({
     }
   };
 
+  // Add ticket handling functions
+  // Create a FreshService ticket
+  const handleCreateTicket = async (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    
+    setIsCreatingTicket(taskId);
+    
+    try {
+      // Get category name
+      const categoryName = task.categoryId ? categories.find(c => c.id === task.categoryId)?.value : null;
+      
+      // Format due date if available
+      const dueDate = task.estimatedCompletionDate 
+        ? (task.estimatedCompletionDate instanceof Timestamp 
+            ? task.estimatedCompletionDate.toDate() 
+            : new Date((task.estimatedCompletionDate as any).seconds * 1000))
+        : null;
+      
+      // If no due date is available, set it to a week from now
+      const oneDueDate = dueDate 
+        ? dueDate.toISOString().split('T')[0]
+        : (() => {
+            const date = new Date();
+            date.setDate(date.getDate() + 7);
+            return date.toISOString().split('T')[0];
+          })();
+      
+      // Prepare the request data
+      const requestData = {
+        taskId: task.id,
+        subject: task.title,
+        description: task.explanation || 'No description',
+        responderId: task.assigneeId,
+        dueDate: oneDueDate,
+        categoryName
+      };
+      
+      // Call the API endpoint
+      const response = await fetch('/api/freshservice/tickets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create ticket');
+      }
+      
+      // Process successful response
+      const data = await response.json();
+      
+      // Update the task with ticket information
+      await onUpdateTask(task.id, {
+        ticketNumber: String(data.ticketId),
+        ticketUrl: data.ticketUrl
+      });
+      
+    } catch (error: any) {
+      console.error('Error creating ticket:', error);
+    } finally {
+      setIsCreatingTicket(null);
+    }
+  };
+  
+  // Open ticket URL in a new tab
+  const openTicketUrl = (ticketUrl: string) => {
+    if (ticketUrl) {
+      window.open(ticketUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
+  
+  // Delete a ticket
+  const handleDeleteTicket = async (taskId: string, ticketNumber: string) => {
+    if (!ticketNumber) return;
+    
+    setIsDeletingTicket(taskId);
+    
+    try {
+      // Call the FreshService API to delete the ticket
+      const response = await fetch(`/api/freshservice/tickets/${ticketNumber}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete ticket');
+      }
+      
+      // Update the task to remove the ticket information
+      await onUpdateTask(taskId, {
+        ticketNumber: null,
+        ticketUrl: null
+      });
+      
+    } catch (error: any) {
+      console.error('Error deleting ticket:', error);
+    } finally {
+      setIsDeletingTicket(null);
+    }
+  };
+
   return (
     <div className="bg-white dark:bg-gray-900 rounded-lg shadow overflow-hidden border border-gray-200 dark:border-gray-700">
       {tasks.length === 0 ? (
@@ -426,9 +533,16 @@ export function CompactView({
                           <div className="text-sm font-medium text-gray-900 dark:text-white truncate max-w-xs">
                             {task.title}
                             {task.ticketNumber && (
-                              <a href={task.ticketUrl || '#'} target="_blank" rel="noopener noreferrer" className="ml-2 text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
+                              <span 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openTicketUrl(task.ticketUrl || '');
+                                }}
+                                className="ml-2 text-xs text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                                title="View ticket in FreshService"
+                              >
                                 #{task.ticketNumber}
-                              </a>
+                              </span>
                             )}
                           </div>
                         </div>
@@ -483,6 +597,46 @@ export function CompactView({
                               title="Reopen task"
                             >
                               <ArrowPathIcon className="h-4 w-4" />
+                            </button>
+                          )}
+                          
+                          {task.ticketNumber ? (
+                            <>
+                              <button
+                                onClick={() => openTicketUrl(task.ticketUrl || '')}
+                                className="p-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                                title={`View ticket #${task.ticketNumber}`}
+                              >
+                                <LinkIcon className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteTicket(task.id, task.ticketNumber || '')}
+                                disabled={isDeletingTicket === task.id}
+                                className={`p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 ${
+                                  isDeletingTicket === task.id ? 'opacity-50 cursor-not-allowed' : ''
+                                }`}
+                                title="Delete ticket"
+                              >
+                                <DocumentIcon className="h-4 w-4" />
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => handleCreateTicket(task.id)}
+                              disabled={isCreatingTicket === task.id}
+                              className={`p-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 ${
+                                isCreatingTicket === task.id ? 'opacity-50 cursor-not-allowed' : ''
+                              }`}
+                              title="Create ticket"
+                            >
+                              {isCreatingTicket === task.id ? (
+                                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                              ) : (
+                                <PlusIcon className="h-4 w-4" />
+                              )}
                             </button>
                           )}
                         </div>
