@@ -431,6 +431,8 @@ export function TaskCard({
   const [isDeleting, setIsDeleting] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [isRemoving, setIsRemoving] = useState(false); // Animation state for removal
+  const [isEditing, setIsEditing] = useState(false); // For editing task details
+  const [editedDescription, setEditedDescription] = useState(''); // For storing edited description
   const [showDescription, setShowDescription] = useState(false); // For collapsible description
   const [menuOpen, setMenuOpen] = useState(false); // For three-dot menu
   const [isUpdatingCategory, setIsUpdatingCategory] = useState(false); // For bottom category update UI
@@ -872,6 +874,23 @@ export function TaskCard({
     }
   }, [isEditingCategoryInPlace]);
 
+  // Effect to initialize the edited description when opening the edit modal
+  useEffect(() => {
+    if (isEditing) {
+      setEditedDescription(task.explanation || '');
+    }
+  }, [isEditing, task.explanation]);
+
+  // Handler for saving the edited description
+  const handleSaveDescription = async () => {
+    try {
+      await onUpdateTask(task.id, { explanation: editedDescription });
+      setIsEditing(false);
+    } catch (error: any) {
+      setUpdateError(`Failed to update description: ${error.message || 'Unknown error'}`);
+    }
+  };
+
   return (
     <>
       <style>{animationStyles}</style>
@@ -936,8 +955,8 @@ export function TaskCard({
                       <button
                         type="button"
                         onClick={() => {
-                          // Toggle description visibility
-                          setShowDescription(!showDescription);
+                          // Open edit modal instead of toggling description
+                          setIsEditing(true);
                           setMenuOpen(false);
                         }}
                         className="w-full text-left px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
@@ -945,7 +964,7 @@ export function TaskCard({
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
                           <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
                         </svg>
-                        {showDescription ? 'Hide' : 'Show'} Details
+                        Edit Details
                       </button>
                       
                       <button
@@ -1241,6 +1260,75 @@ export function TaskCard({
           </div>
         </div>
       </div>
+
+      {/* Edit Details Modal */}
+      {isEditing && canUseDOM && createPortal(
+        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center">
+          {/* Modal backdrop */}
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+            onClick={() => setIsEditing(false)}
+          />
+          
+          {/* Modal content */}
+          <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full mx-4 my-8 max-h-[90vh] overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Edit Task Details
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                className="text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400"
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <div className="mb-4">
+                <label htmlFor="task-title" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Task Title
+                </label>
+                <div className="text-gray-800 dark:text-gray-200 font-medium">{task.title}</div>
+              </div>
+              
+              <div className="mb-4">
+                <label htmlFor="task-description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Description
+                </label>
+                <textarea
+                  id="task-description"
+                  value={editedDescription}
+                  onChange={(e) => setEditedDescription(e.target.value)}
+                  rows={8}
+                  className="block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm focus:border-blue-500 dark:focus:border-blue-400 focus:ring-blue-500 dark:focus:ring-blue-400"
+                />
+              </div>
+            </div>
+            
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex flex-row-reverse">
+              <button
+                type="button"
+                onClick={handleSaveDescription}
+                className="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+              >
+                Save Changes
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                className="inline-flex justify-center py-2 px-4 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 } 
