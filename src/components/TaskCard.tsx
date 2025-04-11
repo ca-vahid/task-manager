@@ -3,9 +3,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Task, TaskStatus, Technician, ViewDensity, PriorityLevel, Category } from '@/lib/types';
 import { Timestamp } from 'firebase/firestore';
-import { ChevronDownIcon, ChevronUpIcon, EllipsisVerticalIcon } from '@heroicons/react/24/outline';
+import { ChevronDownIcon, ChevronUpIcon, EllipsisVerticalIcon, PencilIcon } from '@heroicons/react/24/outline';
 import DOMPurify from 'dompurify';
 import { createPortal } from 'react-dom';
+import DescriptionEditor from './DescriptionEditor';
 
 interface TaskCardProps {
   task: Task;
@@ -867,12 +868,36 @@ export function TaskCard({
     }
   }, [isEditingCategoryInPlace]);
 
+  // Add to the state variables in the TaskCard component
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+
+  // Add a new handler for description editing
+  const handleEditDescription = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsEditingDescription(true);
+  };
+
+  // Add this to handle description updates
+  const handleUpdateDescription = async (newDescription: string) => {
+    try {
+      await onUpdateTask(task.id, { explanation: newDescription });
+    } catch (error: any) {
+      setUpdateError(`Failed to update description: ${error.message || 'Unknown error'}`);
+      throw error; // Re-throw to be caught in the editor component
+    }
+  };
+
   return (
     <>
       <style>{animationStyles}</style>
-      <div className={`border ${statusStyles.border} ${statusStyles.darkBorder} rounded-lg shadow-sm hover:shadow-md ${statusStyles.background} ${statusStyles.darkBackground} ${cardClasses} 
-      transition-all duration-300 ease-in-out relative ${isSelected ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''} 
-      ${isRemoving ? 'opacity-0 transform scale-95 -translate-x-4' : 'opacity-100 transform scale-100 translate-x-0'}`}>
+      <div className={`
+        task-card relative bg-white dark:bg-gray-800 rounded-lg border shadow-sm
+        ${isHighPriority ? 'border-red-200 dark:border-red-900' : 'border-gray-200 dark:border-gray-700'}
+        ${isRemoving ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}
+        transition-all duration-300 ease-in-out
+        ${isSelected ? 'ring-2 ring-indigo-500 dark:ring-indigo-400' : ''}
+        ${cardClasses}
+      `}>
         {/* Header with title and action buttons */}
         <div className="flex justify-between items-start mb-2">
           <h3 className="font-semibold text-gray-900 dark:text-gray-50 text-lg pr-2">
@@ -1133,34 +1158,45 @@ export function TaskCard({
         </div>
 
         {/* Description toggle button */}
-        {task.explanation && (
-          <div>
+        <div className="mt-2">
+          <div className="flex items-center justify-between mb-1">
             <button 
               onClick={toggleDescription}
-              className="text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 flex items-center mb-3 bg-gray-50 dark:bg-gray-800/70 px-2 py-1 rounded"
+              className="text-xs text-gray-500 dark:text-gray-400 flex items-center hover:text-gray-700 dark:hover:text-gray-300"
             >
-              {showDescription ? (
-                <>
-                  <ChevronUpIcon className="h-4 w-4 mr-1" />
-                  Hide Description
-                </>
-              ) : (
-                <>
-                  <ChevronDownIcon className="h-4 w-4 mr-1" />
-                  Show Description
-                </>
-              )}
+              {showDescription ? 'Hide Description' : 'Show Description'}
+              <span className="ml-1">
+                {showDescription ? (
+                  <ChevronUpIcon className="h-3 w-3" />
+                ) : (
+                  <ChevronDownIcon className="h-3 w-3" />
+                )}
+              </span>
             </button>
             
-            {/* Collapsible description */}
-            {showDescription && (
-              <div 
-                className="mb-4 text-sm text-gray-700 dark:text-gray-300 bg-white/50 dark:bg-black/20 p-3 rounded-md border border-gray-200 dark:border-gray-700 transition-all duration-200 ease-in rich-text-content"
-                dangerouslySetInnerHTML={{ __html: sanitizeHtml(task.explanation || '') }}
-              />
-            )}
+            <button
+              onClick={handleEditDescription}
+              className="text-xs text-indigo-600 dark:text-indigo-400 flex items-center hover:text-indigo-800 dark:hover:text-indigo-300"
+              title="Edit Description"
+            >
+              <PencilIcon className="h-3 w-3 mr-1" />
+              Edit
+            </button>
           </div>
-        )}
+          
+          {showDescription && (
+            <div className="text-sm mt-1 text-gray-600 dark:text-gray-300 ">
+              {task.explanation ? (
+                <div 
+                  className="prose prose-sm max-w-none dark:prose-invert" 
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(task.explanation) }} 
+                />
+              ) : (
+                <div className="text-gray-400 dark:text-gray-500 italic">No description provided</div>
+              )}
+            </div>
+          )}
+        </div>
         
         {/* Task details */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
@@ -1211,6 +1247,17 @@ export function TaskCard({
           </div>
         </div>
       </div>
+
+      {/* Description editor modal */}
+      {isEditingDescription && (
+        <DescriptionEditor
+          isOpen={isEditingDescription}
+          onClose={() => setIsEditingDescription(false)}
+          taskTitle={task.title}
+          initialDescription={task.explanation || ''}
+          onSave={handleUpdateDescription}
+        />
+      )}
     </>
   );
 } 
