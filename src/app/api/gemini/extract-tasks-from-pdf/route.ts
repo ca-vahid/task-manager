@@ -3,13 +3,15 @@ import { NextResponse } from "next/server";
 import { StreamingTextResponse } from 'ai';
 
 // Initialize the Gemini API with the key from environment variables
-const genAI = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY || ""
-});
+const genAI = new GoogleGenAI(process.env.GEMINI_API_KEY || "");
+
+// Set a reasonable timeout for API requests to prevent Vercel timeouts
+// 45 seconds (Vercel has a 60s limit for hobby plans)
+const API_TIMEOUT_MS = 45000;
 
 // Model constants
-const STANDARD_MODEL = "gemini-2.0-flash";
-const THINKING_MODEL = "gemini-2.5-pro-preview-03-25";
+const STANDARD_MODEL = "gemini-1.5-flash";
+const THINKING_MODEL = "gemini-1.5-pro";
 
 // Task schema for structured output
 const TASK_SCHEMA = {
@@ -146,6 +148,13 @@ async function optimizeTasks(tasks: any[]): Promise<any[]> {
 }
 
 export async function POST(req: Request) {
+  // Add a timeout handler for Vercel serverless functions
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => {
+      reject(new Error("Request timed out after 45 seconds"));
+    }, 45000); // 45 seconds
+  });
+
   try {
     // Parse form data to get the file and context
     const formData = await req.formData();
@@ -156,10 +165,12 @@ export async function POST(req: Request) {
     const streamOutput = formData.get("streamOutput") === "true";
     const useThinkingModel = formData.get("useThinkingModel") === "true";
     
-    if (!pdfFile) {
+    // Check file size limit - Vercel has a 4.5MB limit
+    const maxFileSizeMB = 4;
+    if (pdfFile.size > maxFileSizeMB * 1024 * 1024) {
       return NextResponse.json(
-        { error: "No PDF file provided" },
-        { status: 400 }
+        { error: `File size exceeds ${maxFileSizeMB}MB limit. Please upload a smaller file.` },
+        { status: 413 }
       );
     }
     
@@ -263,10 +274,22 @@ export async function POST(req: Request) {
     const stream = new ReadableStream({
       async start(controller) {
         try {
+          // Use Promise.race to handle timeouts
           // Send the initial message with PDF
-          const chatStream = await chat.sendMessageStream({
+          const chatStreamPromise = chat.sendMessageStream({
             message: initialMessageContent
           });
+          
+          // Race against the timeout
+          const chatStream = await Promise.race([
+            chatStreamPromise,
+            timeoutPromise
+          ]);
+
+          // Handle the case where chatStream might be undefined or null
+          if (!chatStream) {
+            throw new Error("Failed to get chat stream from Gemini API");
+          }
           
           // Process the initial stream
           for await (const chunk of chatStream) {
@@ -315,14 +338,23 @@ export async function POST(req: Request) {
           controller.enqueue(new TextEncoder().encode("\n\n[System: Optimizing and consolidating tasks...]\n\n"));
           
           try {
-            // Try to extract JSON from the response text
+            // Attempt to extract clean JSON from the response text
             let extractedTasks = [];
             try {
-              // Try to extract the JSON portion using regex pattern matching
-              const jsonMatch = streamResponseText.match(/\{[\s\S]*\}/);
+              // First remove any markdown formatting that might be causing JSON parse errors
+              let cleanedText = streamResponseText;
+              // Remove markdown code blocks
+              cleanedText = cleanedText.replace(/```json\s*/g, '');
+              cleanedText = cleanedText.replace(/```\s*/g, '');
+              
+              // Find the JSON object using a regex with the most common patterns
+              const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+              
               if (jsonMatch) {
+                // Parse the matched JSON
                 const jsonData = JSON.parse(jsonMatch[0]);
                 
+                // Normalize the data structure
                 if (jsonData && jsonData.tasks && Array.isArray(jsonData.tasks)) {
                   extractedTasks = jsonData.tasks;
                 } 
@@ -334,22 +366,50 @@ export async function POST(req: Request) {
                 else {
                   extractedTasks = [jsonData]; // Wrap in array as fallback
                 }
+                
+                // Log success for debugging
+                console.log(`Successfully extracted ${extractedTasks.length} tasks from JSON`);
+              } else {
+                // Try to find a JSON array if no object was found
+                const arrayMatch = cleanedText.match(/\[[\s\S]*\]/);
+                if (arrayMatch) {
+                  extractedTasks = JSON.parse(arrayMatch[0]);
+                  console.log(`Extracted ${extractedTasks.length} tasks from JSON array`);
+                }
               }
-            } catch (e) {
-              // If JSON extraction fails, let the client handle the raw text
-              controller.enqueue(new TextEncoder().encode("\n\n[System: Error parsing JSON. Will attempt to extract tasks for optimization.]\n\n"));
+            } catch (e: any) {
+              console.error("Error parsing JSON:", e);
+              controller.enqueue(new TextEncoder().encode(`\n\n[System: Error parsing JSON: ${e.message || 'Unknown error'}. Will attempt to extract tasks manually.]\n\n`));
             }
             
             // Optimize tasks if we have them
             if (extractedTasks.length > 0) {
               const optimizedTasks = await optimizeTasks(extractedTasks);
               controller.enqueue(new TextEncoder().encode("\n\n[System: Optimized " + extractedTasks.length + " tasks to " + optimizedTasks.length + " consolidated tasks.]\n\n"));
-              controller.enqueue(new TextEncoder().encode(JSON.stringify(optimizedTasks, null, 2)));
-            } else if (!streamOutput) {
-              controller.enqueue(new TextEncoder().encode("\n\n[System: Could not extract tasks for optimization. Original extraction will be used.]\n\n"));
+              
+              // Make sure we're returning a valid JSON object without markdown formatting
+              const finalJsonResponse = JSON.stringify({
+                success: true,
+                count: optimizedTasks.length,
+                tasks: optimizedTasks
+              }, null, 2);
+              
+              controller.enqueue(new TextEncoder().encode(finalJsonResponse));
+            } else {
+              // Return a valid JSON structure even when no tasks are found
+              controller.enqueue(new TextEncoder().encode(JSON.stringify({
+                success: false,
+                error: "Could not extract valid tasks from document",
+                tasks: []
+              }, null, 2)));
             }
           } catch (error: any) {
-            controller.enqueue(new TextEncoder().encode("\n\n[System: Error during task optimization: " + error.message + "]\n\n"));
+            // Return a valid JSON error response
+            controller.enqueue(new TextEncoder().encode(JSON.stringify({
+              success: false,
+              error: "Error during task optimization: " + error.message,
+              tasks: []
+            }, null, 2)));
           }
         } catch (error: any) {
           console.error("Error processing stream:", error);
@@ -361,10 +421,27 @@ export async function POST(req: Request) {
     });
 
     return new StreamingTextResponse(stream);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error processing document with Gemini:", error);
+    
+    // Check if it's a timeout error
+    if (error.message?.includes("timed out") || error.name === "AbortError") {
+      return NextResponse.json(
+        { 
+          error: "The request timed out. Please try with a smaller document or use the standard model instead of the thinking model.",
+          code: "TIMEOUT_ERROR"
+        },
+        { status: 504 }
+      );
+    }
+    
+    // Return a properly formatted error response
     return NextResponse.json(
-      { error: "An error occurred while processing the document" },
+      { 
+        error: "An error occurred while processing the document", 
+        details: error.message || "Unknown error",
+        code: "PROCESSING_ERROR"
+      },
       { status: 500 }
     );
   }
