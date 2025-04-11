@@ -26,7 +26,6 @@ export async function PUT(
       status,
       estimatedCompletionDate,
       assigneeId,
-      order,
       priorityLevel,
       tags,
       progress,

@@ -4,7 +4,6 @@ import React, { useMemo, useState } from 'react';
 import { Task, Technician, Group, ViewDensity, TaskStatus, Category, PriorityLevel } from '@/lib/types';
 import { Timestamp } from 'firebase/firestore';
 import Timeline from 'react-calendar-timeline';
-import 'react-calendar-timeline/lib/Timeline.css';
 import moment from 'moment';
 
 interface TimelineViewProps {
