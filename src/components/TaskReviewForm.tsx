@@ -10,11 +10,16 @@ const DynamicQuillEditor = dynamic(
   async () => {
     const { QuillEditor } = await import('./AddTaskForm');
     // Create a wrapper component that matches the expected props
-    return ({ value, onChange, placeholder }: { value: string, onChange: (value: string) => void, placeholder?: string }) => (
+    const DynamicEditor = ({ value, onChange, placeholder }: { value: string, onChange: (value: string) => void, placeholder?: string }) => (
       <div className="h-32 task-review-editor">
         <QuillEditor value={value} onChange={onChange} placeholder={placeholder} />
       </div>
     );
+    
+    // Add display name
+    DynamicEditor.displayName = 'DynamicQuillEditor';
+    
+    return DynamicEditor;
   },
   { ssr: false, loading: () => <div className="p-3 border-2 border-gray-300 dark:border-gray-700 rounded-md h-32 animate-pulse bg-gray-50 dark:bg-gray-800/50"></div> }
 );
@@ -496,4 +501,6 @@ export function TaskReviewForm({
       </div>
     </div>
   );
-} 
+}
+
+TaskReviewForm.displayName = 'TaskReviewForm'; 
