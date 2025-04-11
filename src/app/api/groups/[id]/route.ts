@@ -2,14 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase/firebase';
 import { doc, getDoc, deleteDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
 
-interface RouteParams {
-  params: {
-    id: string;
-  };
-}
-
 // GET /api/groups/[id] - Get a group by ID
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const groupId = params.id;
     
@@ -39,7 +33,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 }
 
 // PUT /api/groups/[id] - Update a group by ID
-export async function PUT(request: NextRequest, { params }: RouteParams) {
+export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const groupId = params.id;
     const body = await request.json();
@@ -89,7 +83,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 }
 
 // DELETE /api/groups/[id] - Delete a group by ID
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const groupId = params.id;
     

@@ -2,14 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase/firebase';
 import { doc, getDoc, deleteDoc } from 'firebase/firestore';
 
-interface RouteParams {
-  params: {
-    id: string;
-  };
-}
-
 // GET /api/tasks/[id] - Get a task by ID
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const taskId = params.id;
     
@@ -39,7 +33,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 }
 
 // DELETE /api/tasks/[id] - Delete a task by ID
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const taskId = params.id;
     
