@@ -1074,15 +1074,6 @@ export function ControlList({ initialControls = [] }: ControlListProps) {
           setError(null); // Clear errors when closing modal
         }}
         title="Add New Control"
-        onAiExtract={() => {
-          // Find the AddControlForm component and call its AI extraction function
-          const formElement = document.querySelector('form');
-          if (formElement) {
-            // Dispatch a custom event that the form will listen for
-            const aiExtractEvent = new CustomEvent('aiextract');
-            formElement.dispatchEvent(aiExtractEvent);
-          }
-        }}
       >
         <AddControlForm 
           technicians={technicians}
