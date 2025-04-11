@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Task, Technician, TaskStatus, ViewDensity, Group, Category } from '@/lib/types';
 import { TaskCard } from './TaskCard';
-import { ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
+import { ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon, ChevronDownIcon, PencilIcon } from '@heroicons/react/24/outline';
 import {
   DndContext,
   closestCenter,
@@ -22,6 +22,9 @@ import {
   verticalListSortingStrategy,
   useSortable
 } from '@dnd-kit/sortable';
+import { createPortal } from 'react-dom';
+import { QuillEditor } from './AddTaskForm';
+import 'react-quill/dist/quill.snow.css';
 
 interface TaskGroupViewProps {
   tasks: Task[];
@@ -130,6 +133,115 @@ function SortableGroupItem({
   );
 }
 
+// Add a description editor modal component
+function DescriptionEditorModal({ 
+  isOpen, 
+  onClose, 
+  task,
+  onSave
+}: { 
+  isOpen: boolean; 
+  onClose: () => void;
+  task: Task;
+  onSave: (id: string, explanation: string) => Promise<void>;
+}) {
+  const [explanation, setExplanation] = useState(task.explanation || '');
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Prevent body scrolling when modal is open
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [isOpen]);
+
+  // Update explanation when task changes
+  useEffect(() => {
+    setExplanation(task.explanation || '');
+  }, [task]);
+
+  // Handle save
+  const handleSave = async () => {
+    setIsSaving(true);
+    setError(null);
+    try {
+      await onSave(task.id, explanation);
+      onClose();
+    } catch (error) {
+      setError('Failed to save changes. Please try again.');
+      console.error('Error saving description:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Edit Task Description</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+          >
+            &times;
+          </button>
+        </div>
+
+        {/* Task title (non-editable) */}
+        <div className="px-6 py-3 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="font-medium text-gray-700 dark:text-gray-300">
+            {task.title}
+          </h3>
+        </div>
+
+        {/* Body - Editor */}
+        <div className="px-6 py-4 flex-grow overflow-auto">
+          {error && (
+            <div className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3 text-red-700 dark:text-red-300">
+              {error}
+            </div>
+          )}
+          <div className="min-h-[300px]">
+            <QuillEditor
+              value={explanation}
+              onChange={setExplanation}
+              placeholder="Enter task description and details..."
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSaving ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export function TaskGroupView({
   tasks,
   technicians,
@@ -158,9 +270,13 @@ export function TaskGroupView({
   // State for active dragged group
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
 
+  // Add state for description editor modal
+  const [descriptionEditorOpen, setDescriptionEditorOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+
   // Group tasks by the specified grouping
   const groupedTasks = React.useMemo(() => {
-    const taskGroups = new Map<string, Task[]>();
+    const taskGroups: Map<string, Task[]> = new Map<string, Task[]>();
     
     if (groupBy === 'status') {
       // Initialize groups for all statuses
@@ -272,17 +388,39 @@ export function TaskGroupView({
     return arr2.every(item => set1.has(item));
   }
 
-  // Convert Map to Array for pagination based on groupOrder
-  const groupEntries = groupOrder
-    .filter(key => groupedTasks.has(key))
-    .map(key => [key, groupedTasks.get(key)!]);
-  const totalPages = Math.ceil(groupEntries.length / columnsPerPage);
+  // Then define currentGroups with proper typing
+  const currentGroups: [string, Task[]][] = React.useMemo(() => {
+    const orderedGroups: [string, Task[]][] = [];
+    
+    groupOrder.forEach(key => {
+      const tasks = groupedTasks.get(key);
+      if (tasks && tasks.length > 0) {
+        orderedGroups.push([key, tasks]);
+      }
+    });
+    
+    // Calculate start and end indices for pagination
+    const startIdx = currentPage * columnsPerPage;
+    let endIdx = startIdx + columnsPerPage;
+    
+    // Ensure we don't exceed the array bounds
+    if (endIdx > orderedGroups.length) {
+      endIdx = orderedGroups.length;
+    }
+    
+    // Return the sliced array for current page
+    return orderedGroups.slice(startIdx, endIdx);
+  }, [groupedTasks, groupOrder, currentPage, columnsPerPage]);
 
-  // Get the current page's groups
-  const currentGroups = groupEntries.slice(
-    currentPage * columnsPerPage,
-    (currentPage + 1) * columnsPerPage
-  );
+  // Calculate all group entries for determining total pages 
+  const groupEntries: [string, Task[]][] = React.useMemo(() => {
+    return groupOrder
+      .filter(key => groupedTasks.has(key))
+      .map(key => [key, groupedTasks.get(key)!]);
+  }, [groupOrder, groupedTasks]);
+
+  // Calculate total pages
+  const totalPages = Math.ceil(groupEntries.length / columnsPerPage);
 
   // Sensors for drag and drop
   const sensors = useSensors(
@@ -409,6 +547,17 @@ export function TaskGroupView({
     };
   }, []);
 
+  // Handle opening the description editor
+  const handleEditDescription = (task: Task) => {
+    setSelectedTask(task);
+    setDescriptionEditorOpen(true);
+  };
+
+  // Handle saving the description
+  const handleSaveDescription = async (taskId: string, explanation: string) => {
+    await onUpdateTask(taskId, { explanation });
+  };
+
   return (
     <div className="relative">
       {/* Pagination controls - now fixed to viewport edges */}
@@ -482,17 +631,27 @@ export function TaskGroupView({
                 className=""
               >
                 {(groupTasks as Task[]).map(task => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    technicians={technicians}
-                    categories={categories}
-                    onUpdateTask={onUpdateTask}
-                    onDeleteTask={onDeleteTask}
-                    viewDensity={viewDensity}
-                    isSelected={selectedTaskIds.includes(task.id)}
-                    onSelect={(selected) => onTaskSelection(task.id, selected)}
-                  />
+                  <div key={task.id} className="relative">
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      technicians={technicians}
+                      categories={categories}
+                      onUpdateTask={onUpdateTask}
+                      onDeleteTask={onDeleteTask}
+                      viewDensity={viewDensity}
+                      isSelected={selectedTaskIds.includes(task.id)}
+                      onSelect={(selected) => onTaskSelection(task.id, selected)}
+                    />
+                    {/* Add edit description button */}
+                    <button
+                      onClick={() => handleEditDescription(task)}
+                      className="absolute top-3 right-3 p-1 rounded-full bg-gray-100 dark:bg-gray-700 opacity-0 group-hover:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-600 transition-opacity"
+                      title="Edit Description"
+                    >
+                      <PencilIcon className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                    </button>
+                  </div>
                 ))}
               </SortableGroupItem>
             ))}
@@ -517,6 +676,16 @@ export function TaskGroupView({
           </DragOverlay>
         </div>
       </DndContext>
+      
+      {/* Description Editor Modal */}
+      {selectedTask && (
+        <DescriptionEditorModal
+          isOpen={descriptionEditorOpen}
+          onClose={() => setDescriptionEditorOpen(false)}
+          task={selectedTask}
+          onSave={handleSaveDescription}
+        />
+      )}
     </div>
   );
 } 
