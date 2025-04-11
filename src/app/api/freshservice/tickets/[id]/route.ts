@@ -1,20 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
-interface RouteParams {
-  params: {
-    id: string;
-  };
-}
-
 /**
  * Deletes a ticket in FreshService
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: RouteParams
+  context: { params: { id: string } }
 ) {
   try {
-    const ticketId = params.id;
+    const ticketId = context.params.id;
     
     if (!ticketId) {
       return NextResponse.json(

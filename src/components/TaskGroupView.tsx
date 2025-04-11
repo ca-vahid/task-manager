@@ -45,7 +45,8 @@ function SortableGroupItem({
   groupTasks,
   isCollapsed,
   onToggleCollapse,
-  children
+  children,
+  className
 }: {
   id: string;
   groupKey: string;
@@ -54,6 +55,7 @@ function SortableGroupItem({
   isCollapsed: boolean;
   onToggleCollapse: (key: string) => void;
   children: React.ReactNode;
+  className?: string;
 }) {
   const {
     attributes,
@@ -75,7 +77,7 @@ function SortableGroupItem({
     <div 
       ref={setNodeRef} 
       style={style}
-      className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"
+      className={`bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden ${className || ''}`}
     >
       {/* Group header - draggable */}
       <div 
@@ -409,32 +411,6 @@ export function TaskGroupView({
 
   return (
     <div className="relative">
-      {/* Column count selector */}
-      <div className="mb-4 flex justify-end">
-        <div className="inline-flex rounded-md shadow-sm">
-          <button
-            onClick={() => setColumnsPerPage(3)}
-            className={`px-3 py-2 text-sm font-medium rounded-l-md ${
-              columnsPerPage === 3 
-                ? 'bg-indigo-600 text-white' 
-                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
-            } border border-gray-300 dark:border-gray-600`}
-          >
-            3 Columns
-          </button>
-          <button
-            onClick={() => setColumnsPerPage(4)}
-            className={`px-3 py-2 text-sm font-medium rounded-r-md ${
-              columnsPerPage === 4 
-                ? 'bg-indigo-600 text-white' 
-                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
-            } border border-gray-300 dark:border-gray-600 border-l-0`}
-          >
-            4 Columns
-          </button>
-        </div>
-      </div>
-      
       {/* Pagination controls - now fixed to viewport edges */}
       {totalPages > 1 && (
         <>
@@ -503,6 +479,7 @@ export function TaskGroupView({
                   ...prev,
                   [key]: !prev[key]
                 }))}
+                className={columnsPerPage === 4 ? 'max-w-[calc(100%-1rem)]' : ''}
               >
                 {(groupTasks as Task[]).map(task => (
                   <TaskCard

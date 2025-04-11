@@ -176,40 +176,21 @@ export function TaskFilterBar({
               Compact
             </button>
           </div>
-
-          {/* Density control */}
-          <div className="inline-flex rounded-md shadow-sm" role="group">
-            <button
-              type="button"
-              onClick={() => setViewDensity('compact')}
-              className={`${viewDensity === 'compact' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'} px-2 py-1 text-sm font-medium rounded-l-md border border-gray-200 dark:border-gray-600 focus:z-10 focus:ring-1 focus:ring-indigo-500 dark:focus:ring-indigo-400`}
-              title="Compact Density"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewDensity('medium')}
-              className={`${viewDensity === 'medium' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'} px-2 py-1 text-sm font-medium border-t border-b border-gray-200 dark:border-gray-600 focus:z-10 focus:ring-1 focus:ring-indigo-500 dark:focus:ring-indigo-400`}
-              title="Medium Density"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12M8 11h12M8 15h12M8 19h12" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewDensity('full')}
-              className={`${viewDensity === 'full' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'} px-2 py-1 text-sm font-medium rounded-r-md border border-gray-200 dark:border-gray-600 focus:z-10 focus:ring-1 focus:ring-indigo-500 dark:focus:ring-indigo-400`}
-              title="Full Density"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5h16M4 10h16M4 15h16M4 20h16" />
-              </svg>
-            </button>
-          </div>
+        </div>
+        
+        {/* Right side with group by, column selector and filters */}
+        <div className="flex items-center space-x-2">
+          {/* Group by selector */}
+          <select
+            value={groupBy}
+            onChange={(e) => setGroupBy(e.target.value as 'status' | 'assignee' | 'group' | 'none')}
+            className="text-sm rounded-md border border-gray-300 dark:border-gray-600 py-1 px-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+          >
+            <option value="none">No Grouping</option>
+            <option value="status">Group by Status</option>
+            <option value="assignee">Group by Assignee</option>
+            <option value="group">Group by Group</option>
+          </select>
           
           {/* Column selector when in kanban view */}
           {viewMode === 'kanban' && (
@@ -238,21 +219,6 @@ export function TaskFilterBar({
               </button>
             </div>
           )}
-        </div>
-        
-        {/* Right side with filters button and clear filters */}
-        <div className="flex items-center space-x-2">
-          {/* Group by selector */}
-          <select
-            value={groupBy}
-            onChange={(e) => setGroupBy(e.target.value as 'status' | 'assignee' | 'group' | 'none')}
-            className="text-sm rounded-md border border-gray-300 dark:border-gray-600 py-1 px-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
-          >
-            <option value="none">No Grouping</option>
-            <option value="status">Group by Status</option>
-            <option value="assignee">Group by Assignee</option>
-            <option value="group">Group by Group</option>
-          </select>
           
           {/* Clear filters button */}
           {activeFilterCount > 0 && (
