@@ -1175,9 +1175,8 @@ export function TaskCard({
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mt-2">
           {/* Assignee selector - moved to first position with more space */}
           <div className="md:col-span-5">
-            <div className="flex items-center space-x-1 mb-1">
+            <div className="flex items-center mb-1">
               <UserIcon className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400" />
-              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Assignee</span>
             </div>
             <select
               value={task.assigneeId || ""}
@@ -1194,52 +1193,53 @@ export function TaskCard({
 
           {/* Status selector - replaced with buttons */}
           <div className="md:col-span-4">
-            <div className="flex items-center space-x-1 mb-1">
+            <div className="flex items-center mb-1">
               <ClipboardDocumentListIcon className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400" />
-              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Status</span>
             </div>
             <div className="flex space-x-1">
               <button
                 onClick={() => handleStatusChange({ target: { value: TaskStatus.Open } } as React.ChangeEvent<HTMLSelectElement>)}
-                className={`flex-1 flex items-center justify-center text-xs py-1.5 px-2 rounded-md transition-colors duration-200 ${
+                className={`flex-1 flex items-center justify-center text-xs py-1.5 px-1 rounded-md transition-colors duration-200 ${
                   task.status === TaskStatus.Open 
                     ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 font-medium' 
                     : 'bg-gray-50 text-gray-500 hover:bg-gray-100 dark:bg-gray-800/30 dark:text-gray-400 dark:hover:bg-gray-700/50'
                 }`}
+                title="Open"
               >
-                <ClipboardDocumentListIcon className="h-3.5 w-3.5 mr-1" />
-                Open
+                <ClipboardDocumentListIcon className="h-3.5 w-3.5 md:mr-1" />
+                <span className="hidden md:inline">Open</span>
               </button>
               <button
                 onClick={() => handleStatusChange({ target: { value: TaskStatus.Pending } } as React.ChangeEvent<HTMLSelectElement>)}
-                className={`flex-1 flex items-center justify-center text-xs py-1.5 px-2 rounded-md transition-colors duration-200 ${
+                className={`flex-1 flex items-center justify-center text-xs py-1.5 px-1 rounded-md transition-colors duration-200 ${
                   task.status === TaskStatus.Pending 
                     ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 font-medium' 
                     : 'bg-gray-50 text-gray-500 hover:bg-gray-100 dark:bg-gray-800/30 dark:text-gray-400 dark:hover:bg-gray-700/50'
                 }`}
+                title="Pending"
               >
-                <PauseIcon className="h-3.5 w-3.5 mr-1" />
-                Pending
+                <PauseIcon className="h-3.5 w-3.5 md:mr-1" />
+                <span className="hidden md:inline">Pending</span>
               </button>
               <button
                 onClick={() => handleStatusChange({ target: { value: TaskStatus.Resolved } } as React.ChangeEvent<HTMLSelectElement>)}
-                className={`flex-1 flex items-center justify-center text-xs py-1.5 px-2 rounded-md transition-colors duration-200 ${
+                className={`flex-1 flex items-center justify-center text-xs py-1.5 px-1 rounded-md transition-colors duration-200 ${
                   task.status === TaskStatus.Resolved 
                     ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 font-medium' 
                     : 'bg-gray-50 text-gray-500 hover:bg-gray-100 dark:bg-gray-800/30 dark:text-gray-400 dark:hover:bg-gray-700/50'
                 }`}
+                title="Done"
               >
-                <CheckIcon className="h-3.5 w-3.5 mr-1" />
-                Done
+                <CheckIcon className="h-3.5 w-3.5 md:mr-1" />
+                <span className="hidden md:inline">Done</span>
               </button>
             </div>
           </div>
 
           {/* Due date - with icon */}
           <div className="md:col-span-3">
-            <div className="flex items-center space-x-1 mb-1">
+            <div className="flex items-center mb-1">
               <ClockIcon className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400" />
-              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Due Date</span>
             </div>
             <div className={`w-full text-sm py-1.5 px-2 rounded-md ${timeRemaining.overdue ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300' : timeRemaining.urgent ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-300' : 'bg-gray-50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-300'}`}>
               {task.estimatedCompletionDate ? 
