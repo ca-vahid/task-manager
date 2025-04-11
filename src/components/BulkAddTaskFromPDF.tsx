@@ -15,13 +15,6 @@ interface BulkAddTaskFromPDFProps {
   onCreateGroup?: (name: string, description?: string) => Promise<Group>;
 }
 
-// Helper to format seconds into minutes:seconds
-function formatTime(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins}m ${secs}s`;
-}
-
 export function BulkAddTaskFromPDF({
   technicians,
   groups,
@@ -113,9 +106,8 @@ export function BulkAddTaskFromPDF({
       formData.append('categories', JSON.stringify(categories.map(cat => ({ id: cat.id, value: cat.value }))));
       formData.append('useThinkingModel', useThinkingModel.toString());
       
-      // Set streaming flag for live updates during processing
-      const useStreamingMode = !useThinkingModel; // Use job queue for thinking model, streaming for standard
-      formData.append('streamOutput', useStreamingMode.toString());
+      // Always use streaming mode for both models
+      formData.append('streamOutput', 'true');
       
       // Simulate upload progress
       const progressInterval = setInterval(() => {
@@ -130,300 +122,95 @@ export function BulkAddTaskFromPDF({
       // Store the interval reference for cleanup
       progressIntervalRef.current = progressInterval;
       
-      if (useStreamingMode) {
-        // ------------------------------------
-        // Streaming approach (original code)
-        // ------------------------------------
-        // Send the file to the API for streaming analysis
-        const response = await fetch('/api/gemini/extract-tasks-from-pdf', {
-          method: 'POST',
-          body: formData,
-        });
-        
-        if (progressIntervalRef.current) {
-          clearInterval(progressIntervalRef.current);
-          progressIntervalRef.current = null;
-        }
-        setUploadProgress(100);
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to analyze document');
-        }
-        
-        // Handle streaming response
-        const reader = response.body?.getReader();
-        if (!reader) {
-          throw new Error('Failed to get response stream');
-        }
-        
-        // Read the stream
-        let receivedText = '';
-        
-        // Create a function to read and process chunks
-        const processStream = async () => {
-          try {
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              
-              const chunk = new TextDecoder().decode(value);
-              receivedText += chunk;
-              
-              // Update the UI with each received chunk
-              setStreamedOutput(prevText => prevText + chunk);
-              
-              // Force a small delay to ensure React updates the UI
-              await new Promise(resolve => setTimeout(resolve, 10));
-            }
-            return receivedText;
-          } catch (error) {
-            console.error('Error reading stream:', error);
-            throw error;
-          }
-        };
-        
-        const completeText = await processStream();
-        
-        // After streaming completes, try to parse the accumulated JSON
+      // ------------------------------------
+      // Streaming approach for all models
+      // ------------------------------------
+      // Send the file to the API for streaming analysis
+      const response = await fetch('/api/gemini/extract-tasks-from-pdf', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+      setUploadProgress(100);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to analyze document');
+      }
+      
+      // Handle streaming response
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('Failed to get response stream');
+      }
+      
+      // Read the stream
+      let receivedText = '';
+      
+      // Create a function to read and process chunks
+      const processStream = async () => {
         try {
-          // Check if we have reached the completion markers in the streamed output
-          if (hasStreamingCompleted(completeText)) {
-            console.log("Streaming has completed based on output patterns");
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
             
-            // Force extraction of tasks
-            try {
-              parseAndExtractTasks(completeText);
-            } catch (parseError) {
-              console.error('Failed to parse streaming output as JSON, making direct request', parseError);
-              await makeFallbackRequest();
-            }
-          } else {
-            // Regular JSON extraction attempt (original approach)
-            try {
-              parseAndExtractTasks(completeText);
-            } catch (parseError) {
-              console.error('Failed to parse streaming output as JSON, making direct request', parseError);
-              await makeFallbackRequest();
-            }
+            const chunk = new TextDecoder().decode(value);
+            receivedText += chunk;
+            
+            // Update the UI with each received chunk
+            setStreamedOutput(prevText => prevText + chunk);
+            
+            // Force a small delay to ensure React updates the UI
+            await new Promise(resolve => setTimeout(resolve, 10));
           }
+          return receivedText;
         } catch (error) {
-          console.error('Error in streaming process:', error);
-          setError(error instanceof Error ? error.message : 'An error occurred while analyzing the document');
-          setIsProcessing(false);
-          
-          // Show a more user-friendly error that stays on screen
-          setStreamedOutput(prevOutput => 
-            prevOutput + 
-            "\n\n❌ ERROR: Failed to extract tasks from the document. Please try again or use a different file."
-          );
-          // Keep in processing complete state but with error
-          setProcessingComplete(true); 
-          setCountdown(10); // Give more time to see the error
+          console.error('Error reading stream:', error);
+          throw error;
         }
-      } else {
-        // ------------------------------------
-        // New two-step queued job approach
-        // ------------------------------------
-        try {
-          // Step 1: Submit the job
-          setStreamedOutput('Starting document analysis...\n\nThis might take a while for large documents. The system will continue processing as long as progress is being made.\n\n');
+      };
+      
+      const completeText = await processStream();
+      
+      // After streaming completes, try to parse the accumulated JSON
+      try {
+        // Check if we have reached the completion markers in the streamed output
+        if (hasStreamingCompleted(completeText)) {
+          console.log("Streaming has completed based on output patterns");
           
-          const response = await fetch('/api/gemini/extract-tasks-from-pdf', {
-            method: 'POST',
-            body: formData,
-          });
-          
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || errorData.message || 'Failed to start analysis job');
+          // Force extraction of tasks
+          try {
+            parseAndExtractTasks(completeText);
+          } catch (parseError) {
+            console.error('Failed to parse streaming output as JSON, making direct request', parseError);
+            await makeFallbackRequest();
           }
-          
-          // Get the job ID from the response
-          const jobData = await response.json();
-          const jobId = jobData.jobId;
-          
-          if (!jobId) {
-            throw new Error('No job ID returned from server');
+        } else {
+          // Regular JSON extraction attempt
+          try {
+            parseAndExtractTasks(completeText);
+          } catch (parseError) {
+            console.error('Failed to parse streaming output as JSON, making direct request', parseError);
+            await makeFallbackRequest();
           }
-          
-          setStreamedOutput(prev => prev + `\nJob started with ID: ${jobId}\nWaiting for results...\n`);
-          
-          // Step 2: Poll for job completion
-          let pollCount = 0;
-          let jobComplete = false;
-          // Increase max polls significantly and add inactivity tracking
-          const MAX_POLLS = 300; // 10 minutes with 2-second intervals (much more generous)
-          const POLL_INTERVAL = 2000; // 2 seconds
-          const MAX_INACTIVITY_TIME = 60000; // 1 minute of no activity before timeout
-          
-          // Initialize streamContent for thinking model
-          let lastStreamContent = '';
-          let lastActivityTime = Date.now();
-          let startTime = Date.now();
-          let previousStatus = 'pending';
-          
-          while (!jobComplete && pollCount < MAX_POLLS) {
-            // Wait for the polling interval
-            await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL));
-            pollCount++;
-            
-            const currentTime = Date.now();
-            const inactiveTime = currentTime - lastActivityTime;
-            const totalProcessingTime = Math.round((currentTime - startTime) / 1000);
-            const remainingInactivity = Math.max(0, Math.round((MAX_INACTIVITY_TIME - inactiveTime) / 1000));
-            
-            // Display processing time every 30 seconds
-            if (pollCount === 1 || totalProcessingTime % 30 === 0) {
-              setStreamedOutput(prev => 
-                prev + `\n⏱️ Processing for ${formatTime(totalProcessingTime)}. Will continue as long as progress is detected.\n`
-              );
-            }
-            
-            // If we've been inactive too long, break the loop with a timeout error
-            if (inactiveTime > MAX_INACTIVITY_TIME && pollCount > 10) { // Ensure we've made at least 10 attempts
-              throw new Error(`Processing seems to have stalled. No activity detected for ${Math.round(inactiveTime/1000)} seconds.`);
-            }
-            
-            // Display countdown if we're approaching inactivity timeout
-            if (inactiveTime > MAX_INACTIVITY_TIME/2 && remainingInactivity % 5 === 0) {
-              setStreamedOutput(prev => 
-                prev + `\n⚠️ No activity detected for ${Math.round(inactiveTime/1000)}s. Will timeout in ${remainingInactivity}s if no progress...\n`
-              );
-            }
-            
-            // Update progress for visual feedback
-            setUploadProgress(90 + (Math.min(pollCount, 50) / 50) * 10); // Cap at 100%
-            
-            try {
-              // Poll the job status
-              const statusResponse = await fetch(`/api/gemini/extract-tasks-from-pdf?action=status&jobId=${jobId}`, {
-                method: 'POST',
-              });
-              
-              if (!statusResponse.ok) {
-                // If we get a 404, the job might have been cleaned up
-                if (statusResponse.status === 404) {
-                  throw new Error('Job not found. It may have expired.');
-                }
-                
-                const errorData = await statusResponse.json();
-                throw new Error(errorData.error || 'Failed to check job status');
-              }
-              
-              const statusData = await statusResponse.json();
-              let hasNewActivity = false;
-              
-              // Check if there's any new content or status change
-              if (statusData.streamContent && statusData.streamContent !== lastStreamContent) {
-                // Compute the new content since last update
-                const newContent = statusData.streamContent.substring(lastStreamContent.length);
-                if (newContent.trim()) {
-                  // Add a prefix to clearly distinguish model thinking output from job status
-                  setStreamedOutput(prev => 
-                    prev + `\n${newContent.trim().split('\n').map((line: string) => 
-                      line.trim() ? `🤔 ${line}` : line
-                    ).join('\n')}\n`
-                  );
-                  lastStreamContent = statusData.streamContent;
-                  lastActivityTime = currentTime; // Update activity timestamp
-                  hasNewActivity = true; // We have new activity
-                }
-              }
-              
-              // Update UI with status
-              if (statusData.status !== previousStatus) {
-                setStreamedOutput(prev => 
-                  prev + `\n⏱️ Job status: ${statusData.status} (Poll ${pollCount})\n`
-                );
-                previousStatus = statusData.status;
-                lastActivityTime = currentTime; // Status change is also activity
-                hasNewActivity = true; // We have new activity
-              } else if (pollCount % 5 === 0) {
-                // Only show pending status occasionally to avoid flooding
-                setStreamedOutput(prev => 
-                  prev + `.` // Just add a dot to show progress
-                );
-              }
-              
-              // Log activity detection for debugging
-              if (hasNewActivity && pollCount % 5 === 0) {
-                setStreamedOutput(prev => 
-                  prev + `\n⏱️ Processing continues... (${Math.round(inactiveTime/1000)}s since last change)\n`
-                );
-              }
-              
-              // Check if job is complete or failed
-              if (statusData.status === 'completed') {
-                if (progressIntervalRef.current) {
-                  clearInterval(progressIntervalRef.current);
-                  progressIntervalRef.current = null;
-                }
-                setUploadProgress(100);
-                
-                // Process the results
-                const extractedTasks = statusData.result;
-                
-                if (!extractedTasks || extractedTasks.length === 0) {
-                  throw new Error('No tasks could be extracted from the document');
-                }
-                
-                setStreamedOutput(prev => 
-                  prev + `\n✅ Analysis complete! Found ${extractedTasks.length} tasks.\n`
-                );
-                
-                // Process and validate tasks
-                const processedTasks = extractedTasks.map((task: any) => ({
-                  title: task.title || 'Untitled Task',
-                  details: task.details || '',
-                  assignee: task.assignee || null,
-                  group: task.group || null,
-                  category: task.category || null,
-                  dueDate: task.dueDate || null,
-                  priority: task.priority || 'Medium',
-                  ticketNumber: task.ticketNumber || null,
-                  externalUrl: task.externalUrl || null
-                }));
-                
-                console.log(`Successfully processed ${processedTasks.length} tasks via job queue`);
-                setParsedTasks(processedTasks);
-                setIsProcessing(false);
-                jobComplete = true;
-              } 
-              else if (statusData.status === 'failed') {
-                throw new Error(`Job failed: ${statusData.error || 'Unknown error'}`);
-              }
-            } catch (error: any) {
-              // If there's a network error, don't give up immediately
-              console.error('Error during polling:', error);
-              setStreamedOutput(prev => 
-                prev + `\n⚠️ Network error during polling: ${error.message}. Will retry...\n`
-              );
-              // Continue the loop - don't throw yet to allow for retry
-              // We'll time out eventually if this keeps happening
-              continue;
-            }
-          }
-          
-          // If we reached the maximum polls but the job isn't complete
-          if (!jobComplete) {
-            throw new Error('Job processing timed out. Please try again or use a smaller document.');
-          }
-        } catch (error: any) {
-          // No need to clear the interval here, it will be cleared in the outer catch block
-          console.error('Error in job processing:', error);
-          setError(error.message || 'An error occurred while analyzing the document');
-          setIsProcessing(false);
-          
-          // Show a more user-friendly error that stays on screen
-          setStreamedOutput(prevOutput => 
-            prevOutput + 
-            `\n\n❌ ERROR: ${error.message || 'Failed to extract tasks from the document. Please try again or use a different file.'}`
-          );
-          // Keep in processing complete state but with error
-          setProcessingComplete(true); 
-          setCountdown(10); // Give more time to see the error
         }
+      } catch (error) {
+        console.error('Error in streaming process:', error);
+        setError(error instanceof Error ? error.message : 'An error occurred while analyzing the document');
+        setIsProcessing(false);
+        
+        // Show a more user-friendly error that stays on screen
+        setStreamedOutput(prevOutput => 
+          prevOutput + 
+          "\n\n❌ ERROR: Failed to extract tasks from the document. Please try again or use a different file."
+        );
+        // Keep in processing complete state but with error
+        setProcessingComplete(true); 
+        setCountdown(10); // Give more time to see the error
       }
     } 
     catch (err: any) {
@@ -1063,16 +850,8 @@ export function BulkAddTaskFromPDF({
                 } rounded-lg p-4 h-64 overflow-auto font-mono text-xs relative`}
               >
                 {streamedOutput.split('\n').map((line, i) => (
-                  <div key={i} className={`leading-relaxed ${
-                    i === streamedOutput.split('\n').length - 1 
-                      ? `${useThinkingModel ? 'text-purple-600 dark:text-purple-400' : 'text-green-600 dark:text-green-400'} font-semibold animate-pulse` 
-                      : line.startsWith('🤔 ') 
-                        ? 'text-indigo-600 dark:text-indigo-400 font-medium' 
-                        : line.startsWith('⏱️ Job status:') 
-                          ? 'text-gray-500 dark:text-gray-400 text-sm italic'
-                          : ''
-                  }`}>
-                    {line}
+                  <div key={i} className={`leading-relaxed ${i === streamedOutput.split('\n').length - 1 ? `${useThinkingModel ? 'text-purple-600 dark:text-purple-400' : 'text-green-600 dark:text-green-400'} font-semibold animate-pulse` : ''}`}>
+                    {line || <br />}
                   </div>
                 ))}
                 <div className="h-4"></div> {/* Extra space to ensure auto-scroll works */}
@@ -1172,15 +951,13 @@ export function BulkAddTaskFromPDF({
             >
               {streamedOutput.split('\n').map((line, i) => (
                 <div key={i} className={`leading-relaxed ${
-                  i === streamedOutput.split('\n').length - 1 
-                    ? `${useThinkingModel ? 'text-purple-600 dark:text-purple-400' : 'text-green-600 dark:text-green-400'} font-semibold animate-pulse` 
-                    : line.startsWith('🤔 ') 
-                      ? 'text-indigo-600 dark:text-indigo-400 font-medium' 
-                      : line.startsWith('⏱️ Job status:') 
-                        ? 'text-gray-500 dark:text-gray-400 text-sm italic'
-                        : ''
+                  line.includes('ERROR:') 
+                    ? 'text-red-600 dark:text-red-400 font-semibold' 
+                    : i === streamedOutput.split('\n').length - 1 && !error 
+                      ? `${useThinkingModel ? 'text-purple-600 dark:text-purple-400' : 'text-green-600 dark:text-green-400'} font-semibold animate-pulse` 
+                      : ''
                 }`}>
-                  {line}
+                  {line || <br />}
                 </div>
               ))}
             </div>
