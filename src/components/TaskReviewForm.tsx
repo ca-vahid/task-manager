@@ -1,27 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import { Technician, Group, PriorityLevel, Category } from '@/lib/types';
-import dynamic from 'next/dynamic';
-
-// Import editor component
-const DynamicQuillEditor = dynamic(
-  async () => {
-    const { QuillEditor } = await import('./AddTaskForm');
-    // Create a wrapper component that matches the expected props
-    const DynamicEditor = ({ value, onChange, placeholder }: { value: string, onChange: (value: string) => void, placeholder?: string }) => (
-      <div className="h-32 task-review-editor">
-        <QuillEditor value={value} onChange={onChange} placeholder={placeholder} />
-      </div>
-    );
-    
-    // Add display name
-    DynamicEditor.displayName = 'DynamicQuillEditor';
-    
-    return DynamicEditor;
-  },
-  { ssr: false, loading: () => <div className="p-3 border-2 border-gray-300 dark:border-gray-700 rounded-md h-32 animate-pulse bg-gray-50 dark:bg-gray-800/50"></div> }
-);
+// Import the simplified QuillEditor directly
+import { QuillEditor } from './AddTaskForm';
 
 interface ParsedTask {
   title: string;
@@ -34,6 +16,275 @@ interface ParsedTask {
   ticketNumber: string | null;
   externalUrl: string | null;
 }
+
+// Define props for the new TaskReviewCard component
+interface TaskReviewCardProps {
+  task: ParsedTask;
+  index: number;
+  technicians: Technician[];
+  groups: Group[];
+  categories: Category[];
+  aiMatchedFields: {[field: string]: boolean};
+  isThinkingModel: boolean;
+  handleTaskChange: (index: number, field: keyof ParsedTask, value: any) => void;
+  handleRemoveTask: (index: number) => void;
+  findBestTechnicianMatch: (name: string | null) => string;
+  findBestCategoryMatch: (categoryName: string | null) => string;
+  findBestGroupMatch: (name: string | null) => string;
+  setShowNewGroupForm: (show: boolean) => void;
+  onCreateGroup?: (name: string, description?: string) => Promise<Group>; // Keep this optional for button visibility
+}
+
+// Create the memoized TaskReviewCard component
+const TaskReviewCard = memo(({
+  task,
+  index,
+  technicians,
+  groups,
+  categories,
+  aiMatchedFields,
+  isThinkingModel,
+  handleTaskChange,
+  handleRemoveTask,
+  findBestTechnicianMatch,
+  findBestCategoryMatch,
+  findBestGroupMatch,
+  setShowNewGroupForm,
+  onCreateGroup
+}: TaskReviewCardProps) => {
+  // Use refs to prevent focus jumping between elements
+  const titleInputRef = React.useRef<HTMLInputElement>(null);
+  
+  // Add debug logging for the task details
+  React.useEffect(() => {
+    console.log(`Task ${index} details:`, task.details ? task.details.substring(0, 100) : 'empty');
+  }, [index, task.details]);
+  
+  // Memoize the handler for the title input
+  const handleTitleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    handleTaskChange(index, 'title', e.target.value);
+  }, [index, handleTaskChange]);
+
+  // Memoize the handler for the Quill editor (details)
+  const handleDetailsChange = useCallback((value: string) => {
+    console.log(`Updating task ${index} details to:`, value.substring(0, 100));
+    handleTaskChange(index, 'details', value);
+  }, [index, handleTaskChange]);
+  
+  return (
+    <div 
+      className={`task-card border rounded-lg p-4 bg-white dark:bg-gray-800 shadow-sm relative ${
+        isThinkingModel 
+          ? 'border-purple-200 dark:border-purple-800'
+          : 'border-blue-100 dark:border-blue-900'
+      }`}
+    >
+      {/* Task header with title and remove button */}
+      <div className="flex justify-between items-start mb-4">
+        <div className="flex-1">
+          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+            Title
+          </label>
+          <input
+            ref={titleInputRef}
+            type="text"
+            value={task.title}
+            onChange={handleTitleChange}
+            className={`w-full text-md font-medium rounded-md ${
+              aiMatchedFields?.title
+                ? isThinkingModel 
+                  ? 'border border-purple-300 dark:border-purple-700' 
+                  : 'border border-blue-300 dark:border-blue-700'
+                : 'border border-gray-300 dark:border-gray-700'
+            } shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800 p-2 direction-ltr`}
+            placeholder="Task title"
+            dir="ltr"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => handleRemoveTask(index)}
+          className="text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400 ml-2"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+          </svg>
+        </button>
+      </div>
+      
+      {/* Two-column layout with details on left, fields on right */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+        {/* Left column - Task details - now 75% width (9/12) */}
+        <div className="relative z-0 overflow-hidden rounded-md h-full md:col-span-9">
+          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+            Details
+          </label>
+          <div className="overflow-hidden h-full rounded-md border border-gray-300 dark:border-gray-700">
+            <QuillEditor
+              value={task.details || ''}
+              onChange={handleDetailsChange}
+              placeholder="Task details"
+            />
+          </div>
+        </div>
+        
+        {/* Right column - Task metadata fields - now 25% width (3/12) */}
+        <div className="space-y-3 md:col-span-3">
+          {/* Assignee */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+              Assignee (Technician)
+            </label>
+            <select
+              value={findBestTechnicianMatch(task.assignee)}
+              onChange={(e) => {
+                const techId = e.target.value;
+                const techName = techId 
+                  ? technicians.find(t => t.id === techId)?.name || null 
+                  : null;
+                handleTaskChange(index, 'assignee', techName);
+              }}
+              className={`w-full rounded-md text-sm ${
+                aiMatchedFields?.assignee
+                  ? isThinkingModel 
+                    ? 'border border-purple-300 dark:border-purple-700' 
+                    : 'border border-blue-300 dark:border-blue-700'
+                  : 'border border-gray-300 dark:border-gray-700'
+              } shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800 p-2`}
+            >
+              <option value="">Unassigned</option>
+              {technicians.map((tech) => (
+                <option key={tech.id} value={tech.id}>
+                  {tech.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          {/* Category */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+              Category
+            </label>
+            <select
+              value={findBestCategoryMatch(task.category)}
+              onChange={(e) => {
+                const categoryId = e.target.value;
+                const categoryValue = categoryId 
+                  ? categories.find(c => c.id === categoryId)?.value || null 
+                  : null;
+                handleTaskChange(index, 'category', categoryValue);
+              }}
+              className={`w-full rounded-md text-sm ${
+                aiMatchedFields?.category
+                  ? isThinkingModel 
+                    ? 'border border-purple-300 dark:border-purple-700' 
+                    : 'border border-blue-300 dark:border-blue-700'
+                  : 'border border-gray-300 dark:border-gray-700'
+              } shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800 p-2`}
+            >
+              <option value="">No Category</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.value}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          {/* Due date */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+              Due Date
+            </label>
+            <input
+              type="date"
+              value={task.dueDate || ''}
+              onChange={(e) => handleTaskChange(index, 'dueDate', e.target.value)}
+              className={`w-full rounded-md text-sm ${
+                aiMatchedFields?.dueDate
+                  ? isThinkingModel 
+                    ? 'border border-purple-300 dark:border-purple-700' 
+                    : 'border border-blue-300 dark:border-blue-700'
+                  : 'border border-gray-300 dark:border-gray-700'
+              } shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800 p-2`}
+            />
+          </div>
+          
+          {/* Priority */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+              Priority
+            </label>
+            <select
+              value={task.priority || 'Medium'}
+              onChange={(e) => handleTaskChange(index, 'priority', e.target.value)}
+              className={`w-full rounded-md text-sm ${
+                aiMatchedFields?.priority
+                  ? isThinkingModel 
+                    ? 'border border-purple-300 dark:border-purple-700' 
+                    : 'border border-blue-300 dark:border-blue-700'
+                  : 'border border-gray-300 dark:border-gray-700'
+              } shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800 p-2`}
+            >
+              <option value="Low">Low</option>
+              <option value="Medium">Medium</option>
+              <option value="High">High</option>
+              <option value="Critical">Critical</option>
+            </select>
+          </div>
+          
+          {/* Group */}
+          <div>
+            <div className="flex justify-between items-center">
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Group
+              </label>
+              {onCreateGroup && (
+                <button
+                  type="button"
+                  onClick={() => setShowNewGroupForm(true)}
+                  className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                  </svg>
+                  New Group
+                </button>
+              )}
+            </div>
+            <select
+              value={findBestGroupMatch(task.group)}
+              onChange={(e) => {
+                const groupId = e.target.value;
+                const groupName = groupId 
+                  ? groups.find(g => g.id === groupId)?.name || null 
+                  : null;
+                handleTaskChange(index, 'group', groupName);
+              }}
+              className={`w-full rounded-md text-sm ${
+                aiMatchedFields?.group
+                  ? isThinkingModel 
+                    ? 'border border-purple-300 dark:border-purple-700' 
+                    : 'border border-blue-300 dark:border-blue-700'
+                  : 'border border-gray-300 dark:border-gray-700'
+              } shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800 p-2`}
+            >
+              <option value="">No Group</option>
+              {groups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
+TaskReviewCard.displayName = 'TaskReviewCard';
+
 
 interface TaskReviewFormProps {
   parsedTasks: ParsedTask[];
@@ -56,13 +307,25 @@ export function TaskReviewForm({
   onCreateGroup,
   isThinkingModel = false
 }: TaskReviewFormProps) {
-  const [editedTasks, setEditedTasks] = useState<ParsedTask[]>(parsedTasks);
+  const [editedTasks, setEditedTasks] = useState<ParsedTask[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showNewGroupForm, setShowNewGroupForm] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupDescription, setNewGroupDescription] = useState('');
   const [processingGroup, setProcessingGroup] = useState(false);
+  
+  // Initialize tasks from parsedTasks prop
+  useEffect(() => {
+    console.log('Initializing from parsedTasks:', parsedTasks.length, 'tasks');
+    parsedTasks.forEach((task, i) => {
+      console.log(`Task ${i} initial details:`, task.details ? task.details.substring(0, 100) : 'empty');
+    });
+    
+    // Create a deep copy to avoid reference issues
+    const tasksCopy = parsedTasks.map(task => ({...task}));
+    setEditedTasks(tasksCopy);
+  }, [parsedTasks]);
   
   // Track AI-matched fields for visual indicators
   const [aiMatchedFields, setAiMatchedFields] = useState<{[taskIndex: number]: {[field: string]: boolean}}>({});
@@ -87,24 +350,27 @@ export function TaskReviewForm({
     setAiMatchedFields(initialMatches);
   }, [parsedTasks]);
   
-  // Handle field changes for a specific task
-  const handleTaskChange = (index: number, field: keyof ParsedTask, value: any) => {
-    const updatedTasks = [...editedTasks];
-    updatedTasks[index] = { ...updatedTasks[index], [field]: value };
-    setEditedTasks(updatedTasks);
+  // Handle field changes for a specific task - MEMOIZED
+  const handleTaskChange = useCallback((index: number, field: keyof ParsedTask, value: any) => {
+    setEditedTasks(prevTasks => {
+      const updatedTasks = [...prevTasks];
+      updatedTasks[index] = { ...updatedTasks[index], [field]: value };
+      return updatedTasks;
+    });
     
     // If a field is manually changed, remove the AI-matched flag
     setAiMatchedFields(prev => {
       const updated = {...prev};
+      // Ensure index exists before trying to access it
       if (updated[index] && updated[index][field]) {
         updated[index] = {...updated[index], [field]: false};
       }
       return updated;
     });
-  };
+  }, []); // Empty dependency array as it uses setter function form
   
   // Handle final submission
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     if (editedTasks.length === 0) {
       setError('No tasks to submit');
       return;
@@ -122,10 +388,10 @@ export function TaskReviewForm({
       setError(err.message || 'Failed to add tasks');
       setIsSubmitting(false);
     }
-  };
+  }, [editedTasks, onSubmit]);
   
-  // Handle creating a new group
-  const handleCreateGroup = async () => {
+  // Handle creating a new group - MEMOIZED
+  const handleCreateGroup = useCallback(async () => {
     if (!newGroupName.trim() || !onCreateGroup) {
       return;
     }
@@ -136,7 +402,10 @@ export function TaskReviewForm({
       const newGroup = await onCreateGroup(newGroupName.trim(), newGroupDescription.trim());
       
       // Update UI with new group
-      groups.push(newGroup);
+      // Note: Modifying props directly like this isn't ideal, 
+      // but might be necessary if `groups` isn't updated higher up.
+      // A better approach would be to lift state or have a callback to update groups.
+      groups.push(newGroup); 
       
       // Clear form
       setShowNewGroupForm(false);
@@ -147,68 +416,44 @@ export function TaskReviewForm({
     } finally {
       setProcessingGroup(false);
     }
-  };
+  }, [newGroupName, newGroupDescription, onCreateGroup, groups]);
   
-  // Handle removing a task
-  const handleRemoveTask = (index: number) => {
-    setEditedTasks(editedTasks.filter((_, i) => i !== index));
-  };
+  // Handle removing a task - MEMOIZED
+  const handleRemoveTask = useCallback((index: number) => {
+    setEditedTasks(prevTasks => prevTasks.filter((_, i) => i !== index));
+    // Also remove associated AI matched fields if necessary
+    setAiMatchedFields(prev => {
+      const updated = {...prev};
+      delete updated[index];
+      // Adjust subsequent indices if needed, though filtering might handle this implicitly
+      // depending on how keys are used
+      return updated;
+    });
+  }, []);
   
-  // Prioritize matching technicians by name
-  const findBestTechnicianMatch = (name: string | null): string => {
+  // Prioritize matching technicians by name - MEMOIZED
+  const findBestTechnicianMatch = useCallback((name: string | null): string => {
     if (!name) return '';
-    
-    // If the name isn't a string or is empty, return empty
     if (typeof name !== 'string' || name.trim() === '') return '';
-    
-    // For debugging
-    console.log("Trying to match technician:", name);
-    
     const normalizedName = name.toLowerCase().trim();
     
-    // Try to find an exact match (case insensitive)
-    const exactMatch = technicians.find(tech => 
-      tech.name.toLowerCase().trim() === normalizedName
-    );
-    if (exactMatch) {
-      console.log(`Found exact match for ${name}: ${exactMatch.name}`);
-      return exactMatch.id;
-    }
+    const exactMatch = technicians.find(tech => tech.name.toLowerCase().trim() === normalizedName);
+    if (exactMatch) return exactMatch.id;
     
-    // Try if any technician name contains the input name
-    const containsMatch = technicians.find(tech => 
-      tech.name.toLowerCase().trim().includes(normalizedName)
-    );
-    if (containsMatch) {
-      console.log(`Found contains match for ${name}: ${containsMatch.name}`);
-      return containsMatch.id;
-    }
+    const containsMatch = technicians.find(tech => tech.name.toLowerCase().trim().includes(normalizedName));
+    if (containsMatch) return containsMatch.id;
     
-    // Try if the input name contains any technician name
-    const reverseContainsMatch = technicians.find(tech => 
-      normalizedName.includes(tech.name.toLowerCase().trim())
-    );
-    if (reverseContainsMatch) {
-      console.log(`Found reverse contains match for ${name}: ${reverseContainsMatch.name}`);
-      return reverseContainsMatch.id;
-    }
+    const reverseContainsMatch = technicians.find(tech => normalizedName.includes(tech.name.toLowerCase().trim()));
+    if (reverseContainsMatch) return reverseContainsMatch.id;
     
-    // Try more aggressive matching for first and last names
     const nameParts = normalizedName.split(/\s+/);
-    
-    // If there's a multi-part name, try to match first+last
     if (nameParts.length > 1) {
       for (const tech of technicians) {
         const techParts = tech.name.toLowerCase().trim().split(/\s+/);
-        
-        // Check if first and last match in any order
         if (techParts.length > 1 && nameParts.length > 1) {
-          // Check first name match
           if (techParts[0].includes(nameParts[0]) || nameParts[0].includes(techParts[0])) {
-            // Check last name match
             if (techParts[techParts.length-1].includes(nameParts[nameParts.length-1]) || 
                 nameParts[nameParts.length-1].includes(techParts[techParts.length-1])) {
-              console.log(`Found first+last match for ${name}: ${tech.name}`);
               return tech.id;
             }
           }
@@ -216,124 +461,76 @@ export function TaskReviewForm({
       }
     }
     
-    // Try to match parts (first name or last name)
     for (const part of nameParts) {
-      if (part.length < 2) continue; // Skip very short parts
-      
+      if (part.length < 2) continue;
       const partMatch = technicians.find(tech => {
         const techParts = tech.name.toLowerCase().trim().split(/\s+/);
         return techParts.some(techPart => techPart.includes(part) || part.includes(techPart));
       });
-      
-      if (partMatch) {
-        console.log(`Found part match for ${name}: ${partMatch.name}`);
-        return partMatch.id;
-      }
+      if (partMatch) return partMatch.id;
     }
     
-    // Last attempt: try to match initials
     if (nameParts.length > 1) {
       const initials = nameParts.map(part => part[0]).join('').toLowerCase();
-      
       for (const tech of technicians) {
         const techParts = tech.name.toLowerCase().trim().split(/\s+/);
         const techInitials = techParts.map(part => part[0]).join('');
-        
-        if (techInitials === initials) {
-          console.log(`Found initials match for ${name}: ${tech.name}`);
-          return tech.id;
-        }
+        if (techInitials === initials) return tech.id;
       }
     }
-    
-    console.log(`No match found for ${name}`);
     return '';
-  };
+  }, [technicians]);
   
-  // Prioritize matching groups by name
-  const findBestGroupMatch = (name: string | null): string => {
+  // Prioritize matching groups by name - MEMOIZED
+  const findBestGroupMatch = useCallback((name: string | null): string => {
     if (!name) return '';
-    
-    // Try to find an exact match
-    const exactMatch = groups.find(group => 
-      group.name.toLowerCase() === name.toLowerCase()
-    );
+    const exactMatch = groups.find(group => group.name.toLowerCase() === name.toLowerCase());
     if (exactMatch) return exactMatch.id;
-    
-    // Try to find a partial match
     const partialMatch = groups.find(group => 
       group.name.toLowerCase().includes(name.toLowerCase()) || 
       name.toLowerCase().includes(group.name.toLowerCase())
     );
     if (partialMatch) return partialMatch.id;
-    
     return '';
-  };
+  }, [groups]);
   
-  // Prioritize matching categories by value
-  const findBestCategoryMatch = (categoryName: string | null): string => {
+  // Prioritize matching categories by value - MEMOIZED
+  const findBestCategoryMatch = useCallback((categoryName: string | null): string => {
     if (!categoryName) return '';
-    
-    // If the category name isn't a string or is empty, return empty
     if (typeof categoryName !== 'string' || categoryName.trim() === '') return '';
-    
-    // For debugging
-    console.log("Trying to match category:", categoryName);
-    
     const normalizedName = categoryName.toLowerCase().trim();
     
-    // Try to find an exact match
-    const exactMatch = categories.find(category => 
-      category.value.toLowerCase().trim() === normalizedName
-    );
-    if (exactMatch) {
-      console.log(`Found exact category match for ${categoryName}: ${exactMatch.value}`);
-      return exactMatch.id;
-    }
+    const exactMatch = categories.find(category => category.value.toLowerCase().trim() === normalizedName);
+    if (exactMatch) return exactMatch.id;
     
-    // Try to find a partial match (category contains input or input contains category)
     const partialMatch = categories.find(category => 
       category.value.toLowerCase().trim().includes(normalizedName) || 
       normalizedName.includes(category.value.toLowerCase().trim())
     );
-    if (partialMatch) {
-      console.log(`Found partial category match for ${categoryName}: ${partialMatch.value}`);
-      return partialMatch.id;
-    }
+    if (partialMatch) return partialMatch.id;
     
-    // Try word-by-word matching
     const categoryWords = normalizedName.split(/\s+/);
     if (categoryWords.length > 1) {
       for (const category of categories) {
         const categoryValueWords = category.value.toLowerCase().trim().split(/\s+/);
-        
-        // Count matching words
         let matchingWords = 0;
         for (const word of categoryWords) {
-          if (word.length < 3) continue; // Skip short words
-          
-          if (categoryValueWords.some(catWord => 
-            catWord.includes(word) || word.includes(catWord)
-          )) {
+          if (word.length < 3) continue;
+          if (categoryValueWords.some(catWord => catWord.includes(word) || word.includes(catWord))) {
             matchingWords++;
           }
         }
-        
-        // If more than half the words match, consider it a match
         if (matchingWords > 0 && matchingWords >= Math.ceil(categoryWords.length/2)) {
-          console.log(`Found word-based category match for ${categoryName}: ${category.value}`);
           return category.id;
         }
       }
     }
-    
-    console.log(`No category match found for ${categoryName}`);
     return '';
-  };
+  }, [categories]);
   
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center sticky top-0 bg-white dark:bg-gray-800 z-10 py-2">
         <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 flex items-center">
           Review Tasks ({editedTasks.length})
           {isThinkingModel && (
@@ -382,6 +579,12 @@ export function TaskReviewForm({
           </button>
         </div>
       </div>
+      
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800/50 rounded-lg p-4">
+          <p className="text-red-700 dark:text-red-300">{error}</p>
+        </div>
+      )}
       
       {/* New group form */}
       {showNewGroupForm && (
@@ -436,147 +639,26 @@ export function TaskReviewForm({
       )}
       
       {/* Task cards */}
-      <div className="space-y-3">
+      <div className="space-y-6 max-h-[calc(100vh-200px)] overflow-y-auto pr-1 pb-2">
         {editedTasks.map((task, index) => (
-          <div 
-            key={index} 
-            className={`border rounded-lg p-3 bg-white dark:bg-gray-800 shadow-sm ${
-              isThinkingModel 
-                ? 'border-purple-200 dark:border-purple-800'
-                : 'border-blue-100 dark:border-blue-900'
-            }`}
-          >
-            {/* Task header with title and remove button */}
-            <div className="flex justify-between items-start mb-2">
-              <div className="flex-1">
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Title
-                </label>
-                <input
-                  type="text"
-                  value={task.title}
-                  onChange={(e) => handleTaskChange(index, 'title', e.target.value)}
-                  className={`w-full text-md font-medium rounded-md ${
-                    aiMatchedFields[index]?.title
-                      ? isThinkingModel 
-                        ? 'border border-purple-300 dark:border-purple-700' 
-                        : 'border border-blue-300 dark:border-blue-700'
-                      : 'border border-gray-300 dark:border-gray-700'
-                  } shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800`}
-                  placeholder="Task title"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => handleRemoveTask(index)}
-                className="text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
-            </div>
-            
-            {/* Task details - Use rich text editor with reduced height */}
-            <div className="mb-2">
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                Details
-              </label>
-              <DynamicQuillEditor
-                value={task.details || ''}
-                onChange={(value) => handleTaskChange(index, 'details', value)}
-                placeholder="Task details"
-              />
-            </div>
-            
-            {/* Task metadata - All on one line */}
-            <div className="grid grid-cols-3 gap-2">
-              {/* Assignee */}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Assignee
-                </label>
-                <select
-                  value={findBestTechnicianMatch(task.assignee)}
-                  onChange={(e) => {
-                    const techId = e.target.value;
-                    const techName = techId 
-                      ? technicians.find(t => t.id === techId)?.name || null 
-                      : null;
-                    handleTaskChange(index, 'assignee', techName);
-                  }}
-                  className={`w-full rounded-md text-sm ${
-                    aiMatchedFields[index]?.assignee
-                      ? isThinkingModel 
-                        ? 'border border-purple-300 dark:border-purple-700' 
-                        : 'border border-blue-300 dark:border-blue-700'
-                      : 'border border-gray-300 dark:border-gray-700'
-                  } shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800`}
-                >
-                  <option value="">Unassigned</option>
-                  {technicians.map((tech) => (
-                    <option key={tech.id} value={tech.id}>
-                      {tech.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              {/* Category */}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Category
-                </label>
-                <select
-                  value={findBestCategoryMatch(task.category)}
-                  onChange={(e) => {
-                    const categoryId = e.target.value;
-                    const categoryValue = categoryId 
-                      ? categories.find(c => c.id === categoryId)?.value || null 
-                      : null;
-                    handleTaskChange(index, 'category', categoryValue);
-                  }}
-                  className={`w-full rounded-md text-sm ${
-                    aiMatchedFields[index]?.category
-                      ? isThinkingModel 
-                        ? 'border border-purple-300 dark:border-purple-700' 
-                        : 'border border-blue-300 dark:border-blue-700'
-                      : 'border border-gray-300 dark:border-gray-700'
-                  } shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800`}
-                >
-                  <option value="">No Category</option>
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.value}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              {/* Due date */}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Due Date
-                </label>
-                <input
-                  type="date"
-                  value={task.dueDate || ''}
-                  onChange={(e) => handleTaskChange(index, 'dueDate', e.target.value)}
-                  className={`w-full rounded-md text-sm ${
-                    aiMatchedFields[index]?.dueDate
-                      ? isThinkingModel 
-                        ? 'border border-purple-300 dark:border-purple-700' 
-                        : 'border border-blue-300 dark:border-blue-700'
-                      : 'border border-gray-300 dark:border-gray-700'
-                  } shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800`}
-                />
-              </div>
-              
-              {/* Hidden fields to preserve data */}
-              <input type="hidden" value={task.priority || 'Medium'} />
-              <input type="hidden" value={findBestGroupMatch(task.group) || ''} />
-            </div>
-          </div>
+          // Use the memoized TaskReviewCard component here
+          <TaskReviewCard
+            key={`task-${index}`} // Use stable key with index only
+            task={task}
+            index={index}
+            technicians={technicians}
+            groups={groups}
+            categories={categories}
+            aiMatchedFields={aiMatchedFields[index] || {}} // Pass relevant part of aiMatchedFields
+            isThinkingModel={isThinkingModel}
+            handleTaskChange={handleTaskChange}
+            handleRemoveTask={handleRemoveTask}
+            findBestTechnicianMatch={findBestTechnicianMatch}
+            findBestCategoryMatch={findBestCategoryMatch}
+            findBestGroupMatch={findBestGroupMatch}
+            setShowNewGroupForm={setShowNewGroupForm}
+            onCreateGroup={onCreateGroup}
+          />
         ))}
         
         {editedTasks.length === 0 && (

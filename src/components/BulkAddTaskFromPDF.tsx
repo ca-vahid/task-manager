@@ -319,8 +319,7 @@ export function BulkAddTaskFromPDF({
               
               console.log(`Successfully processed ${processedTasks.length} tasks via job queue`);
               setParsedTasks(processedTasks);
-              setProcessingComplete(true);
-              setCountdown(5);
+              setIsProcessing(false);
               jobComplete = true;
             } 
             else if (statusData.status === 'failed') {
@@ -516,23 +515,23 @@ export function BulkAddTaskFromPDF({
     }
   }, [streamedOutput]);
   
-  // Countdown effect after processing completes
+  // Countdown effect after processing completes - only for error cases
   useEffect(() => {
     let timer: NodeJS.Timeout;
     
-    if (processingComplete && countdown > 0 && !isPaused) {
+    if (processingComplete && countdown > 0 && !isPaused && error) {
       timer = setTimeout(() => {
         setCountdown(prevCount => prevCount - 1);
       }, 1000);
-    } else if (processingComplete && countdown === 0) {
-      // Automatically proceed to review when countdown reaches zero
-      setProcessingComplete(false);
+    } else if (processingComplete && countdown === 0 && error) {
+      // Automatically go back to input when countdown reaches zero for errors
+      handleBackToInput();
     }
     
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, [processingComplete, countdown, isPaused]);
+  }, [processingComplete, countdown, isPaused, error]);
   
   // Toggle countdown pause
   const toggleCountdown = () => {
@@ -542,7 +541,7 @@ export function BulkAddTaskFromPDF({
   // Determine which view to show: input, processing, complete, or review
   const showInputView = !parsedTasks && !isProcessing && !processingComplete;
   const showProcessingView = isProcessing;
-  const showProcessingCompleteView = processingComplete && parsedTasks !== null;
+  const showProcessingCompleteView = processingComplete && error !== null;
   const showReviewView = !isProcessing && !processingComplete && parsedTasks !== null;
   
   // Function to toggle the thinking model
@@ -561,11 +560,6 @@ export function BulkAddTaskFromPDF({
       message.style.opacity = '0';
       setTimeout(() => document.body.removeChild(message), 500);
     }, 1500);
-  };
-  
-  // Handler to proceed to review form
-  const handleProceedToReview = () => {
-    setProcessingComplete(false);
   };
   
   // Function to handle the parsing and extraction of tasks from JSON text
@@ -596,8 +590,7 @@ export function BulkAddTaskFromPDF({
           
           console.log(`Successfully processed ${processedTasks.length} optimized tasks`);
           setParsedTasks(processedTasks);
-          setProcessingComplete(true);
-          setCountdown(5);
+          setIsProcessing(false);
           return; // Exit early if we've found optimized tasks
         }
       } catch (e) {
@@ -665,8 +658,7 @@ export function BulkAddTaskFromPDF({
       
       console.log(`Successfully processed ${processedTasks.length} tasks`);
       setParsedTasks(processedTasks);
-      setProcessingComplete(true);
-      setCountdown(5);
+      setIsProcessing(false);
     } else {
       // Try the regex approach as a fallback
       const jsonMatch = inputText.match(/\{[\s\S]*?\}/);
@@ -706,8 +698,7 @@ export function BulkAddTaskFromPDF({
         
         console.log(`Successfully processed ${processedTasks.length} tasks`);
         setParsedTasks(processedTasks);
-        setProcessingComplete(true);
-        setCountdown(5);
+        setIsProcessing(false);
       } else {
         throw new Error('No valid JSON found in the streamed output');
       }
@@ -761,8 +752,7 @@ export function BulkAddTaskFromPDF({
       }));
       
       setParsedTasks(processedTasks);
-      setProcessingComplete(true);
-      setCountdown(5);
+      setIsProcessing(false);
     } catch (secondError: any) {
       console.error('Error in fallback document analysis:', secondError);
       setError(secondError.message || 'An error occurred while analyzing the document');
@@ -1106,10 +1096,10 @@ export function BulkAddTaskFromPDF({
                 </div>
               ))}
             </div>
-            {!error && (
+            {error && (
               <div className="flex items-center justify-between mt-1">
                 <p className="text-xs text-gray-500 dark:text-gray-400 italic">
-                  Proceeding to task review in <span className="font-medium">{countdown}</span> {countdown === 1 ? 'second' : 'seconds'}...
+                  Returning to document upload in <span className="font-medium">{countdown}</span> {countdown === 1 ? 'second' : 'seconds'}...
                 </p>
                 <button
                   type="button"
@@ -1144,7 +1134,10 @@ export function BulkAddTaskFromPDF({
             ) : (
               <button
                 type="button"
-                onClick={handleProceedToReview}
+                onClick={() => {
+                  setProcessingComplete(false); 
+                  setIsProcessing(false);
+                }}
                 className={`px-4 py-2 ${
                   useThinkingModel 
                     ? 'bg-purple-600 hover:bg-purple-700' 

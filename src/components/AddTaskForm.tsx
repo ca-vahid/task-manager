@@ -5,8 +5,8 @@ import { Timestamp } from 'firebase/firestore';
 import { TaskStatus, Technician, Task, Group, Category } from '@/lib/types';
 import Image from 'next/image';
 
-// Import Quill styles - remove this static import
-// import 'react-quill/dist/quill.snow.css';
+// Import Quill styles globally
+import 'quill/dist/quill.snow.css';
 
 // Loading placeholder for the editor
 const EditorFallback = () => (
@@ -23,105 +23,194 @@ interface QuillEditorProps {
 // Export the QuillEditor so it can be imported by other components
 export function QuillEditor({ value, onChange, placeholder }: QuillEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
-  const toolbarRef = useRef<HTMLDivElement>(null);
   const quillRef = useRef<any>(null);
   const [isClient, setIsClient] = useState(false);
   
-  // Check if we're on the client
   useEffect(() => {
     setIsClient(true);
-    
-    // CSS is now imported globally in globals.css
   }, []);
   
-  // Initialize Quill on mount
   useEffect(() => {
     if (!isClient) return;
     
     if (editorRef.current && !quillRef.current) {
-      // Dynamic import to avoid SSR issues
       import('quill').then(({ default: Quill }) => {
-        if (editorRef.current && toolbarRef.current) { // Double-check refs are still valid
-          // Create the editor with a custom toolbar container
+        if (editorRef.current) {
           quillRef.current = new Quill(editorRef.current, {
             theme: 'snow',
             placeholder: placeholder || 'Write something...',
             modules: {
-              toolbar: toolbarRef.current // Use the toolbar container ref
+              toolbar: [
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                ['link', 'clean']
+              ],
             },
             formats: ['bold', 'italic', 'underline', 'strike', 'list', 'link']
           });
           
-          // Set initial content
-          quillRef.current.clipboard.dangerouslyPasteHTML(value || '');
-          
+          // Force LTR on the editor element itself
+          const editorElement = quillRef.current.container.querySelector('.ql-editor');
+          if (editorElement) {
+             editorElement.setAttribute('dir', 'ltr');
+             editorElement.style.textAlign = 'left';
+             editorElement.style.unicodeBidi = 'plaintext';
+          }
+
+          // Set initial content - IMPORTANT: Do this after LTR is set
+          if (value) {
+            console.log('Initializing editor with content:', value.substring(0, 100));
+            quillRef.current.clipboard.dangerouslyPasteHTML(value);
+            
+            // Force a delay to ensure content is set properly
+            setTimeout(() => {
+              const currentContent = quillRef.current.root.innerHTML;
+              console.log('Editor content after initialization:', currentContent.substring(0, 100));
+              
+              // If content didn't take, try again with direct HTML
+              if (!currentContent || currentContent === '<p><br></p>') {
+                console.log('Content not set properly, trying again with direct HTML');
+                quillRef.current.root.innerHTML = value;
+              }
+            }, 50);
+          }
+
           // Handle text change
-          quillRef.current.on('text-change', () => {
-            if (onChange && editorRef.current) {
-              const editorElement = editorRef.current.querySelector('.ql-editor');
-              if (editorElement) {
-                const html = editorElement.innerHTML;
-                onChange(html);
+          quillRef.current.on('text-change', (delta: any, oldDelta: any, source: string) => {
+            if (onChange && quillRef.current) {
+              const html = quillRef.current.root.innerHTML;
+              onChange(html === '<p><br></p>' ? '' : html);
+            }
+          });
+
+          // Focus/blur styling
+          quillRef.current.on('selection-change', (range: any) => {
+            const container = quillRef.current?.container;
+            if (container) {
+              if (range) {
+                container.classList.add('is-focused');
+              } else {
+                container.classList.remove('is-focused');
               }
             }
           });
         }
+      }).catch(error => {
+        console.error("Failed to load Quill:", error);
       });
     }
-    
+
     // Cleanup on unmount
     return () => {
       if (quillRef.current) {
-        // Properly destroy the Quill instance
-        quillRef.current.off('text-change');
-        quillRef.current = null;
+         quillRef.current.off('text-change');
+         quillRef.current.off('selection-change');
       }
     };
   }, [isClient, placeholder, onChange]);
   
-  // Update content when value prop changes
+  // Update content when value prop changes externally
   useEffect(() => {
-    if (!isClient || !quillRef.current) return;
-    
-    const editorElement = editorRef.current?.querySelector('.ql-editor');
-    if (editorElement) {
-      const currentContent = editorElement.innerHTML;
-      if (value !== currentContent) {
-        quillRef.current.clipboard.dangerouslyPasteHTML(value || '');
+    if (isClient && quillRef.current && value) {
+      // Only update content if the editor isn't focused to prevent cursor jumps
+      if (!quillRef.current.hasFocus()) {
+        const currentContent = quillRef.current.root.innerHTML;
+        
+        // Only update if content actually changed
+        if (value !== currentContent) {
+          quillRef.current.clipboard.dangerouslyPasteHTML(value);
+        }
       }
     }
   }, [isClient, value]);
-  
-  // Show loading placeholder until client-side code is ready
-  if (!isClient) {
-    return <EditorFallback />;
-  }
-  
+
+  // Simpler styling
+  const editorStyles = `
+    .quill-container {
+      display: flex;
+      flex-direction: column;
+      border: 1px solid #e5e7eb;
+      border-radius: 0.375rem;
+      overflow: hidden;
+    }
+    .dark .quill-container {
+      border-color: #374151;
+    }
+    .quill-container .ql-toolbar.ql-snow {
+      border: none;
+      border-bottom: 1px solid #e5e7eb;
+      padding: 8px 12px;
+      background-color: #f9fafb;
+    }
+    .dark .quill-container .ql-toolbar.ql-snow {
+      border-bottom-color: #374151;
+      background-color: #1f2937;
+    }
+    .quill-container .ql-container.ql-snow {
+      border: none;
+      height: 200px;
+    }
+    .quill-container .ql-editor {
+      min-height: 150px;
+      direction: ltr !important;
+      text-align: left !important;
+      unicode-bidi: plaintext !important;
+    }
+    .dark .quill-container .ql-editor {
+      color: #e5e7eb;
+    }
+    .dark .quill-container .ql-snow .ql-stroke {
+      stroke: #9ca3af;
+    }
+    .dark .quill-container .ql-snow .ql-fill {
+      fill: #9ca3af;
+    }
+    .dark .quill-container .ql-snow .ql-picker {
+      color: #e5e7eb;
+    }
+    .dark .quill-container .ql-snow.ql-toolbar button:hover,
+    .dark .quill-container .ql-snow .ql-toolbar button:hover,
+    .dark .quill-container .ql-snow.ql-toolbar button.ql-active,
+    .dark .quill-container .ql-snow .ql-toolbar button.ql-active,
+    .dark .quill-container .ql-snow.ql-toolbar .ql-picker-label:hover,
+    .dark .quill-container .ql-snow .ql-toolbar .ql-picker-label:hover,
+    .dark .quill-container .ql-snow.ql-toolbar .ql-picker-label.ql-active,
+    .dark .quill-container .ql-snow .ql-toolbar .ql-picker-label.ql-active,
+    .dark .quill-container .ql-snow.ql-toolbar .ql-picker-item:hover,
+    .dark .quill-container .ql-snow .ql-toolbar .ql-picker-item:hover,
+    .dark .quill-container .ql-snow.ql-toolbar .ql-picker-item.ql-selected,
+    .dark .quill-container .ql-snow .ql-toolbar .ql-picker-item.ql-selected {
+      color: #60a5fa;
+    }
+    .dark .quill-container .ql-snow.ql-toolbar button:hover .ql-stroke,
+    .dark .quill-container .ql-snow .ql-toolbar button:hover .ql-stroke,
+    .dark .quill-container .ql-snow.ql-toolbar button.ql-active .ql-stroke,
+    .dark .quill-container .ql-snow .ql-toolbar button.ql-active .ql-stroke,
+    .dark .quill-container .ql-snow.ql-toolbar .ql-picker-label:hover .ql-stroke,
+    .dark .quill-container .ql-snow .ql-toolbar .ql-picker-label:hover .ql-stroke,
+    .dark .quill-container .ql-snow.ql-toolbar .ql-picker-label.ql-active .ql-stroke,
+    .dark .quill-container .ql-snow .ql-toolbar .ql-picker-label.ql-active .ql-stroke {
+      stroke: #60a5fa;
+    }
+    .dark .quill-container .ql-snow.ql-toolbar button:hover .ql-fill,
+    .dark .quill-container .ql-snow .ql-toolbar button:hover .ql-fill,
+    .dark .quill-container .ql-snow.ql-toolbar button.ql-active .ql-fill,
+    .dark .quill-container .ql-snow .ql-toolbar button.ql-active .ql-fill {
+      fill: #60a5fa;
+    }
+  `;
+
   return (
-    <div className="quill-container">
-      {/* Custom toolbar container */}
-      <div ref={toolbarRef} className="quill-toolbar">
-        <span className="ql-formats">
-          <button className="ql-bold"></button>
-          <button className="ql-italic"></button>
-          <button className="ql-underline"></button>
-          <button className="ql-strike"></button>
-        </span>
-        <span className="ql-formats">
-          <button className="ql-list" value="ordered"></button>
-          <button className="ql-list" value="bullet"></button>
-        </span>
-        <span className="ql-formats">
-          <button className="ql-link"></button>
-          <button className="ql-clean"></button>
-        </span>
+    <>
+      <style>{editorStyles}</style>
+      <div className="quill-container" dir="ltr">
+        <div ref={editorRef} />
       </div>
-      
-      {/* Editor container */}
-      <div ref={editorRef} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-    </div>
+    </>
   );
 }
+
+QuillEditor.displayName = 'QuillEditor';
 
 interface AddTaskFormProps {
   technicians: Technician[];
