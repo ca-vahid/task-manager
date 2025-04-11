@@ -203,44 +203,67 @@ export function TaskGroupView({
     return '';
   };
 
+  // Handle keyboard navigation for left/right arrow keys
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        goToPreviousPage();
+      } else if (e.key === 'ArrowRight') {
+        goToNextPage();
+      }
+    };
+
+    // Add the event listener
+    window.addEventListener('keydown', handleKeyDown);
+    
+    // Remove the event listener on cleanup
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [currentPage]); // Re-add when currentPage changes
+
   return (
     <div className="relative">
-      {/* Pagination controls */}
+      {/* Pagination controls - now fixed to viewport edges */}
       {totalPages > 1 && (
         <>
-          {/* Left arrow */}
+          {/* Left arrow - fixed position */}
           <button 
             onClick={goToPreviousPage}
             disabled={currentPage === 0 || isAnimating}
-            className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-12 p-2 rounded-full 
+            className={`fixed left-4 top-1/2 -translate-y-1/2 p-4 rounded-full bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700
               ${(currentPage === 0 || isAnimating) 
-                ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' 
-                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              } transition-colors z-10`}
+                ? 'opacity-50 cursor-not-allowed' 
+                : 'hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:border-indigo-300 dark:hover:border-indigo-700'
+              } transition-all z-50`}
             aria-label="Previous page"
           >
-            <ChevronLeftIcon className="w-6 h-6" />
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+            </svg>
           </button>
           
-          {/* Right arrow */}
+          {/* Right arrow - fixed position */}
           <button 
             onClick={goToNextPage}
             disabled={currentPage >= totalPages - 1 || isAnimating}
-            className={`absolute right-0 top-1/2 -translate-y-1/2 translate-x-12 p-2 rounded-full
+            className={`fixed right-4 top-1/2 -translate-y-1/2 p-4 rounded-full bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700
               ${(currentPage >= totalPages - 1 || isAnimating) 
-                ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' 
-                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              } transition-colors z-10`}
+                ? 'opacity-50 cursor-not-allowed' 
+                : 'hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:border-indigo-300 dark:hover:border-indigo-700'
+              } transition-all z-50`}
             aria-label="Next page"
           >
-            <ChevronRightIcon className="w-6 h-6" />
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+            </svg>
           </button>
         </>
       )}
       
       {/* Page indicator */}
       {totalPages > 1 && (
-        <div className="flex justify-center mb-4 text-sm text-gray-500 dark:text-gray-400">
+        <div className="flex justify-center mb-4 py-2 text-sm font-medium bg-white dark:bg-gray-800 rounded-full shadow-sm border border-gray-200 dark:border-gray-700 px-3 mx-auto w-fit">
           Page {currentPage + 1} of {totalPages}
         </div>
       )}

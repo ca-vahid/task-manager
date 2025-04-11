@@ -257,16 +257,35 @@ export function ControlGroupView(props: ControlGroupViewProps) {
     }
   }, [currentPage]);
 
+  // Handle keyboard navigation for left/right arrow keys
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        goToPrevPage();
+      } else if (e.key === 'ArrowRight') {
+        goToNextPage();
+      }
+    };
+
+    // Add the event listener
+    window.addEventListener('keydown', handleKeyDown);
+    
+    // Remove the event listener on cleanup
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [currentPage]); // Re-add when currentPage changes
+
   // Render layout
   return (
     <div className="relative px-16">
-      {/* Pagination UI */}
+      {/* Pagination UI - Fixed position */}
       {hasMultiplePages && (
         <>
           <button 
             onClick={goToPrevPage}
             disabled={currentPage === 0}
-            className={`absolute -left-16 top-1/2 -translate-y-1/2 z-20 bg-indigo-600 hover:bg-indigo-700 rounded-full p-3 shadow-lg transition-all ${
+            className={`fixed left-4 top-1/2 -translate-y-1/2 z-50 bg-indigo-600 hover:bg-indigo-700 rounded-full p-4 shadow-lg transition-all ${
               currentPage === 0 ? 'opacity-40 cursor-not-allowed' : 'hover:scale-110'
             }`}
             aria-label="Previous page"
@@ -279,7 +298,7 @@ export function ControlGroupView(props: ControlGroupViewProps) {
           <button 
             onClick={goToNextPage}
             disabled={currentPage === totalPages - 1}
-            className={`absolute -right-16 top-1/2 -translate-y-1/2 z-20 bg-indigo-600 hover:bg-indigo-700 rounded-full p-3 shadow-lg transition-all ${
+            className={`fixed right-4 top-1/2 -translate-y-1/2 z-50 bg-indigo-600 hover:bg-indigo-700 rounded-full p-4 shadow-lg transition-all ${
               currentPage === totalPages - 1 ? 'opacity-40 cursor-not-allowed' : 'hover:scale-110'
             }`}
             aria-label="Next page"
