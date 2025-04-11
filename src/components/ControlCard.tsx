@@ -92,7 +92,7 @@ function getCompanyStyles(company: Company): { bgColor: string; textColor: strin
   switch (company) {
     case Company.BGC: return { bgColor: 'bg-blue-50', textColor: 'text-blue-700', borderColor: 'border-blue-200', darkBgColor: 'dark:bg-blue-900/50', darkTextColor: 'dark:text-blue-300', darkBorderColor: 'dark:border-blue-700' };
     case Company.Cambio: return { bgColor: 'bg-emerald-50', textColor: 'text-emerald-700', borderColor: 'border-emerald-200', darkBgColor: 'dark:bg-emerald-900/50', darkTextColor: 'dark:text-emerald-300', darkBorderColor: 'dark:border-emerald-700' };
-    case Company.Both: return { bgColor: 'bg-purple-50', textColor: 'text-purple-700', borderColor: 'border-purple-200', darkBgColor: 'dark:bg-cyan-900/50', darkTextColor: 'dark:text-cyan-300', darkBorderColor: 'dark:border-cyan-700' };
+    case Company.None: return { bgColor: 'bg-purple-50', textColor: 'text-purple-700', borderColor: 'border-purple-200', darkBgColor: 'dark:bg-cyan-900/50', darkTextColor: 'dark:text-cyan-300', darkBorderColor: 'dark:border-cyan-700' };
     default: return { bgColor: 'bg-gray-50', textColor: 'text-gray-700', borderColor: 'border-gray-200', darkBgColor: 'dark:bg-gray-800/50', darkTextColor: 'dark:text-gray-400', darkBorderColor: 'dark:border-gray-600' };
   }
 }
@@ -112,7 +112,7 @@ export function ControlCard({ control, technicians, onUpdateControl, onDeleteCon
   const [isEditingUrl, setIsEditingUrl] = useState(false);
   const [urlDraft, setUrlDraft] = useState(control.externalUrl || '');
   const [isEditingCompany, setIsEditingCompany] = useState(false);
-  const [companyDraft, setCompanyDraft] = useState<Company>(control.company || Company.Both);
+  const [companyDraft, setCompanyDraft] = useState<Company>(control.company || Company.None);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const [showExplanationDialog, setShowExplanationDialog] = useState(false);
   const [showUrlDialog, setShowUrlDialog] = useState(false);
@@ -143,9 +143,9 @@ export function ControlCard({ control, technicians, onUpdateControl, onDeleteCon
   const detailsRef = React.useRef<HTMLDetailsElement>(null);
 
   // Derived State & Styles
-  const timeRemaining = getTimeRemaining(control.estimatedCompletionDate, control.status);
+  const timeRemaining = getTimeRemaining(control.estimatedCompletionDate || null, control.status);
   const statusStyles = getStatusStyles(control.status);
-  const currentCompany = control.company || Company.Both;
+  const currentCompany = control.company || Company.None;
   const companyStyles = getCompanyStyles(currentCompany);
   const assigneeName = control.assigneeId ? technicians.find(tech => tech.id === control.assigneeId)?.name || 'Unknown' : 'Unassigned';
   const isHighPriority = control.priorityLevel === PriorityLevel.High || control.priorityLevel === PriorityLevel.Critical;
@@ -159,7 +159,7 @@ export function ControlCard({ control, technicians, onUpdateControl, onDeleteCon
     setDcfIdDraft(control.dcfId);
     setExplanationDraft(control.explanation);
     setUrlDraft(control.externalUrl || '');
-    setCompanyDraft(control.company || Company.Both);
+    setCompanyDraft(control.company || Company.None);
   }, [control]);
 
   useEffect(() => { /* Close menu on outside click */
@@ -738,7 +738,7 @@ please tell me what evidence do i need to provide to satisfy this control.`
           </>
         )}
         
-        {currentCompany === Company.Both && (
+        {currentCompany === Company.None && (
           <>
             <div className={`${sizeClass} relative overflow-hidden flex items-center justify-center`}>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -751,7 +751,7 @@ please tell me what evidence do i need to provide to satisfy this control.`
                 </div>
               </div>
             </div> 
-            {!isCompact && <span>Both</span>}
+            {!isCompact && <span>All Companies</span>}
           </>
         )}
       </div>
@@ -898,7 +898,7 @@ please tell me what evidence do i need to provide to satisfy this control.`
         // Use slightly stronger base colors for non-selected states
         case Company.BGC: return currentCompany === Company.BGC ? 'bg-blue-100 dark:bg-blue-800/60' : 'bg-blue-100/80 dark:bg-blue-900/50';
         case Company.Cambio: return currentCompany === Company.Cambio ? 'bg-emerald-100 dark:bg-emerald-800/60' : 'bg-emerald-100/80 dark:bg-emerald-900/50';
-        case Company.Both: return currentCompany === Company.Both ? 'bg-purple-100 dark:bg-cyan-800/60' : 'bg-purple-100/80 dark:bg-cyan-900/50';
+        case Company.None: return currentCompany === Company.None ? 'bg-purple-100 dark:bg-cyan-800/60' : 'bg-purple-100/80 dark:bg-cyan-900/50';
         default: return 'bg-white dark:bg-gray-700';
       }
     };
@@ -919,7 +919,7 @@ please tell me what evidence do i need to provide to satisfy this control.`
             {currentCompany === Company.Cambio && (
               <Image src="/logos/cambio-logo.png" alt="Cambio Logo" width={32} height={28} className="object-contain" />
             )}
-            {currentCompany === Company.Both && (
+            {currentCompany === Company.None && (
               <div className="flex flex-col items-center justify-center w-full h-full">
                 <div className="w-12 h-2.5 flex items-center justify-center">
                   <Image src="/logos/bgc-logo.png" alt="BGC Logo" width={28} height={14} className="object-contain" />
@@ -961,10 +961,10 @@ please tell me what evidence do i need to provide to satisfy this control.`
             </button>
             <button
               type="button"
-              onClick={() => { handleSaveCompany(Company.Both); setCompanyDropdownOpen(false); }}
-              className={`flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${currentCompany === Company.Both ? 'bg-purple-50 dark:bg-cyan-900/20 text-purple-700 dark:text-cyan-300' : 'text-gray-700 dark:text-gray-300'}`}
+              onClick={() => { handleSaveCompany(Company.None); setCompanyDropdownOpen(false); }}
+              className={`flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${currentCompany === Company.None ? 'bg-purple-50 dark:bg-cyan-900/20 text-purple-700 dark:text-cyan-300' : 'text-gray-700 dark:text-gray-300'}`}
             >
-              <div className={`relative rounded-full w-12 h-6 flex items-center justify-center overflow-hidden ${getCompanyBgColor(Company.Both)} border border-gray-300 dark:border-gray-600`}>
+              <div className={`relative rounded-full w-12 h-6 flex items-center justify-center overflow-hidden ${getCompanyBgColor(Company.None)} border border-gray-300 dark:border-gray-600`}>
                 <div className="flex flex-col items-center justify-center w-full h-full">
                   <div className="w-10 h-2 flex items-center justify-center">
                     <Image src="/logos/bgc-logo.png" alt="BGC Logo" width={20} height={10} className="object-contain" />
@@ -975,7 +975,7 @@ please tell me what evidence do i need to provide to satisfy this control.`
                   </div>
                 </div>
               </div>
-              <span>Both</span>
+              <span>All Companies</span>
             </button>
           </div>
         )}
@@ -1324,7 +1324,7 @@ please tell me what evidence do i need to provide to satisfy this control.`
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                   <span className="text-xs font-medium">
-                    {formatDateForInput(control.estimatedCompletionDate).replace(/(\d{4})-(\d{2})-(\d{2})/, '$2/$3/$1') || 'Set Date'}
+                    {formatDateForInput(control.estimatedCompletionDate || null).replace(/(\d{4})-(\d{2})-(\d{2})/, '$2/$3/$1') || 'Set Date'}
                   </span>
             </div>
               </div>
@@ -1363,7 +1363,7 @@ please tell me what evidence do i need to provide to satisfy this control.`
                   <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Change Due Date</h3>
                   <input 
                       type="date" 
-                      value={formatDateForInput(control.estimatedCompletionDate)} 
+                      value={formatDateForInput(control.estimatedCompletionDate || null)} 
                       onChange={(e) => { 
                           const value = e.target.value || null;
                           handleFieldUpdate('estimatedCompletionDate', value); 
