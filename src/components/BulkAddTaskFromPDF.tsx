@@ -37,6 +37,9 @@ export function BulkAddTaskFromPDF({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const streamOutputRef = useRef<HTMLDivElement>(null);
   
+  // Add a ref for the progress interval:
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
   // Function to handle file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -104,7 +107,8 @@ export function BulkAddTaskFromPDF({
       formData.append('useThinkingModel', useThinkingModel.toString());
       
       // Set streaming flag for live updates during processing
-      formData.append('streamOutput', 'true');
+      const useStreamingMode = !useThinkingModel; // Use job queue for thinking model, streaming for standard
+      formData.append('streamOutput', useStreamingMode.toString());
       
       // Simulate upload progress
       const progressInterval = setInterval(() => {
@@ -116,153 +120,116 @@ export function BulkAddTaskFromPDF({
         });
       }, 300);
       
-      // Send the file to the API for streaming analysis
-      const response = await fetch('/api/gemini/extract-tasks-from-pdf', {
-        method: 'POST',
-        body: formData,
-      });
+      // Store the interval reference for cleanup
+      progressIntervalRef.current = progressInterval;
       
-      clearInterval(progressInterval);
-      setUploadProgress(100);
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to analyze document');
-      }
-      
-      // Handle streaming response
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('Failed to get response stream');
-      }
-      
-      // Read the stream
-      let receivedText = '';
-      
-      // Create a function to read and process chunks
-      const processStream = async () => {
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            
-            const chunk = new TextDecoder().decode(value);
-            receivedText += chunk;
-            
-            // Update the UI with each received chunk
-            setStreamedOutput(prevText => prevText + chunk);
-            
-            // Force a small delay to ensure React updates the UI
-            await new Promise(resolve => setTimeout(resolve, 10));
-          }
-          return receivedText;
-        } catch (error) {
-          console.error('Error reading stream:', error);
-          throw error;
+      if (useStreamingMode) {
+        // ------------------------------------
+        // Streaming approach (original code)
+        // ------------------------------------
+        // Send the file to the API for streaming analysis
+        const response = await fetch('/api/gemini/extract-tasks-from-pdf', {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (progressIntervalRef.current) {
+          clearInterval(progressIntervalRef.current);
+          progressIntervalRef.current = null;
         }
-      };
-      
-      const completeText = await processStream();
-      
-      // After streaming completes, try to parse the accumulated JSON
-      try {
-        // Try to extract the JSON object from the text
-        let jsonText = completeText;
+        setUploadProgress(100);
         
-        // First, let's extract just the JSON part
-        // Look for the first opening brace that starts a complete JSON object
-        const jsonStartIndex = jsonText.indexOf('{');
-        let jsonEndIndex = -1;
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to analyze document');
+        }
         
-        if (jsonStartIndex >= 0) {
-          // We found a potential JSON object, now find the matching closing brace
-          let openBraces = 0;
-          for (let i = jsonStartIndex; i < jsonText.length; i++) {
-            if (jsonText[i] === '{') openBraces++;
-            else if (jsonText[i] === '}') {
-              openBraces--;
-              if (openBraces === 0) {
-                jsonEndIndex = i + 1; // Include the closing brace
-                break;
+        // Handle streaming response
+        const reader = response.body?.getReader();
+        if (!reader) {
+          throw new Error('Failed to get response stream');
+        }
+        
+        // Read the stream
+        let receivedText = '';
+        
+        // Create a function to read and process chunks
+        const processStream = async () => {
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              
+              const chunk = new TextDecoder().decode(value);
+              receivedText += chunk;
+              
+              // Update the UI with each received chunk
+              setStreamedOutput(prevText => prevText + chunk);
+              
+              // Force a small delay to ensure React updates the UI
+              await new Promise(resolve => setTimeout(resolve, 10));
+            }
+            return receivedText;
+          } catch (error) {
+            console.error('Error reading stream:', error);
+            throw error;
+          }
+        };
+        
+        const completeText = await processStream();
+        
+        // After streaming completes, try to parse the accumulated JSON
+        try {
+          // Try to extract the JSON object from the text
+          let jsonText = completeText;
+          
+          // First, let's extract just the JSON part
+          // Look for the first opening brace that starts a complete JSON object
+          const jsonStartIndex = jsonText.indexOf('{');
+          let jsonEndIndex = -1;
+          
+          if (jsonStartIndex >= 0) {
+            // We found a potential JSON object, now find the matching closing brace
+            let openBraces = 0;
+            for (let i = jsonStartIndex; i < jsonText.length; i++) {
+              if (jsonText[i] === '{') openBraces++;
+              else if (jsonText[i] === '}') {
+                openBraces--;
+                if (openBraces === 0) {
+                  jsonEndIndex = i + 1; // Include the closing brace
+                  break;
+                }
               }
             }
           }
-        }
-        
-        // If we found a complete JSON object, extract just that part
-        if (jsonStartIndex >= 0 && jsonEndIndex > jsonStartIndex) {
-          jsonText = jsonText.substring(jsonStartIndex, jsonEndIndex);
-        } else {
-          // Try the regex approach as a fallback
-          const jsonMatch = jsonText.match(/\{[\s\S]*?\}/);
-          if (jsonMatch) {
-            jsonText = jsonMatch[0];
-          }
-        }
-        
-        console.log("Extracted JSON text:", jsonText.substring(0, 100) + "...");
-        
-        // Now parse the cleaned JSON
-        const parsedData = JSON.parse(jsonText);
-        
-        // Process tasks based on structure
-        let extractedTasks = [];
-        if (parsedData && parsedData.tasks && Array.isArray(parsedData.tasks)) {
-          extractedTasks = parsedData.tasks;
-        } else if (Array.isArray(parsedData)) {
-          extractedTasks = parsedData;
-        } else {
-          extractedTasks = [parsedData]; // Fallback to treating the whole object as a single task
-        }
-        
-        if (extractedTasks.length === 0) {
-          throw new Error('No tasks could be extracted from the document');
-        }
-        
-        // Process and validate tasks
-        const processedTasks = extractedTasks.map((task: any) => ({
-          title: task.title || 'Untitled Task',
-          details: task.details || '',
-          assignee: task.assignee || null,
-          group: task.group || null,
-          category: task.category || null,
-          dueDate: task.dueDate || null,
-          priority: task.priority || 'Medium',
-          ticketNumber: task.ticketNumber || null,
-          externalUrl: task.externalUrl || null
-        }));
-        
-        console.log(`Successfully processed ${processedTasks.length} tasks`);
-        setParsedTasks(processedTasks);
-        setProcessingComplete(true);
-        setCountdown(5);
-      } 
-      catch (error) {
-        console.error('Failed to parse streaming output as JSON, making direct request', error);
-        
-        try {
-          // Create new FormData without streaming flag
-          const formDataDirect = new FormData();
-          formDataDirect.append('file', selectedFile);
-          formDataDirect.append('technicians', JSON.stringify(technicians.map(tech => ({ id: tech.id, name: tech.name }))));
-          formDataDirect.append('groups', JSON.stringify(groups.map(group => ({ id: group.id, name: group.name }))));
-          formDataDirect.append('categories', JSON.stringify(categories.map(cat => ({ id: cat.id, value: cat.value }))));
-          formDataDirect.append('useThinkingModel', useThinkingModel.toString());
           
-          // Make direct request
-          const directResponse = await fetch('/api/gemini/extract-tasks-from-pdf', {
-            method: 'POST',
-            body: formDataDirect,
-          });
-          
-          if (!directResponse.ok) {
-            const errorData = await directResponse.json();
-            throw new Error(errorData.error || errorData.message || 'Failed to analyze document');
+          // If we found a complete JSON object, extract just that part
+          if (jsonStartIndex >= 0 && jsonEndIndex > jsonStartIndex) {
+            jsonText = jsonText.substring(jsonStartIndex, jsonEndIndex);
+          } else {
+            // Try the regex approach as a fallback
+            const jsonMatch = jsonText.match(/\{[\s\S]*?\}/);
+            if (jsonMatch) {
+              jsonText = jsonMatch[0];
+            }
           }
           
-          let extractedTasks = await directResponse.json();
+          console.log("Extracted JSON text:", jsonText.substring(0, 100) + "...");
           
-          if (!extractedTasks || extractedTasks.length === 0) {
+          // Now parse the cleaned JSON
+          const parsedData = JSON.parse(jsonText);
+          
+          // Process tasks based on structure
+          let extractedTasks = [];
+          if (parsedData && parsedData.tasks && Array.isArray(parsedData.tasks)) {
+            extractedTasks = parsedData.tasks;
+          } else if (Array.isArray(parsedData)) {
+            extractedTasks = parsedData;
+          } else {
+            extractedTasks = [parsedData]; // Fallback to treating the whole object as a single task
+          }
+          
+          if (extractedTasks.length === 0) {
             throw new Error('No tasks could be extracted from the document');
           }
           
@@ -279,34 +246,217 @@ export function BulkAddTaskFromPDF({
             externalUrl: task.externalUrl || null
           }));
           
+          console.log(`Successfully processed ${processedTasks.length} tasks`);
           setParsedTasks(processedTasks);
           setProcessingComplete(true);
           setCountdown(5);
-        } catch (secondError: any) {
-          console.error('Error in fallback document analysis:', secondError);
-          setError(secondError.message || 'An error occurred while analyzing the document');
-          // Don't set processing to false yet to avoid going back to input mode
-          setIsProcessing(false);
-          // Show a more user-friendly error that stays on screen
-          if (streamedOutput) {
-            setStreamedOutput(prevOutput => 
-              prevOutput + 
-              "\n\n❌ ERROR: Failed to extract tasks from the document. Please try again or use a different file."
-            );
-            // Keep in processing complete state but with error
-            setProcessingComplete(true); 
-            setCountdown(10); // Give more time to see the error
+        } 
+        catch (error) {
+          console.error('Failed to parse streaming output as JSON, making direct request', error);
+          
+          try {
+            // Create new FormData without streaming flag
+            const formDataDirect = new FormData();
+            formDataDirect.append('file', selectedFile);
+            formDataDirect.append('technicians', JSON.stringify(technicians.map(tech => ({ id: tech.id, name: tech.name }))));
+            formDataDirect.append('groups', JSON.stringify(groups.map(group => ({ id: group.id, name: group.name }))));
+            formDataDirect.append('categories', JSON.stringify(categories.map(cat => ({ id: cat.id, value: cat.value }))));
+            formDataDirect.append('useThinkingModel', useThinkingModel.toString());
+            
+            // Make direct request
+            const directResponse = await fetch('/api/gemini/extract-tasks-from-pdf', {
+              method: 'POST',
+              body: formDataDirect,
+            });
+            
+            if (!directResponse.ok) {
+              const errorData = await directResponse.json();
+              throw new Error(errorData.error || errorData.message || 'Failed to analyze document');
+            }
+            
+            let extractedTasks = await directResponse.json();
+            
+            if (!extractedTasks || extractedTasks.length === 0) {
+              throw new Error('No tasks could be extracted from the document');
+            }
+            
+            // Process and validate tasks
+            const processedTasks = extractedTasks.map((task: any) => ({
+              title: task.title || 'Untitled Task',
+              details: task.details || '',
+              assignee: task.assignee || null,
+              group: task.group || null,
+              category: task.category || null,
+              dueDate: task.dueDate || null,
+              priority: task.priority || 'Medium',
+              ticketNumber: task.ticketNumber || null,
+              externalUrl: task.externalUrl || null
+            }));
+            
+            setParsedTasks(processedTasks);
+            setProcessingComplete(true);
+            setCountdown(5);
+          } catch (secondError: any) {
+            console.error('Error in fallback document analysis:', secondError);
+            setError(secondError.message || 'An error occurred while analyzing the document');
+            // Don't set processing to false yet to avoid going back to input mode
+            setIsProcessing(false);
+            // Show a more user-friendly error that stays on screen
+            if (streamedOutput) {
+              setStreamedOutput(prevOutput => 
+                prevOutput + 
+                "\n\n❌ ERROR: Failed to extract tasks from the document. Please try again or use a different file."
+              );
+              // Keep in processing complete state but with error
+              setProcessingComplete(true); 
+              setCountdown(10); // Give more time to see the error
+            }
           }
+        }
+      } else {
+        // ------------------------------------
+        // New two-step queued job approach
+        // ------------------------------------
+        try {
+          // Step 1: Submit the job
+          setStreamedOutput('Starting document analysis...\n');
+          
+          const response = await fetch('/api/gemini/extract-tasks-from-pdf', {
+            method: 'POST',
+            body: formData,
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || errorData.message || 'Failed to start analysis job');
+          }
+          
+          // Get the job ID from the response
+          const jobData = await response.json();
+          const jobId = jobData.jobId;
+          
+          if (!jobId) {
+            throw new Error('No job ID returned from server');
+          }
+          
+          setStreamedOutput(prev => prev + `\nJob started with ID: ${jobId}\nWaiting for results...\n`);
+          
+          // Step 2: Poll for job completion
+          let pollCount = 0;
+          let jobComplete = false;
+          const MAX_POLLS = 60; // 2 minutes with 2-second intervals
+          const POLL_INTERVAL = 2000; // 2 seconds
+          
+          while (!jobComplete && pollCount < MAX_POLLS) {
+            // Wait for the polling interval
+            await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL));
+            pollCount++;
+            
+            // Update progress for visual feedback
+            setUploadProgress(90 + (pollCount / MAX_POLLS) * 10); // Max 100%
+            
+            // Poll the job status
+            const statusResponse = await fetch(`/api/gemini/extract-tasks-from-pdf?action=status&jobId=${jobId}`, {
+              method: 'POST',
+            });
+            
+            if (!statusResponse.ok) {
+              // If we get a 404, the job might have been cleaned up
+              if (statusResponse.status === 404) {
+                throw new Error('Job not found. It may have expired.');
+              }
+              
+              const errorData = await statusResponse.json();
+              throw new Error(errorData.error || 'Failed to check job status');
+            }
+            
+            const statusData = await statusResponse.json();
+            
+            // Update UI with status
+            if (statusData.status !== 'pending') {
+              setStreamedOutput(prev => 
+                prev + `\nJob status: ${statusData.status} (Poll ${pollCount})\n`
+              );
+            } else if (pollCount % 5 === 0) {
+              // Only show pending status occasionally to avoid flooding
+              setStreamedOutput(prev => 
+                prev + `.` // Just add a dot to show progress
+              );
+            }
+            
+            // Check if job is complete or failed
+            if (statusData.status === 'completed') {
+              if (progressIntervalRef.current) {
+                clearInterval(progressIntervalRef.current);
+                progressIntervalRef.current = null;
+              }
+              setUploadProgress(100);
+              
+              // Process the results
+              const extractedTasks = statusData.result;
+              
+              if (!extractedTasks || extractedTasks.length === 0) {
+                throw new Error('No tasks could be extracted from the document');
+              }
+              
+              setStreamedOutput(prev => 
+                prev + `\n✅ Analysis complete! Found ${extractedTasks.length} tasks.\n`
+              );
+              
+              // Process and validate tasks
+              const processedTasks = extractedTasks.map((task: any) => ({
+                title: task.title || 'Untitled Task',
+                details: task.details || '',
+                assignee: task.assignee || null,
+                group: task.group || null,
+                category: task.category || null,
+                dueDate: task.dueDate || null,
+                priority: task.priority || 'Medium',
+                ticketNumber: task.ticketNumber || null,
+                externalUrl: task.externalUrl || null
+              }));
+              
+              console.log(`Successfully processed ${processedTasks.length} tasks via job queue`);
+              setParsedTasks(processedTasks);
+              setProcessingComplete(true);
+              setCountdown(5);
+              jobComplete = true;
+            } 
+            else if (statusData.status === 'failed') {
+              throw new Error(`Job failed: ${statusData.error || 'Unknown error'}`);
+            }
+          }
+          
+          // If we reached the maximum polls but the job isn't complete
+          if (!jobComplete) {
+            throw new Error('Job processing timed out. Please try again or use a smaller document.');
+          }
+        } catch (error: any) {
+          // No need to clear the interval here, it will be cleared in the outer catch block
+          console.error('Error in job processing:', error);
+          setError(error.message || 'An error occurred while analyzing the document');
+          setIsProcessing(false);
+          
+          // Show a more user-friendly error that stays on screen
+          setStreamedOutput(prevOutput => 
+            prevOutput + 
+            `\n\n❌ ERROR: ${error.message || 'Failed to extract tasks from the document. Please try again or use a different file.'}`
+          );
+          // Keep in processing complete state but with error
+          setProcessingComplete(true); 
+          setCountdown(10); // Give more time to see the error
         }
       }
     } 
     catch (err: any) {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
       console.error('Error analyzing document:', err);
       setError(err.message || 'An error occurred while analyzing the document');
-    } 
-    finally {
       setIsProcessing(false);
-    }
+    } 
   };
   
   // Function to handle final submission of tasks
