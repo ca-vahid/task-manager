@@ -81,6 +81,7 @@ export function BulkAddTaskForm({
       estimatedCompletionDate: dateTimestamp,
       order: currentOrderCount + index,
       priorityLevel: null,
+      categoryId: null,
       tags: [],
       progress: 0,
       lastUpdated: Timestamp.now(),

@@ -891,6 +891,112 @@ export function TaskCard({
     }
   };
 
+  // Add a new state variable for editing the due date
+  const [isEditingDueDate, setIsEditingDueDate] = useState(false);
+  const [editedDueDate, setEditedDueDate] = useState('');
+
+  // Add a handler for toggling due date edit mode
+  const handleDueDateClick = () => {
+    setEditedDueDate(formatDateForInput(task.estimatedCompletionDate));
+    setIsEditingDueDate(true);
+  };
+
+  // Add a handler for saving the edited due date
+  const handleSaveDueDate = async (newDate: string) => {
+    try {
+      let dateTimestamp = null;
+      if (newDate) {
+        const date = new Date(newDate);
+        dateTimestamp = Timestamp.fromDate(date);
+      }
+      
+      await onUpdateTask(task.id, { estimatedCompletionDate: dateTimestamp });
+      setIsEditingDueDate(false);
+    } catch (error: any) {
+      setUpdateError(`Failed to update due date: ${error.message || 'Unknown error'}`);
+    }
+  };
+
+  // Create a time remaining element for reuse
+  const timeRemainingElement = task.estimatedCompletionDate && (
+    <div className={`flex items-center gap-1 ${timeRemaining.urgent ? 'text-amber-600 dark:text-amber-400' : timeRemaining.overdue ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'}`}>
+      <ClockIcon className="w-3.5 h-3.5" />
+      <span className="text-xs font-medium">{timeRemaining.text}</span>
+    </div>
+  );
+
+  // Due date component that is editable when clicked
+  const dueDateElement = isEditingDueDate ? (
+    <div className="flex items-center gap-1">
+      <input
+        type="date"
+        value={editedDueDate}
+        onChange={(e) => setEditedDueDate(e.target.value)}
+        onBlur={() => handleSaveDueDate(editedDueDate)}
+        autoFocus
+        className="text-xs py-0.5 px-1 w-28 border border-blue-300 dark:border-blue-700 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            handleSaveDueDate(editedDueDate);
+          } else if (e.key === 'Escape') {
+            setIsEditingDueDate(false);
+          }
+        }}
+      />
+      <button 
+        onClick={() => handleSaveDueDate(editedDueDate)}
+        className="text-xs text-blue-600 dark:text-blue-400"
+        title="Save"
+      >
+        <CheckIcon className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  ) : (
+    <div 
+      onClick={handleDueDateClick}
+      className={`flex items-center gap-1 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 py-0.5 ${
+        timeRemaining.urgent ? 'text-amber-600 dark:text-amber-400' : 
+        timeRemaining.overdue ? 'text-red-600 dark:text-red-400' : 
+        'text-gray-600 dark:text-gray-400'
+      }`}
+      title="Click to edit due date"
+    >
+      <ClockIcon className="w-3.5 h-3.5" />
+      <span className="text-xs font-medium">
+        {task.estimatedCompletionDate ? 
+          formatDateForInput(task.estimatedCompletionDate) : 
+          'Set date'
+        }
+      </span>
+    </div>
+  );
+
+  // Replace the headerRightSection and timeRemainingElement with updated versions that include editable due date
+  const headerRightSection = (
+    <div className="flex items-center justify-end gap-2">
+      {dueDateElement}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setShowDescription(!showDescription);
+        }}
+        className="text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center"
+      >
+        {showDescription ? (
+          <>
+            Hide Details
+            <ChevronUpIcon className="w-3.5 h-3.5 ml-1" />
+          </>
+        ) : (
+          <>
+            Show Details
+            <ChevronDownIcon className="w-3.5 h-3.5 ml-1" />
+          </>
+        )}
+      </button>
+    </div>
+  );
+
   return (
     <>
       <style>{animationStyles}</style>
@@ -899,9 +1005,33 @@ export function TaskCard({
       ${isRemoving ? 'opacity-0 transform scale-95 -translate-x-4' : 'opacity-100 transform scale-100 translate-x-0'}`}>
         {/* Header with title and action buttons */}
         <div className="flex justify-between items-start mb-2">
-          <h3 className="font-semibold text-gray-900 dark:text-gray-50 text-lg pr-2">
-            {task.title}
-          </h3>
+          <div className="flex-1">
+            <h3 className="font-semibold text-gray-900 dark:text-gray-50 text-lg pr-2">
+              {task.title}
+            </h3>
+            <div className="flex items-center mt-1 gap-2">
+              {dueDateElement}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowDescription(!showDescription);
+                }}
+                className="text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center"
+              >
+                {showDescription ? (
+                  <>
+                    Hide Details
+                    <ChevronUpIcon className="w-3.5 h-3.5 ml-1" />
+                  </>
+                ) : (
+                  <>
+                    Show Details
+                    <ChevronDownIcon className="w-3.5 h-3.5 ml-1" />
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
           
           <div className="flex items-center gap-2">
             {/* Selection checkbox */}
@@ -1173,18 +1303,6 @@ export function TaskCard({
           )}
         </div>
 
-        {/* Description toggle button and due date */}
-        <div className="flex flex-wrap items-center gap-3 mb-3">
-          {/* Due date - moved next to where description button was */}
-          <div className={`text-sm py-1 px-2 rounded-md flex items-center ${timeRemaining.overdue ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300' : timeRemaining.urgent ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-300' : 'bg-gray-50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-300'}`}>
-            <ClockIcon className="h-3.5 w-3.5 mr-1.5 text-current" />
-            {task.estimatedCompletionDate ? 
-              formatDateForInput(task.estimatedCompletionDate) :
-              'No date set'
-            }
-          </div>
-        </div>
-            
         {/* Collapsible description */}
         {showDescription && task.explanation && (
           <>
