@@ -30,6 +30,7 @@ import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import { useUndo, UndoableActionType } from '@/lib/contexts/UndoContext';
 import { useTheme } from '@/lib/contexts/ThemeContext';
+import { CompactView } from './CompactView';
 
 interface TaskListProps {
   initialTasks?: Task[];
@@ -900,6 +901,18 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
             selectedTaskIds={selectedTaskIds}
             onTaskSelection={handleTaskSelection}
             getGroupName={getGroupName}
+          />
+        ) : viewMode === 'compact' ? (
+          <CompactView
+            tasks={filteredTasks}
+            technicians={technicians}
+            groups={groups}
+            categories={categories}
+            onUpdateTask={handleUpdateTask}
+            onDeleteTask={handleDeleteTask}
+            viewDensity={viewDensity}
+            selectedTaskIds={selectedTaskIds}
+            onTaskSelection={handleTaskSelection}
           />
         ) : (
           <DndContext
