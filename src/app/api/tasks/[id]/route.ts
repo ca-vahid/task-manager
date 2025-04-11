@@ -3,9 +3,16 @@ import { db } from '@/lib/firebase/firebase';
 import { doc, getDoc, deleteDoc } from 'firebase/firestore';
 
 // GET /api/tasks/[id] - Get a task by ID
-export async function GET(request: NextRequest, context: { params: { id: string } }) {
+export async function GET(request: NextRequest) {
   try {
-    const taskId = context.params.id;
+    const taskId = request.url.split('/').pop();
+    
+    if (!taskId) {
+      return NextResponse.json(
+        { error: 'Missing task ID', message: 'Task ID is required' },
+        { status: 400 }
+      );
+    }
     
     // Get the task document
     const taskRef = doc(db, 'tasks', taskId);
@@ -33,9 +40,16 @@ export async function GET(request: NextRequest, context: { params: { id: string 
 }
 
 // DELETE /api/tasks/[id] - Delete a task by ID
-export async function DELETE(request: NextRequest, context: { params: { id: string } }) {
+export async function DELETE(request: NextRequest) {
   try {
-    const taskId = context.params.id;
+    const taskId = request.url.split('/').pop();
+    
+    if (!taskId) {
+      return NextResponse.json(
+        { error: 'Missing task ID', message: 'Task ID is required' },
+        { status: 400 }
+      );
+    }
     
     // Check if the task exists
     const taskRef = doc(db, 'tasks', taskId);

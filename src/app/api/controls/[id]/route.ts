@@ -10,16 +10,11 @@ import { Timestamp } from 'firebase/firestore'; // Import Timestamp
 
 const CONTROLS_COLLECTION = 'controls';
 
-// Define the route params interface (consistent with other route files)
-interface RouteParams {
-  params: {
-    id: string;
-  };
-}
-
 // PUT /api/controls/[id] - Update a control
-export async function PUT(request: Request, context: { params: { id: string } }) {
-  const { id } = context.params;
+export async function PUT(
+  request: Request
+) {
+  const id = request.url.split('/').pop();
   try {
     const body = await request.json();
     // Destructure all possible fields from Control, allowing partial updates
@@ -89,8 +84,10 @@ export async function PUT(request: Request, context: { params: { id: string } })
 }
 
 // DELETE /api/controls/[id] - Delete a control
-export async function DELETE(request: Request, context: { params: { id: string } }) {
-  const { id } = context.params;
+export async function DELETE(
+  request: Request
+) {
+  const id = request.url.split('/').pop();
   try {
     if (!id) {
       return NextResponse.json({ message: 'Control ID is required' }, { status: 400 });

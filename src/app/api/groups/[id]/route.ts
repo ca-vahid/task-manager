@@ -3,9 +3,16 @@ import { db } from '@/lib/firebase/firebase';
 import { doc, getDoc, deleteDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
 
 // GET /api/groups/[id] - Get a group by ID
-export async function GET(request: NextRequest, context: { params: { id: string } }) {
+export async function GET(request: NextRequest) {
   try {
-    const groupId = context.params.id;
+    const groupId = request.url.split('/').pop();
+    
+    if (!groupId) {
+      return NextResponse.json(
+        { error: 'Missing group ID', message: 'Group ID is required' },
+        { status: 400 }
+      );
+    }
     
     // Get the group document
     const groupRef = doc(db, 'groups', groupId);
@@ -33,9 +40,17 @@ export async function GET(request: NextRequest, context: { params: { id: string 
 }
 
 // PUT /api/groups/[id] - Update a group by ID
-export async function PUT(request: NextRequest, context: { params: { id: string } }) {
+export async function PUT(request: NextRequest) {
   try {
-    const groupId = context.params.id;
+    const groupId = request.url.split('/').pop();
+    
+    if (!groupId) {
+      return NextResponse.json(
+        { error: 'Missing group ID', message: 'Group ID is required' },
+        { status: 400 }
+      );
+    }
+    
     const body = await request.json();
     
     // Validate required fields
@@ -83,9 +98,16 @@ export async function PUT(request: NextRequest, context: { params: { id: string 
 }
 
 // DELETE /api/groups/[id] - Delete a group by ID
-export async function DELETE(request: NextRequest, context: { params: { id: string } }) {
+export async function DELETE(request: NextRequest) {
   try {
-    const groupId = context.params.id;
+    const groupId = request.url.split('/').pop();
+    
+    if (!groupId) {
+      return NextResponse.json(
+        { error: 'Missing group ID', message: 'Group ID is required' },
+        { status: 400 }
+      );
+    }
     
     // Check if the group exists
     const groupRef = doc(db, 'groups', groupId);

@@ -683,7 +683,7 @@ export function TaskCard({
     }
   };
 
-  // Toggle description visibility
+  // Toggle description
   const toggleDescription = () => {
     setShowDescription(!showDescription);
   };
@@ -1141,12 +1141,13 @@ export function TaskCard({
           )}
         </div>
 
-        {/* Description toggle button */}
-        {task.explanation && (
-          <div>
+        {/* Description toggle button and due date */}
+        <div className="flex flex-wrap items-center gap-3 mb-3">
+          {/* Description toggle button */}
+          {task.explanation && (
             <button 
               onClick={toggleDescription}
-              className="text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 flex items-center mb-3 bg-gray-50 dark:bg-gray-800/70 px-2 py-1 rounded"
+              className="text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 flex items-center bg-gray-50 dark:bg-gray-800/70 px-2 py-1 rounded"
             >
               {showDescription ? (
                 <>
@@ -1160,29 +1161,35 @@ export function TaskCard({
                 </>
               )}
             </button>
-            
-            {/* Collapsible description */}
-            {showDescription && (
-              <div 
-                className="mb-4 text-sm text-gray-700 dark:text-gray-300 bg-white/50 dark:bg-black/20 p-3 rounded-md border border-gray-200 dark:border-gray-700 transition-all duration-200 ease-in rich-text-content"
-                dangerouslySetInnerHTML={{ __html: sanitizeHtml(task.explanation || '') }}
-              />
-            )}
+          )}
+          
+          {/* Due date - moved next to explanation button */}
+          <div className={`text-sm py-1 px-2 rounded-md flex items-center ${timeRemaining.overdue ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300' : timeRemaining.urgent ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-300' : 'bg-gray-50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-300'}`}>
+            <ClockIcon className="h-3.5 w-3.5 mr-1.5 text-current" />
+            {task.estimatedCompletionDate ? 
+              formatDateForInput(task.estimatedCompletionDate) :
+              'No date set'
+            }
           </div>
+        </div>
+            
+        {/* Collapsible description */}
+        {showDescription && task.explanation && (
+          <div 
+            className="mb-4 text-sm text-gray-700 dark:text-gray-300 bg-white/50 dark:bg-black/20 p-3 rounded-md border border-gray-200 dark:border-gray-700 transition-all duration-200 ease-in rich-text-content"
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(task.explanation || '') }}
+          />
         )}
         
         {/* Task details */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mt-2">
-          {/* Assignee selector - moved to first position with more space */}
-          <div className="md:col-span-5">
-            <div className="flex items-center mb-1">
-              <UserIcon className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400" />
-            </div>
+        <div className="flex items-center gap-2 mt-2">
+          {/* Assignee selector */}
+          <div className="flex-grow max-w-[180px]">
             <select
               value={task.assigneeId || ""}
               onChange={handleAssigneeChange}
               className="w-full text-sm truncate rounded-md border border-gray-100 dark:border-gray-700 py-1.5 px-2 bg-white/50 dark:bg-black/20 text-gray-700 dark:text-gray-200"
-              title={assigneeName} // Add title for tooltip on hover
+              title={assigneeName}
             >
               <option value="">Unassigned</option>
               {technicians.map(tech => (
@@ -1191,62 +1198,41 @@ export function TaskCard({
             </select>
           </div>
 
-          {/* Status selector - replaced with buttons */}
-          <div className="md:col-span-4">
-            <div className="flex items-center mb-1">
-              <ClipboardDocumentListIcon className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400" />
-            </div>
-            <div className="flex space-x-1">
-              <button
-                onClick={() => handleStatusChange({ target: { value: TaskStatus.Open } } as React.ChangeEvent<HTMLSelectElement>)}
-                className={`flex-1 flex items-center justify-center text-xs py-1.5 px-1 rounded-md transition-colors duration-200 ${
-                  task.status === TaskStatus.Open 
-                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 font-medium' 
-                    : 'bg-gray-50 text-gray-500 hover:bg-gray-100 dark:bg-gray-800/30 dark:text-gray-400 dark:hover:bg-gray-700/50'
-                }`}
-                title="Open"
-              >
-                <ClipboardDocumentListIcon className="h-3.5 w-3.5 md:mr-1" />
-                <span className="hidden md:inline">Open</span>
-              </button>
-              <button
-                onClick={() => handleStatusChange({ target: { value: TaskStatus.Pending } } as React.ChangeEvent<HTMLSelectElement>)}
-                className={`flex-1 flex items-center justify-center text-xs py-1.5 px-1 rounded-md transition-colors duration-200 ${
-                  task.status === TaskStatus.Pending 
-                    ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 font-medium' 
-                    : 'bg-gray-50 text-gray-500 hover:bg-gray-100 dark:bg-gray-800/30 dark:text-gray-400 dark:hover:bg-gray-700/50'
-                }`}
-                title="Pending"
-              >
-                <PauseIcon className="h-3.5 w-3.5 md:mr-1" />
-                <span className="hidden md:inline">Pending</span>
-              </button>
-              <button
-                onClick={() => handleStatusChange({ target: { value: TaskStatus.Resolved } } as React.ChangeEvent<HTMLSelectElement>)}
-                className={`flex-1 flex items-center justify-center text-xs py-1.5 px-1 rounded-md transition-colors duration-200 ${
-                  task.status === TaskStatus.Resolved 
-                    ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 font-medium' 
-                    : 'bg-gray-50 text-gray-500 hover:bg-gray-100 dark:bg-gray-800/30 dark:text-gray-400 dark:hover:bg-gray-700/50'
-                }`}
-                title="Done"
-              >
-                <CheckIcon className="h-3.5 w-3.5 md:mr-1" />
-                <span className="hidden md:inline">Done</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Due date - with icon */}
-          <div className="md:col-span-3">
-            <div className="flex items-center mb-1">
-              <ClockIcon className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400" />
-            </div>
-            <div className={`w-full text-sm py-1.5 px-2 rounded-md ${timeRemaining.overdue ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300' : timeRemaining.urgent ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-300' : 'bg-gray-50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-300'}`}>
-              {task.estimatedCompletionDate ? 
-                formatDateForInput(task.estimatedCompletionDate) :
-                'No date set'
-              }
-            </div>
+          {/* Status buttons - combined into a more compact layout */}
+          <div className="flex border border-gray-100 dark:border-gray-700 rounded-md overflow-hidden">
+            <button
+              onClick={() => handleStatusChange({ target: { value: TaskStatus.Open } } as React.ChangeEvent<HTMLSelectElement>)}
+              className={`flex items-center justify-center px-2 py-1.5 transition-colors ${
+                task.status === TaskStatus.Open 
+                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' 
+                  : 'bg-white/50 dark:bg-black/20 text-gray-500 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800/40'
+              }`}
+              title="Open"
+            >
+              <ClipboardDocumentListIcon className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => handleStatusChange({ target: { value: TaskStatus.Pending } } as React.ChangeEvent<HTMLSelectElement>)}
+              className={`flex items-center justify-center px-2 py-1.5 transition-colors ${
+                task.status === TaskStatus.Pending 
+                  ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' 
+                  : 'bg-white/50 dark:bg-black/20 text-gray-500 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800/40'
+              }`}
+              title="Pending"
+            >
+              <PauseIcon className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => handleStatusChange({ target: { value: TaskStatus.Resolved } } as React.ChangeEvent<HTMLSelectElement>)}
+              className={`flex items-center justify-center px-2 py-1.5 transition-colors ${
+                task.status === TaskStatus.Resolved 
+                  ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' 
+                  : 'bg-white/50 dark:bg-black/20 text-gray-500 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800/40'
+              }`}
+              title="Done"
+            >
+              <CheckIcon className="h-4 w-4" />
+            </button>
           </div>
         </div>
       </div>
