@@ -876,6 +876,7 @@ export function TaskCard({
 
   // Effect to initialize the edited description when opening the edit modal
   useEffect(() => {
+    // Initialize the description edit field when the editing state changes
     if (isEditing) {
       setEditedDescription(task.explanation || '');
     }
@@ -1087,6 +1088,7 @@ export function TaskCard({
                         onClick={() => {
                           // Open edit modal instead of toggling description
                           setIsEditing(true);
+                          setEditedDescription(task.explanation || '');
                           setMenuOpen(false);
                         }}
                         className="w-full text-left px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"

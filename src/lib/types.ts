@@ -108,6 +108,20 @@ export interface TaskFilters {
   } | null;
 }
 
+// Interface for control filters
+export interface ControlFilters {
+  search: string;
+  status: ControlStatus[] | null;
+  priority: PriorityLevel[] | null;
+  assignee: string[] | null;
+  tags: string[] | null;
+  company: Company[] | null; // Filter by company
+  dateRange: {
+    start: Timestamp | null;
+    end: Timestamp | null;
+  } | null;
+}
+
 // Interface for batch operations
 export interface BatchOperation {
   taskIds: string[];
