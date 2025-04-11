@@ -123,3 +123,103 @@ body {
   width: 24px;
   height: 24px;
 }
+
+/* Timeline view styles */
+.react-calendar-timeline {
+  font-family: inherit;
+}
+
+.react-calendar-timeline .rct-header-root {
+  background-color: #f8fafc; /* slate-50 */
+  border-color: #e2e8f0; /* slate-200 */
+}
+
+.dark .react-calendar-timeline .rct-header-root {
+  background-color: #1e293b; /* slate-800 */
+  border-color: #334155; /* slate-700 */
+  color: #e2e8f0; /* slate-200 */
+}
+
+.react-calendar-timeline .rct-sidebar {
+  border-right: 1px solid #e2e8f0; /* slate-200 */
+  background-color: #f8fafc; /* slate-50 */
+}
+
+.dark .react-calendar-timeline .rct-sidebar {
+  border-right: 1px solid #334155; /* slate-700 */
+  background-color: #1e293b; /* slate-800 */
+  color: #e2e8f0; /* slate-200 */
+}
+
+.react-calendar-timeline .rct-calendar-header {
+  border-color: #e2e8f0; /* slate-200 */
+}
+
+.dark .react-calendar-timeline .rct-calendar-header {
+  border-color: #334155; /* slate-700 */
+}
+
+.react-calendar-timeline .rct-dateHeader {
+  background-color: #f1f5f9; /* slate-100 */
+  color: #64748b; /* slate-500 */
+  border-color: #e2e8f0; /* slate-200 */
+}
+
+.dark .react-calendar-timeline .rct-dateHeader {
+  background-color: #334155; /* slate-700 */
+  color: #94a3b8; /* slate-400 */
+  border-color: #475569; /* slate-600 */
+}
+
+.react-calendar-timeline .rct-dateHeader-primary {
+  color: #334155; /* slate-700 */
+  font-weight: 500;
+}
+
+.dark .react-calendar-timeline .rct-dateHeader-primary {
+  color: #cbd5e1; /* slate-300 */
+}
+
+.react-calendar-timeline .rct-vertical-lines .rct-vl {
+  border-color: #e2e8f0; /* slate-200 */
+}
+
+.dark .react-calendar-timeline .rct-vertical-lines .rct-vl {
+  border-color: #334155; /* slate-700 */
+}
+
+.react-calendar-timeline .rct-horizontal-lines .rct-hl-even,
+.react-calendar-timeline .rct-horizontal-lines .rct-hl-odd {
+  border-color: #e2e8f0; /* slate-200 */
+}
+
+.dark .react-calendar-timeline .rct-horizontal-lines .rct-hl-even,
+.dark .react-calendar-timeline .rct-horizontal-lines .rct-hl-odd {
+  border-color: #334155; /* slate-700 */
+}
+
+.react-calendar-timeline .rct-sidebar-row {
+  padding: 0.5rem;
+  border-bottom: 1px solid #e2e8f0; /* slate-200 */
+  color: #475569; /* slate-600 */
+  font-weight: 500;
+}
+
+.dark .react-calendar-timeline .rct-sidebar-row {
+  border-bottom: 1px solid #334155; /* slate-700 */
+  color: #cbd5e1; /* slate-300 */
+}
+
+/* Today marker */
+.react-calendar-timeline .rct-today {
+  background-color: rgba(99, 102, 241, 0.1); /* indigo-500 with low opacity */
+}
+
+.dark .react-calendar-timeline .rct-today {
+  background-color: rgba(99, 102, 241, 0.15); /* indigo-500 with low opacity */
+}
+
+.timeline-container {
+  border-radius: 0.5rem;
+  overflow: hidden;
+}

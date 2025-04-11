@@ -1,8 +1,11 @@
 "use client";
 
-import React, { useMemo } from 'react';
-import { Task, Technician, Group, ViewDensity, TaskStatus, Category } from '@/lib/types';
+import React, { useMemo, useState } from 'react';
+import { Task, Technician, Group, ViewDensity, TaskStatus, Category, PriorityLevel } from '@/lib/types';
 import { Timestamp } from 'firebase/firestore';
+import Timeline from 'react-calendar-timeline';
+import 'react-calendar-timeline/lib/Timeline.css';
+import moment from 'moment';
 
 interface TimelineViewProps {
   tasks: Task[];
@@ -13,13 +16,6 @@ interface TimelineViewProps {
   viewDensity: ViewDensity;
 }
 
-interface TimelineGroup {
-  id: string;
-  title: string;
-  rightTitle?: string;
-  tasks: Task[];
-}
-
 export function TimelineView({
   tasks,
   technicians,
@@ -28,230 +24,222 @@ export function TimelineView({
   onUpdateTask,
   viewDensity
 }: TimelineViewProps) {
-  // Format a date for display
-  const formatDate = (timestamp: Timestamp | null): string => {
-    if (!timestamp) return 'No date';
-    
+  const [visibleTimeStart, setVisibleTimeStart] = useState<number>(moment().add(-2, 'day').valueOf());
+  const [visibleTimeEnd, setVisibleTimeEnd] = useState<number>(moment().add(30, 'day').valueOf());
+  
+  // Timeline unit size based on view density
+  const unitSize = useMemo(() => {
+    switch (viewDensity) {
+      case 'compact': return 20;
+      case 'medium': return 25;
+      case 'full': return 30;
+      default: return 25;
+    }
+  }, [viewDensity]);
+
+  // Convert Firestore Timestamp to Date
+  const timestampToDate = (timestamp: Timestamp | null | any): Date | null => {
+    if (!timestamp) return null;
     try {
-      let date: Date;
       if (timestamp instanceof Timestamp) {
-        date = timestamp.toDate();
+        return timestamp.toDate();
       } else if (typeof timestamp === 'object' && 'seconds' in timestamp) {
-        date = new Date((timestamp as any).seconds * 1000);
-      } else {
-        return 'Invalid date';
+        return new Date(timestamp.seconds * 1000);
+      } else if (typeof timestamp === 'string') {
+        return new Date(timestamp);
       }
-      
-      return date.toLocaleDateString();
+      return null;
     } catch (error) {
-      console.error('Error formatting date:', error);
-      return 'Invalid date';
+      console.error("Error converting timestamp:", error);
+      return null;
     }
   };
 
-  // Get status color classes
-  const getStatusClasses = (status: TaskStatus): string => {
-    switch (status) {
-      case TaskStatus.Open:
-        return 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 border-indigo-200 dark:border-indigo-700';
-      case TaskStatus.Pending:
-        return 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-700';
-      case TaskStatus.Resolved:
-        return 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700';
-      default:
-        return 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-600';
-    }
-  };
+  // Prepare groups for timeline
+  const timelineGroups = useMemo(() => {
+    const defaultGroups = [
+      { id: 'unassigned', title: 'Unassigned' }
+    ];
+    
+    // Create groups from technicians for the assignee view
+    const technicianGroups = technicians.map(tech => ({
+      id: tech.id,
+      title: tech.name
+    }));
+    
+    return [
+      ...defaultGroups,
+      ...technicianGroups
+    ];
+  }, [technicians]);
 
-  // Group tasks by due date
-  const tasksByDueDate = useMemo(() => {
-    // Create groups for different timeframes
-    const groups: { [key: string]: TimelineGroup } = {
-      'overdue': { id: 'overdue', title: 'Overdue', tasks: [] },
-      'today': { id: 'today', title: 'Today', tasks: [] },
-      'tomorrow': { id: 'tomorrow', title: 'Tomorrow', tasks: [] },
-      'thisWeek': { id: 'thisWeek', title: 'This Week', tasks: [] },
-      'nextWeek': { id: 'nextWeek', title: 'Next Week', tasks: [] },
-      'later': { id: 'later', title: 'Later', tasks: [] },
-      'noDate': { id: 'noDate', title: 'No Due Date', tasks: [] }
-    };
-    
-    // Get today's date
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    // Get tomorrow's date
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    // Get date for end of this week (Sunday)
-    const thisWeekEnd = new Date(today);
-    const daysUntilSunday = 7 - today.getDay();
-    thisWeekEnd.setDate(thisWeekEnd.getDate() + daysUntilSunday);
-    
-    // Get date for end of next week
-    const nextWeekEnd = new Date(thisWeekEnd);
-    nextWeekEnd.setDate(nextWeekEnd.getDate() + 7);
-    
-    // Group tasks by due date
-    tasks.forEach(task => {
-      if (!task.estimatedCompletionDate) {
-        groups.noDate.tasks.push(task);
-        return;
+  // Prepare items for timeline
+  const timelineItems = useMemo(() => {
+    return tasks.map(task => {
+      // Get due date, default to 7 days from now if not set
+      const dueDate = timestampToDate(task.estimatedCompletionDate) || 
+        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      
+      // Set start time to due date minus 2 days for visibility
+      const startTime = moment(dueDate).subtract(2, 'day').valueOf();
+      const endTime = moment(dueDate).add(1, 'day').valueOf();
+      
+      // Get group ID (assignee or unassigned)
+      const groupId = task.assigneeId || 'unassigned';
+      
+      // Set item color based on status
+      let itemColor = '#6366f1'; // Indigo for open
+      let textColor = 'white';
+      
+      switch (task.status) {
+        case TaskStatus.Open:
+          itemColor = '#6366f1'; // Indigo
+          break;
+        case TaskStatus.Pending:
+          itemColor = '#f59e0b'; // Amber
+          break;
+        case TaskStatus.Resolved:
+          itemColor = '#10b981'; // Emerald
+          break;
       }
       
-      // Convert to Date object
-      let dueDate: Date;
-      if (task.estimatedCompletionDate instanceof Timestamp) {
-        dueDate = task.estimatedCompletionDate.toDate();
-      } else if (typeof task.estimatedCompletionDate === 'object' && 'seconds' in task.estimatedCompletionDate) {
-        dueDate = new Date((task.estimatedCompletionDate as any).seconds * 1000);
-      } else {
-        groups.noDate.tasks.push(task);
-        return;
+      // Add priority indicator
+      let borderLeft = '3px solid transparent';
+      if (task.priorityLevel === PriorityLevel.High) {
+        borderLeft = '3px solid #ef4444'; // Red border for high priority
+      } else if (task.priorityLevel === PriorityLevel.Critical) {
+        borderLeft = '3px solid #7f1d1d'; // Dark red border for critical
       }
       
-      // Normalize time
-      dueDate.setHours(0, 0, 0, 0);
+      // Get category name if available
+      const categoryName = task.categoryId && categories.length > 0
+        ? categories.find(c => c.id === task.categoryId)?.value || null
+        : null;
       
-      // Determine which group this task belongs to
-      if (dueDate < today) {
-        groups.overdue.tasks.push(task);
-      } else if (dueDate.getTime() === today.getTime()) {
-        groups.today.tasks.push(task);
-      } else if (dueDate.getTime() === tomorrow.getTime()) {
-        groups.tomorrow.tasks.push(task);
-      } else if (dueDate <= thisWeekEnd) {
-        groups.thisWeek.tasks.push(task);
-      } else if (dueDate <= nextWeekEnd) {
-        groups.nextWeek.tasks.push(task);
-      } else {
-        groups.later.tasks.push(task);
-      }
+      // Format tooltip content with rich details
+      const tooltipContent = `
+        <div class="p-2">
+          <div class="font-bold mb-1">${task.title}</div>
+          <div class="text-sm mb-1">Status: ${task.status}</div>
+          ${task.assigneeId ? `<div class="text-sm mb-1">Assignee: ${technicians.find(t => t.id === task.assigneeId)?.name || 'Unknown'}</div>` : ''}
+          ${task.priorityLevel ? `<div class="text-sm mb-1">Priority: ${task.priorityLevel}</div>` : ''}
+          ${categoryName ? `<div class="text-sm mb-1">Category: ${categoryName}</div>` : ''}
+        </div>
+      `;
+      
+      return {
+        id: task.id,
+        group: groupId,
+        title: task.title,
+        start_time: startTime,
+        end_time: endTime,
+        itemProps: {
+          style: {
+            backgroundColor: itemColor,
+            color: textColor,
+            borderLeft: borderLeft,
+            borderRadius: '4px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)'
+          },
+          title: task.title // Simple HTML tooltip
+        }
+      };
     });
-    
-    // Remove empty groups and sort tasks within each group
-    return Object.values(groups)
-      .filter(group => group.tasks.length > 0)
-      .map(group => ({
-        ...group,
-        tasks: group.tasks.sort((a, b) => {
-          // Sort by status first
-          const statusOrder = { [TaskStatus.Open]: 0, [TaskStatus.Pending]: 1, [TaskStatus.Resolved]: 2 };
-          const statusDiff = statusOrder[a.status] - statusOrder[b.status];
-          if (statusDiff !== 0) return statusDiff;
-          
-          // Then sort by due date
-          const dateA = a.estimatedCompletionDate ? (a.estimatedCompletionDate instanceof Timestamp ? a.estimatedCompletionDate.toDate() : new Date((a.estimatedCompletionDate as any).seconds * 1000)) : new Date(9999, 11, 31);
-          const dateB = b.estimatedCompletionDate ? (b.estimatedCompletionDate instanceof Timestamp ? b.estimatedCompletionDate.toDate() : new Date((b.estimatedCompletionDate as any).seconds * 1000)) : new Date(9999, 11, 31);
-          return dateA.getTime() - dateB.getTime();
-        })
-      }));
-  }, [tasks]);
+  }, [tasks, technicians, categories]);
 
-  // Get task groups for the timeline
-  const getTaskGroups = () => {
-    if (tasksByDueDate.length === 0) {
-      return (
-        <div className="text-center py-12">
-          <p className="text-gray-500 dark:text-gray-400">No tasks with due dates found</p>
-        </div>
-      );
-    }
+  // Handle time change
+  const handleTimeChange = (visibleTimeStart: number, visibleTimeEnd: number) => {
+    setVisibleTimeStart(visibleTimeStart);
+    setVisibleTimeEnd(visibleTimeEnd);
+  };
+
+  // Handle item click
+  const handleItemClick = (itemId: string | number, e: React.MouseEvent) => {
+    const task = tasks.find(t => t.id === String(itemId));
+    if (!task) return;
     
-    return tasksByDueDate.map(group => (
-      <div key={group.id} className="mb-6">
-        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-3">
-          {group.title}
-          <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
-            ({group.tasks.length} {group.tasks.length === 1 ? 'task' : 'tasks'})
-          </span>
-        </h3>
-        
-        <div className="space-y-2">
-          {group.tasks.map(task => (
-            <div 
-              key={task.id} 
-              className={`border rounded-lg p-3 ${getStatusClasses(task.status)}`}
-            >
-              <div className="flex justify-between items-start">
-                <h4 className="font-medium">{task.title}</h4>
-                <div className="text-xs px-2 py-1 rounded-full bg-white/50 dark:bg-black/20">
-                  {task.status}
-                </div>
-              </div>
-              
-              <div className="mt-2 flex flex-wrap gap-3 text-sm">
-                {task.assigneeId && (
-                  <div className="flex items-center gap-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                    </svg>
-                    <span>
-                      {technicians.find(t => t.id === task.assigneeId)?.name || 'Unknown'}
-                    </span>
-                  </div>
-                )}
-                
-                {task.groupId && (
-                  <div className="flex items-center gap-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
-                    </svg>
-                    <span>
-                      {groups.find(g => g.id === task.groupId)?.name || 'Unknown Group'}
-                    </span>
-                  </div>
-                )}
-                
-                {task.categoryId && categories.length > 0 && (
-                  <div className="flex items-center gap-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h5c.256 0 .512.098.707.293l7 7zM5 6a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-                    </svg>
-                    <span>
-                      {categories.find(c => c.id === task.categoryId)?.value || 'Unknown Category'}
-                    </span>
-                  </div>
-                )}
-                
-                {task.estimatedCompletionDate && (
-                  <div className="flex items-center gap-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                    </svg>
-                    <span>
-                      {formatDate(task.estimatedCompletionDate)}
-                    </span>
-                  </div>
-                )}
-                
-                {task.ticketNumber && (
-                  <div className="flex items-center gap-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                    </svg>
-                    <a 
-                      href={task.ticketUrl || '#'} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="hover:underline"
-                    >
-                      {task.ticketNumber}
-                    </a>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    ));
+    // Could expand to show more details or open a modal
+    console.log("Task clicked:", task);
+  };
+
+  // Handle item context menu
+  const handleItemContextMenu = (itemId: string | number, e: React.MouseEvent) => {
+    e.preventDefault();
+    // Could open a context menu with actions
+    console.log("Context menu for task:", itemId);
   };
 
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-lg">
-      {getTaskGroups()}
+    <div className="timeline-container bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+      {tasks.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-gray-500 dark:text-gray-400">No tasks found</p>
+        </div>
+      ) : (
+        <>
+          <div className="mb-4 flex flex-col sm:flex-row justify-between items-center">
+            <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-2 sm:mb-0">
+              Task Timeline
+            </h2>
+            <div className="flex space-x-2">
+              <button
+                onClick={() => {
+                  const now = moment().valueOf();
+                  setVisibleTimeStart(moment(now).add(-2, 'day').valueOf());
+                  setVisibleTimeEnd(moment(now).add(14, 'day').valueOf());
+                }}
+                className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded text-sm hover:bg-gray-200 dark:hover:bg-gray-600"
+              >
+                Today
+              </button>
+              <button
+                onClick={() => {
+                  const start = moment(visibleTimeStart);
+                  const end = moment(visibleTimeEnd);
+                  const diff = end.diff(start, 'days');
+                  setVisibleTimeStart(moment(visibleTimeStart).add(-diff/2, 'days').valueOf());
+                  setVisibleTimeEnd(moment(visibleTimeEnd).add(-diff/2, 'days').valueOf());
+                }}
+                className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded text-sm hover:bg-gray-200 dark:hover:bg-gray-600"
+              >
+                « Back
+              </button>
+              <button
+                onClick={() => {
+                  const start = moment(visibleTimeStart);
+                  const end = moment(visibleTimeEnd);
+                  const diff = end.diff(start, 'days');
+                  setVisibleTimeStart(moment(visibleTimeStart).add(diff/2, 'days').valueOf());
+                  setVisibleTimeEnd(moment(visibleTimeEnd).add(diff/2, 'days').valueOf());
+                }}
+                className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded text-sm hover:bg-gray-200 dark:hover:bg-gray-600"
+              >
+                Forward »
+              </button>
+            </div>
+          </div>
+          
+          <div className="dark:text-white">
+            <Timeline
+              groups={timelineGroups}
+              items={timelineItems}
+              visibleTimeStart={visibleTimeStart}
+              visibleTimeEnd={visibleTimeEnd}
+              onTimeChange={handleTimeChange}
+              lineHeight={unitSize * 2}
+              itemHeightRatio={0.6}
+              stackItems
+              sidebarWidth={150}
+              canMove={false}
+              canResize={false}
+              canChangeGroup={false}
+              onItemClick={handleItemClick}
+              onItemContextMenu={handleItemContextMenu}
+              className="react-calendar-timeline"
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 } 
