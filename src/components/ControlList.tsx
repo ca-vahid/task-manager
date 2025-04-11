@@ -908,6 +908,40 @@ export function ControlList({ initialControls = [] }: ControlListProps) {
     }
   }, []);
 
+  // Add the handleBatchDelete function
+  const handleBatchDelete = async (controlIds: string[]) => {
+    setError(null);
+    const originalControls = [...controls];
+    const controlsToDelete = originalControls.filter(c => controlIds.includes(c.id));
+    
+    // Optimistic update
+    setControls(originalControls.filter(c => !controlIds.includes(c.id)));
+    
+    try {
+      // Call delete for each control sequentially or in parallel (parallel might be faster)
+      await Promise.all(controlIds.map(id => handleDeleteControl(id)));
+      
+      setSelectedControlIds([]); // Clear selection after successful delete
+      // Potentially show a success message
+      
+    } catch (error: any) {
+      console.error("Failed to batch delete controls:", error);
+      setError(error.message || "Failed to delete selected controls.");
+      // Rollback optimistic update
+      setControls(originalControls);
+      throw error; // Re-throw error if needed
+    }
+  };
+
+  // Wrapper for handleBatchUpdate to match expected signature
+  const handleBatchOperationWrapper = (operation: BatchOperation) => {
+    // Assuming BatchOperation uses 'taskIds' but we mean 'controlIds'
+    // Assuming BatchOperation uses 'Task' updates but we mean 'Control'
+    const controlIds = operation.taskIds; // Adapt field name if needed
+    const updates = operation.updates as Partial<Omit<Control, 'id'>>; // Cast updates
+    return handleBatchUpdate(controlIds, updates);
+  };
+
   // Render logic
   if (loading) {
     return (
@@ -1094,7 +1128,7 @@ export function ControlList({ initialControls = [] }: ControlListProps) {
           setError(null); // Clear errors when closing modal
         }}
         title="Bulk Add Controls with AI"
-        size="large"
+        size="xl"
       >
         <BulkAddControlForm 
           technicians={technicians}
@@ -1109,10 +1143,13 @@ export function ControlList({ initialControls = [] }: ControlListProps) {
       
       {/* Batch Operations Toolbar */}
       <BatchOperationsToolbar
-        selectedControlIds={selectedControlIds}
+        selectedCount={selectedControlIds.length}
+        selectedIds={selectedControlIds}
         onClearSelection={() => setSelectedControlIds([])}
         technicians={technicians}
-        onUpdateControls={handleBatchUpdate}
+        groups={[]}
+        onBatchOperation={handleBatchOperationWrapper}
+        onDeleteTasks={handleBatchDelete}
       />
       
       {/* Enhanced Filter Bar */}
@@ -1136,16 +1173,6 @@ export function ControlList({ initialControls = [] }: ControlListProps) {
               onDeleteControl={handleDeleteControl}
               onDragEnd={handleDragEnd}
               columnsPerPage={3}
-            />
-          )}
-          
-          {viewMode === 'timeline' && (
-            <TimelineView
-              controls={filteredControls}
-              technicians={technicians}
-              viewDensity={viewDensity}
-              onUpdateControl={handleUpdateControl}
-              onDeleteControl={handleDeleteControl}
             />
           )}
         </>
