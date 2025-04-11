@@ -139,7 +139,7 @@ export function AddControlForm({
   const [status, setStatus] = useState<ControlStatus>(ControlStatus.InProgress);
   const [assigneeId, setAssigneeId] = useState<string | null>(null);
   const [estimatedCompletionDate, setEstimatedCompletionDate] = useState<string>(''); // Store as string YYYY-MM-DD
-  const [company, setCompany] = useState<Company>(Company.Both); // Default to Both
+  const [company, setCompany] = useState<Company>(Company.None); // Default to None as 'Both' is not a valid enum member
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -448,7 +448,7 @@ export function AddControlForm({
         
         <label 
           className={`flex items-center p-2 rounded-lg border-2 cursor-pointer transition-colors ${
-            company === Company.Both 
+            company === Company.None 
               ? 'bg-purple-50 dark:bg-cyan-900/40 border-purple-300 dark:border-cyan-600 text-purple-700 dark:text-cyan-300' 
               : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200'
           }`}
@@ -456,9 +456,9 @@ export function AddControlForm({
           <input 
             type="radio" 
             name="company" 
-            value={Company.Both} 
-            checked={company === Company.Both} 
-            onChange={() => setCompany(Company.Both)} 
+            value={Company.None} 
+            checked={company === Company.None} 
+            onChange={() => setCompany(Company.None)} 
             className="sr-only"
           />
           <div className="w-6 h-6 relative mr-2">
@@ -485,7 +485,7 @@ export function AddControlForm({
               </div>
             </div>
           </div>
-          <span className="text-sm font-medium">Both</span>
+          <span className="text-sm font-medium">None</span>
         </label>
       </div>
     </div>
