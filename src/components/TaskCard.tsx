@@ -431,6 +431,8 @@ export function TaskCard({
   const [isDeleting, setIsDeleting] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [isRemoving, setIsRemoving] = useState(false); // Animation state for removal
+  const [isEditing, setIsEditing] = useState(false); // For editing task details
+  const [editedDescription, setEditedDescription] = useState(''); // For storing edited description
   const [showDescription, setShowDescription] = useState(false); // For collapsible description
   const [menuOpen, setMenuOpen] = useState(false); // For three-dot menu
   const [isUpdatingCategory, setIsUpdatingCategory] = useState(false); // For bottom category update UI
@@ -872,111 +874,22 @@ export function TaskCard({
     }
   }, [isEditingCategoryInPlace]);
 
-  // Add back the isEditingDueDate state and related functions
-  const [isEditingDueDate, setIsEditingDueDate] = useState(false);
-  const [editedDueDate, setEditedDueDate] = useState('');
+  // Effect to initialize the edited description when opening the edit modal
+  useEffect(() => {
+    if (isEditing) {
+      setEditedDescription(task.explanation || '');
+    }
+  }, [isEditing, task.explanation]);
 
-  // Add back the handler for toggling due date edit mode
-  const handleDueDateClick = () => {
-    setEditedDueDate(formatDateForInput(task.estimatedCompletionDate));
-    setIsEditingDueDate(true);
-  };
-
-  // Add back the handler for saving the edited due date
-  const handleSaveDueDate = async (newDate: string) => {
+  // Handler for saving the edited description
+  const handleSaveDescription = async () => {
     try {
-      let dateTimestamp = null;
-      if (newDate) {
-        const date = new Date(newDate);
-        dateTimestamp = Timestamp.fromDate(date);
-      }
-      
-      await onUpdateTask(task.id, { estimatedCompletionDate: dateTimestamp });
-      setIsEditingDueDate(false);
+      await onUpdateTask(task.id, { explanation: editedDescription });
+      setIsEditing(false);
     } catch (error: any) {
-      setUpdateError(`Failed to update due date: ${error.message || 'Unknown error'}`);
+      setUpdateError(`Failed to update description: ${error.message || 'Unknown error'}`);
     }
   };
-
-  // Create a time remaining element for reuse
-  const timeRemainingElement = task.estimatedCompletionDate && (
-    <div className={`flex items-center gap-1 ${timeRemaining.urgent ? 'text-amber-600 dark:text-amber-400' : timeRemaining.overdue ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'}`}>
-      <ClockIcon className="w-3.5 h-3.5" />
-      <span className="text-xs font-medium">{timeRemaining.text}</span>
-    </div>
-  );
-
-  // Due date component that is editable when clicked
-  const dueDateElement = isEditingDueDate ? (
-    <div className="flex items-center gap-1">
-      <input
-        type="date"
-        value={editedDueDate}
-        onChange={(e) => setEditedDueDate(e.target.value)}
-        onBlur={() => handleSaveDueDate(editedDueDate)}
-        autoFocus
-        className="text-xs py-0.5 px-1 w-28 border border-blue-300 dark:border-blue-700 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            handleSaveDueDate(editedDueDate);
-          } else if (e.key === 'Escape') {
-            setIsEditingDueDate(false);
-          }
-        }}
-      />
-      <button 
-        onClick={() => handleSaveDueDate(editedDueDate)}
-        className="text-xs text-blue-600 dark:text-blue-400"
-        title="Save"
-      >
-        <CheckIcon className="w-3.5 h-3.5" />
-      </button>
-    </div>
-  ) : (
-    <div 
-      onClick={handleDueDateClick}
-      className={`flex items-center gap-1 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 py-0.5 ${
-        timeRemaining.urgent ? 'text-amber-600 dark:text-amber-400' : 
-        timeRemaining.overdue ? 'text-red-600 dark:text-red-400' : 
-        'text-gray-600 dark:text-gray-400'
-      }`}
-      title="Click to edit due date"
-    >
-      <ClockIcon className="w-3.5 h-3.5" />
-      <span className="text-xs font-medium">
-        {task.estimatedCompletionDate ? 
-          formatDateForInput(task.estimatedCompletionDate) : 
-          'Set date'
-        }
-      </span>
-    </div>
-  );
-
-  // Replace the headerRightSection with updated version that includes editable due date
-  const headerRightSection = (
-    <div className="flex items-center justify-end gap-2">
-      {dueDateElement}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          setShowDescription(!showDescription);
-        }}
-        className="text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center"
-      >
-        {showDescription ? (
-          <>
-            Hide Details
-            <ChevronUpIcon className="w-3.5 h-3.5 ml-1" />
-          </>
-        ) : (
-          <>
-            Show Details
-            <ChevronDownIcon className="w-3.5 h-3.5 ml-1" />
-          </>
-        )}
-      </button>
-    </div>
-  );
 
   return (
     <>
@@ -986,14 +899,9 @@ export function TaskCard({
       ${isRemoving ? 'opacity-0 transform scale-95 -translate-x-4' : 'opacity-100 transform scale-100 translate-x-0'}`}>
         {/* Header with title and action buttons */}
         <div className="flex justify-between items-start mb-2">
-          <div className="flex-1">
-            <h3 className="font-semibold text-gray-900 dark:text-gray-50 text-lg pr-2">
-              {task.title}
-            </h3>
-            <div className="flex items-center mt-1 gap-2">
-              {dueDateElement}
-            </div>
-          </div>
+          <h3 className="font-semibold text-gray-900 dark:text-gray-50 text-lg pr-2">
+            {task.title}
+          </h3>
           
           <div className="flex items-center gap-2">
             {/* Selection checkbox */}
@@ -1047,6 +955,21 @@ export function TaskCard({
                       <button
                         type="button"
                         onClick={() => {
+                          // Open edit modal instead of toggling description
+                          setIsEditing(true);
+                          setMenuOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                        </svg>
+                        Edit Details
+                      </button>
+                      
+                      <button
+                        type="button"
+                        onClick={() => {
                           // Mark as complete action
                           onUpdateTask(task.id, { status: TaskStatus.Resolved });
                           setMenuOpen(false);
@@ -1079,7 +1002,6 @@ export function TaskCard({
                         <button
                           type="button"
                           onClick={handleCreateTicket}
-                          disabled={isCreatingTicket}
                           className="w-full text-left px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
@@ -1251,9 +1173,31 @@ export function TaskCard({
           )}
         </div>
 
+        {/* Description toggle button and due date */}
+        <div className="flex flex-wrap items-center gap-3 mb-3">
+          {/* Due date - moved next to where description button was */}
+          <div className={`text-sm py-1 px-2 rounded-md flex items-center ${timeRemaining.overdue ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300' : timeRemaining.urgent ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-300' : 'bg-gray-50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-300'}`}>
+            <ClockIcon className="h-3.5 w-3.5 mr-1.5 text-current" />
+            {task.estimatedCompletionDate ? 
+              formatDateForInput(task.estimatedCompletionDate) :
+              'No date set'
+            }
+          </div>
+        </div>
+            
         {/* Collapsible description */}
         {showDescription && task.explanation && (
           <>
+            {/* Description toggle button for hiding */}
+            <div className="flex justify-end mb-1">
+              <button 
+                onClick={() => setShowDescription(false)}
+                className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 py-1 px-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center"
+              >
+                <ChevronUpIcon className="h-3.5 w-3.5 mr-1" />
+                Hide Details
+              </button>
+            </div>
             <div 
               className="mb-4 text-sm text-gray-700 dark:text-gray-300 bg-white/50 dark:bg-black/20 p-3 rounded-md border border-gray-200 dark:border-gray-700 transition-all duration-200 ease-in rich-text-content"
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(task.explanation || '') }}
@@ -1316,6 +1260,75 @@ export function TaskCard({
           </div>
         </div>
       </div>
+
+      {/* Edit Details Modal */}
+      {isEditing && canUseDOM && createPortal(
+        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center">
+          {/* Modal backdrop */}
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+            onClick={() => setIsEditing(false)}
+          />
+          
+          {/* Modal content */}
+          <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full mx-4 my-8 max-h-[90vh] overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Edit Task Details
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                className="text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400"
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <div className="mb-4">
+                <label htmlFor="task-title" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Task Title
+                </label>
+                <div className="text-gray-800 dark:text-gray-200 font-medium">{task.title}</div>
+              </div>
+              
+              <div className="mb-4">
+                <label htmlFor="task-description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Description
+                </label>
+                <textarea
+                  id="task-description"
+                  value={editedDescription}
+                  onChange={(e) => setEditedDescription(e.target.value)}
+                  rows={8}
+                  className="block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm focus:border-blue-500 dark:focus:border-blue-400 focus:ring-blue-500 dark:focus:ring-blue-400"
+                />
+              </div>
+            </div>
+            
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex flex-row-reverse">
+              <button
+                type="button"
+                onClick={handleSaveDescription}
+                className="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+              >
+                Save Changes
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                className="inline-flex justify-center py-2 px-4 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 } 
