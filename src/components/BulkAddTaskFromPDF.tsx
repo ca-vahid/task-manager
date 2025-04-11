@@ -15,6 +15,13 @@ interface BulkAddTaskFromPDFProps {
   onCreateGroup?: (name: string, description?: string) => Promise<Group>;
 }
 
+// Helper to format seconds into minutes:seconds
+function formatTime(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}m ${secs}s`;
+}
+
 export function BulkAddTaskFromPDF({
   technicians,
   groups,
@@ -220,7 +227,7 @@ export function BulkAddTaskFromPDF({
         // ------------------------------------
         try {
           // Step 1: Submit the job
-          setStreamedOutput('Starting document analysis...\n');
+          setStreamedOutput('Starting document analysis...\n\nThis might take a while for large documents. The system will continue processing as long as progress is being made.\n\n');
           
           const response = await fetch('/api/gemini/extract-tasks-from-pdf', {
             method: 'POST',
@@ -245,103 +252,156 @@ export function BulkAddTaskFromPDF({
           // Step 2: Poll for job completion
           let pollCount = 0;
           let jobComplete = false;
-          const MAX_POLLS = 60; // 2 minutes with 2-second intervals
+          // Increase max polls significantly and add inactivity tracking
+          const MAX_POLLS = 300; // 10 minutes with 2-second intervals (much more generous)
           const POLL_INTERVAL = 2000; // 2 seconds
+          const MAX_INACTIVITY_TIME = 60000; // 1 minute of no activity before timeout
           
           // Initialize streamContent for thinking model
           let lastStreamContent = '';
+          let lastActivityTime = Date.now();
+          let startTime = Date.now();
+          let previousStatus = 'pending';
           
           while (!jobComplete && pollCount < MAX_POLLS) {
             // Wait for the polling interval
             await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL));
             pollCount++;
             
+            const currentTime = Date.now();
+            const inactiveTime = currentTime - lastActivityTime;
+            const totalProcessingTime = Math.round((currentTime - startTime) / 1000);
+            const remainingInactivity = Math.max(0, Math.round((MAX_INACTIVITY_TIME - inactiveTime) / 1000));
+            
+            // Display processing time every 30 seconds
+            if (pollCount === 1 || totalProcessingTime % 30 === 0) {
+              setStreamedOutput(prev => 
+                prev + `\n⏱️ Processing for ${formatTime(totalProcessingTime)}. Will continue as long as progress is detected.\n`
+              );
+            }
+            
+            // If we've been inactive too long, break the loop with a timeout error
+            if (inactiveTime > MAX_INACTIVITY_TIME && pollCount > 10) { // Ensure we've made at least 10 attempts
+              throw new Error(`Processing seems to have stalled. No activity detected for ${Math.round(inactiveTime/1000)} seconds.`);
+            }
+            
+            // Display countdown if we're approaching inactivity timeout
+            if (inactiveTime > MAX_INACTIVITY_TIME/2 && remainingInactivity % 5 === 0) {
+              setStreamedOutput(prev => 
+                prev + `\n⚠️ No activity detected for ${Math.round(inactiveTime/1000)}s. Will timeout in ${remainingInactivity}s if no progress...\n`
+              );
+            }
+            
             // Update progress for visual feedback
-            setUploadProgress(90 + (pollCount / MAX_POLLS) * 10); // Max 100%
+            setUploadProgress(90 + (Math.min(pollCount, 50) / 50) * 10); // Cap at 100%
             
-            // Poll the job status
-            const statusResponse = await fetch(`/api/gemini/extract-tasks-from-pdf?action=status&jobId=${jobId}`, {
-              method: 'POST',
-            });
-            
-            if (!statusResponse.ok) {
-              // If we get a 404, the job might have been cleaned up
-              if (statusResponse.status === 404) {
-                throw new Error('Job not found. It may have expired.');
+            try {
+              // Poll the job status
+              const statusResponse = await fetch(`/api/gemini/extract-tasks-from-pdf?action=status&jobId=${jobId}`, {
+                method: 'POST',
+              });
+              
+              if (!statusResponse.ok) {
+                // If we get a 404, the job might have been cleaned up
+                if (statusResponse.status === 404) {
+                  throw new Error('Job not found. It may have expired.');
+                }
+                
+                const errorData = await statusResponse.json();
+                throw new Error(errorData.error || 'Failed to check job status');
               }
               
-              const errorData = await statusResponse.json();
-              throw new Error(errorData.error || 'Failed to check job status');
-            }
-            
-            const statusData = await statusResponse.json();
-            
-            // Display both job status and any streaming content
-            if (statusData.streamContent && statusData.streamContent !== lastStreamContent) {
-              // Compute the new content since last update
-              const newContent = statusData.streamContent.substring(lastStreamContent.length);
-              if (newContent.trim()) {
-                // Add a prefix to clearly distinguish model thinking output from job status
+              const statusData = await statusResponse.json();
+              let hasNewActivity = false;
+              
+              // Check if there's any new content or status change
+              if (statusData.streamContent && statusData.streamContent !== lastStreamContent) {
+                // Compute the new content since last update
+                const newContent = statusData.streamContent.substring(lastStreamContent.length);
+                if (newContent.trim()) {
+                  // Add a prefix to clearly distinguish model thinking output from job status
+                  setStreamedOutput(prev => 
+                    prev + `\n${newContent.trim().split('\n').map((line: string) => 
+                      line.trim() ? `🤔 ${line}` : line
+                    ).join('\n')}\n`
+                  );
+                  lastStreamContent = statusData.streamContent;
+                  lastActivityTime = currentTime; // Update activity timestamp
+                  hasNewActivity = true; // We have new activity
+                }
+              }
+              
+              // Update UI with status
+              if (statusData.status !== previousStatus) {
                 setStreamedOutput(prev => 
-                  prev + `\n${newContent.trim().split('\n').map((line: string) => 
-                    line.trim() ? `🤔 ${line}` : line
-                  ).join('\n')}\n`
+                  prev + `\n⏱️ Job status: ${statusData.status} (Poll ${pollCount})\n`
                 );
-                lastStreamContent = statusData.streamContent;
-              }
-            }
-            
-            // Update UI with status
-            if (statusData.status !== 'pending') {
-              setStreamedOutput(prev => 
-                prev + `\n⏱️ Job status: ${statusData.status} (Poll ${pollCount})\n`
-              );
-            } else if (pollCount % 5 === 0) {
-              // Only show pending status occasionally to avoid flooding
-              setStreamedOutput(prev => 
-                prev + `.` // Just add a dot to show progress
-              );
-            }
-            
-            // Check if job is complete or failed
-            if (statusData.status === 'completed') {
-              if (progressIntervalRef.current) {
-                clearInterval(progressIntervalRef.current);
-                progressIntervalRef.current = null;
-              }
-              setUploadProgress(100);
-              
-              // Process the results
-              const extractedTasks = statusData.result;
-              
-              if (!extractedTasks || extractedTasks.length === 0) {
-                throw new Error('No tasks could be extracted from the document');
+                previousStatus = statusData.status;
+                lastActivityTime = currentTime; // Status change is also activity
+                hasNewActivity = true; // We have new activity
+              } else if (pollCount % 5 === 0) {
+                // Only show pending status occasionally to avoid flooding
+                setStreamedOutput(prev => 
+                  prev + `.` // Just add a dot to show progress
+                );
               }
               
+              // Log activity detection for debugging
+              if (hasNewActivity && pollCount % 5 === 0) {
+                setStreamedOutput(prev => 
+                  prev + `\n⏱️ Processing continues... (${Math.round(inactiveTime/1000)}s since last change)\n`
+                );
+              }
+              
+              // Check if job is complete or failed
+              if (statusData.status === 'completed') {
+                if (progressIntervalRef.current) {
+                  clearInterval(progressIntervalRef.current);
+                  progressIntervalRef.current = null;
+                }
+                setUploadProgress(100);
+                
+                // Process the results
+                const extractedTasks = statusData.result;
+                
+                if (!extractedTasks || extractedTasks.length === 0) {
+                  throw new Error('No tasks could be extracted from the document');
+                }
+                
+                setStreamedOutput(prev => 
+                  prev + `\n✅ Analysis complete! Found ${extractedTasks.length} tasks.\n`
+                );
+                
+                // Process and validate tasks
+                const processedTasks = extractedTasks.map((task: any) => ({
+                  title: task.title || 'Untitled Task',
+                  details: task.details || '',
+                  assignee: task.assignee || null,
+                  group: task.group || null,
+                  category: task.category || null,
+                  dueDate: task.dueDate || null,
+                  priority: task.priority || 'Medium',
+                  ticketNumber: task.ticketNumber || null,
+                  externalUrl: task.externalUrl || null
+                }));
+                
+                console.log(`Successfully processed ${processedTasks.length} tasks via job queue`);
+                setParsedTasks(processedTasks);
+                setIsProcessing(false);
+                jobComplete = true;
+              } 
+              else if (statusData.status === 'failed') {
+                throw new Error(`Job failed: ${statusData.error || 'Unknown error'}`);
+              }
+            } catch (error: any) {
+              // If there's a network error, don't give up immediately
+              console.error('Error during polling:', error);
               setStreamedOutput(prev => 
-                prev + `\n✅ Analysis complete! Found ${extractedTasks.length} tasks.\n`
+                prev + `\n⚠️ Network error during polling: ${error.message}. Will retry...\n`
               );
-              
-              // Process and validate tasks
-              const processedTasks = extractedTasks.map((task: any) => ({
-                title: task.title || 'Untitled Task',
-                details: task.details || '',
-                assignee: task.assignee || null,
-                group: task.group || null,
-                category: task.category || null,
-                dueDate: task.dueDate || null,
-                priority: task.priority || 'Medium',
-                ticketNumber: task.ticketNumber || null,
-                externalUrl: task.externalUrl || null
-              }));
-              
-              console.log(`Successfully processed ${processedTasks.length} tasks via job queue`);
-              setParsedTasks(processedTasks);
-              setIsProcessing(false);
-              jobComplete = true;
-            } 
-            else if (statusData.status === 'failed') {
-              throw new Error(`Job failed: ${statusData.error || 'Unknown error'}`);
+              // Continue the loop - don't throw yet to allow for retry
+              // We'll time out eventually if this keeps happening
+              continue;
             }
           }
           

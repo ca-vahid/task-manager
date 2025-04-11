@@ -60,7 +60,7 @@ const jobStorage = new Map<string, Job>();
 // Cleanup function to remove old jobs (run periodically)
 const cleanupJobs = () => {
   const now = Date.now();
-  const MAX_AGE_MS = 1000 * 60 * 30; // 30 minutes
+  const MAX_AGE_MS = 1000 * 60 * 60; // Increase to 60 minutes (from 30)
   
   for (const [jobId, job] of jobStorage.entries()) {
     if (now - job.startTime > MAX_AGE_MS) {
@@ -193,6 +193,23 @@ async function processPdfJob(jobId: string): Promise<void> {
   try {
     job.status = 'processing';
     
+    // Add a heartbeat mechanism to update the job status periodically
+    let lastHeartbeat = Date.now();
+    const HEARTBEAT_INTERVAL = 15000; // 15 seconds
+    
+    // Create a heartbeat function that updates the job's timestamp
+    const updateHeartbeat = () => {
+      const currentTime = Date.now();
+      if (currentTime - lastHeartbeat >= HEARTBEAT_INTERVAL) {
+        // Update the job's progress message to show it's still alive
+        job.streamContent = (job.streamContent || '') + 
+          `\n[System: Still processing... ${new Date().toISOString()}]\n`;
+        lastHeartbeat = currentTime;
+        return true;
+      }
+      return false;
+    };
+
     const { pdfData, processingOptions } = job;
     const { technicians, groups, categories, useThinkingModel } = processingOptions;
     
@@ -270,21 +287,46 @@ async function processPdfJob(jobId: string): Promise<void> {
       }
     ];
 
+    // Initialize the chat with throttling/retry logic
+    const initChat = async () => {
+      job.streamContent = (job.streamContent || '') + "\n[System: Initializing document processing...]\n";
+      
+      // Retry logic for model initialization
+      let attempts = 0;
+      const MAX_ATTEMPTS = 3;
+      
+      while (attempts < MAX_ATTEMPTS) {
+        try {
+          return genAI.chats.create({
+            model: MODEL,
+            ...(useThinkingModel ? { generationConfig } : {})
+          });
+        } catch (error) {
+          attempts++;
+          job.streamContent = (job.streamContent || '') + 
+            `\n[System: Retry ${attempts}/${MAX_ATTEMPTS} initializing model...]\n`;
+          await new Promise(r => setTimeout(r, 2000)); // Wait 2 seconds before retry
+        }
+      }
+      
+      throw new Error('Failed to initialize AI model after multiple attempts');
+    };
+    
     // Create a chat instance to maintain conversation context
-    const chat = genAI.chats.create({
-      model: MODEL,
-      ...(useThinkingModel ? { generationConfig } : {})
-    });
-
+    const chat = await initChat();
+    
     // Process and capture both response text and streaming content
     let responseText = '';
     
     // Send the initial message with PDF
+    job.streamContent = (job.streamContent || '') + "\n[System: Sending document to Gemini...]\n";
+    
     const chatStream = await chat.sendMessageStream({
       message: initialMessageContent
     });
     
     // Process the initial stream
+    let chunkCount = 0;
     for await (const chunk of chatStream) {
       if (chunk && chunk.text) {
         responseText += chunk.text;
@@ -292,8 +334,21 @@ async function processPdfJob(jobId: string): Promise<void> {
         if (useThinkingModel) {
           job.streamContent = (job.streamContent || '') + chunk.text;
         }
+        
+        // Update heartbeat periodically during streaming
+        updateHeartbeat();
+        
+        // Log chunk count occasionally
+        chunkCount++;
+        if (chunkCount % 20 === 0) {
+          job.streamContent = (job.streamContent || '') + 
+            `\n[System: Received ${chunkCount} chunks of content so far...]\n`;
+        }
       }
     }
+    
+    // Update the heartbeat after receiving the initial response
+    updateHeartbeat();
     
     // For thinking models, capture and store the model's thought process
     if (useThinkingModel) {
@@ -310,9 +365,16 @@ async function processPdfJob(jobId: string): Promise<void> {
         if (chunk && chunk.text) {
           responseText += chunk.text;
           job.streamContent = (job.streamContent || '') + chunk.text;
+          
+          // Update heartbeat periodically during reasoning
+          updateHeartbeat();
         }
       }
     }
+    
+    // Update the heartbeat before response validation
+    updateHeartbeat();
+    job.streamContent = (job.streamContent || '') + "\n[System: Validating extraction results...]\n";
     
     // Check if response is incomplete and continue as needed
     if (isResponseIncomplete(responseText)) {
@@ -336,6 +398,10 @@ async function processPdfJob(jobId: string): Promise<void> {
         responseText += finalResponse.text || '';
       }
     }
+
+    // Update heartbeat before JSON extraction
+    updateHeartbeat();
+    job.streamContent = (job.streamContent || '') + "\n[System: Extracting structured task data...]\n";
 
     // Try to extract tasks from the response
     let extractedTasks = [];
@@ -444,14 +510,26 @@ async function processPdfJob(jobId: string): Promise<void> {
       throw new Error("No tasks could be extracted from the document");
     }
     
+    // Update heartbeat before optimization
+    updateHeartbeat();
+    job.streamContent = (job.streamContent || '') + "\n[System: Starting task optimization process...]\n";
+    
     // Optimize tasks if we have them
     if (extractedTasks.length > 0) {
       console.log(`Extracted ${extractedTasks.length} tasks. Optimizing...`);
+      job.streamContent = (job.streamContent || '') + 
+        `\n[System: Optimizing ${extractedTasks.length} extracted tasks...]\n`;
+      
       const optimizedTasks = await optimizeTasks(extractedTasks);
+      
+      // Final heartbeat before completion
+      updateHeartbeat();
       
       // Update job with successful result
       job.status = 'completed';
       job.result = optimizedTasks;
+      job.streamContent = (job.streamContent || '') + 
+        `\n[System: Successfully completed task extraction and optimization! Found ${optimizedTasks.length} tasks.]\n`;
     } else {
       throw new Error("No tasks could be extracted from the document");
     }
@@ -459,6 +537,9 @@ async function processPdfJob(jobId: string): Promise<void> {
     console.error("Error processing PDF:", error);
     job.status = 'failed';
     job.error = error.message || "Unknown error occurred during processing";
+    // Add the error to streaming content
+    job.streamContent = (job.streamContent || '') + 
+      `\n[System: Error occurred during processing: ${error.message}]\n`;
   }
 }
 
