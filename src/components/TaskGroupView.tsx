@@ -390,6 +390,23 @@ export function TaskGroupView({
     };
   }, [goToPreviousPage, goToNextPage]); // Add all dependencies used inside the effect
 
+  // Listen for column count change events
+  useEffect(() => {
+    const handleColumnCountChange = (event: CustomEvent) => {
+      if (event.detail && event.detail.count) {
+        setColumnsPerPage(event.detail.count);
+      }
+    };
+
+    // Add the event listener (need to cast as any due to CustomEvent typing)
+    window.addEventListener('setColumnCount', handleColumnCountChange as any);
+    
+    // Remove the event listener on cleanup
+    return () => {
+      window.removeEventListener('setColumnCount', handleColumnCountChange as any);
+    };
+  }, []);
+
   return (
     <div className="relative">
       {/* Column count selector */}
