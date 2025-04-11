@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { 
     doc, // Import doc
     updateDoc, // Import updateDoc
@@ -12,7 +12,7 @@ const CONTROLS_COLLECTION = 'controls';
 
 // PUT /api/controls/[id] - Update a control
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const id = params.id;
@@ -86,7 +86,7 @@ export async function PUT(
 
 // DELETE /api/controls/[id] - Delete a control
 export async function DELETE(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const id = params.id;

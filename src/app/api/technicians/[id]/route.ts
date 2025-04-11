@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { 
     updateDocument, 
     deleteDocument 
@@ -8,7 +8,7 @@ const TECHNICIANS_COLLECTION = 'technicians';
 
 // PUT /api/technicians/[id] - Update a technician
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const id = params.id;
@@ -45,7 +45,7 @@ export async function PUT(
 
 // DELETE /api/technicians/[id] - Delete a technician
 export async function DELETE(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const id = params.id;
