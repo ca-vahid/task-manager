@@ -171,10 +171,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Set a timeout for Vercel - abort the operation before Vercel's 10s limit
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort('Serverless function timeout'), 9500);
-    
     try {
       // Convert the file to a base64 string
       const arrayBuffer = await pdfFile.arrayBuffer();
@@ -323,15 +319,9 @@ export async function POST(req: Request) {
           }
         },
       });
-
-      // Clear the timeout if we complete successfully
-      clearTimeout(timeoutId);
       
       return new StreamingTextResponse(stream);
     } catch (error: any) {
-      // Clear the timeout
-      clearTimeout(timeoutId);
-      
       console.error("Error processing document with Gemini:", error);
       
       // Check if it's a timeout error from Vercel
@@ -359,7 +349,7 @@ export async function POST(req: Request) {
   }
 }
 
-// New helper function to extract valid JSON from possibly truncated text
+// Helper function to extract valid JSON from possibly truncated text
 function extractValidJSON(text: string): any {
   try {
     // First attempt: try to parse the whole text
