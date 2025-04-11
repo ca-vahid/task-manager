@@ -10,10 +10,17 @@ import { Timestamp } from 'firebase/firestore'; // Import Timestamp
 
 const CONTROLS_COLLECTION = 'controls';
 
+// Define the route params interface (consistent with other route files)
+interface RouteParams {
+  params: {
+    id: string;
+  };
+}
+
 // PUT /api/controls/[id] - Update a control
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: RouteParams
 ) {
   const id = params.id;
   try {
@@ -87,7 +94,7 @@ export async function PUT(
 // DELETE /api/controls/[id] - Delete a control
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: RouteParams
 ) {
   const id = params.id;
   try {
