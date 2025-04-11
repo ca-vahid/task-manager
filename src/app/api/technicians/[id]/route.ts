@@ -6,19 +6,12 @@ import {
 
 const TECHNICIANS_COLLECTION = 'technicians';
 
-// Define the route params interface
-interface RouteParams {
-  params: {
-    id: string;
-  };
-}
-
 // PUT /api/technicians/[id] - Update a technician
 export async function PUT(
   request: Request,
-  { params }: RouteParams
+  context: { params: { id: string } }
 ) {
-  const id = params.id;
+  const { id } = context.params;
   try {
     const body = await request.json();
     const { name, email, agentId } = body;
@@ -53,9 +46,9 @@ export async function PUT(
 // DELETE /api/technicians/[id] - Delete a technician
 export async function DELETE(
   request: Request,
-  { params }: RouteParams
+  context: { params: { id: string } }
 ) {
-  const id = params.id;
+  const { id } = context.params;
   try {
     if (!id) {
       return NextResponse.json({ message: 'Technician ID is required' }, { status: 400 });
