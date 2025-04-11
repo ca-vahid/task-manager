@@ -170,240 +170,202 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-
-    try {
-      // Convert the file to a base64 string
-      const arrayBuffer = await pdfFile.arrayBuffer();
-      const fileBuffer = Buffer.from(arrayBuffer);
-      const base64File = fileBuffer.toString("base64");
+    
+    // Convert the file to a base64 string
+    const arrayBuffer = await pdfFile.arrayBuffer();
+    const fileBuffer = Buffer.from(arrayBuffer);
+    const base64File = fileBuffer.toString("base64");
+    
+    // Create context strings for technicians, groups, and categories
+    const technicianContext = technicians.length > 0 
+      ? `Available technicians: ${technicians.map((tech: any) => tech.name).join(', ')}.`
+      : 'No technicians specified.';
+    
+    const groupContext = groups.length > 0 
+      ? `Available groups: ${groups.map((group: any) => group.name).join(', ')}.`
+      : 'No groups specified.';
+    
+    const categoryContext = categories.length > 0
+      ? `Available categories: ${categories.map((cat: any) => cat.value).join(', ')}.`
+      : 'No categories specified.';
+    
+    // Select the appropriate model based on user preference
+    const MODEL = useThinkingModel ? THINKING_MODEL : STANDARD_MODEL;
+    
+    // Generate the initial prompt for Gemini
+    const initialPrompt = `
+      You are a task extraction assistant that analyzes PDFs to identify tasks.
       
-      // Create context strings for technicians, groups, and categories
-      const technicianContext = technicians.length > 0 
-        ? `Available technicians: ${technicians.map((tech: any) => tech.name).join(', ')}.`
-        : 'No technicians specified.';
+      ${technicianContext}
+      ${groupContext}
+      ${categoryContext}
       
-      const groupContext = groups.length > 0 
-        ? `Available groups: ${groups.map((group: any) => group.name).join(', ')}.`
-        : 'No groups specified.';
+      Please analyze the attached PDF document and extract tasks that need to be done.
       
-      const categoryContext = categories.length > 0
-        ? `Available categories: ${categories.map((cat: any) => cat.value).join(', ')}.`
-        : 'No categories specified.';
+      For each task, extract:
       
-      // Select the appropriate model based on user preference
-      const MODEL = useThinkingModel ? THINKING_MODEL : STANDARD_MODEL;
+      1. Title - A clear, concise title that summarizes the task
+      2. Details - A detailed explanation of what the task involves, formatted as HTML with proper paragraphs, lists, and basic formatting
+      3. Assignee - The person assigned to the task (from the available technicians if mentioned)
+      4. Group - The group responsible for the task (from the available groups if mentioned)
+      5. Category - The most appropriate category for the task (from the available categories)
+      6. Due date - Preferred in YYYY-MM-DD format if mentioned, otherwise null
+      7. Priority - Low, Medium, High, or Critical based on urgency mentioned
+      8. Ticket number - If mentioned in the document
+      9. External URL - If mentioned in the document
       
-      // Generate the initial prompt for Gemini
-      const initialPrompt = `
-        You are a task extraction assistant that analyzes PDFs to identify tasks.
-        
-        ${technicianContext}
-        ${groupContext}
-        ${categoryContext}
-        
-        Please analyze the attached PDF document and extract tasks that need to be done.
-        
-        For each task, extract:
-        
-        1. Title - A clear, concise title that summarizes the task
-        2. Details - A detailed explanation of what the task involves, formatted as HTML with proper paragraphs, lists, and basic formatting
-        3. Assignee - The person assigned to the task (from the available technicians if mentioned)
-        4. Group - The group responsible for the task (from the available groups if mentioned)
-        5. Category - The most appropriate category for the task (from the available categories)
-        6. Due date - Preferred in YYYY-MM-DD format if mentioned, otherwise null
-        7. Priority - Low, Medium, High, or Critical based on urgency mentioned
-        8. Ticket number - If mentioned in the document
-        9. External URL - If mentioned in the document
-        
-        Extract as many tasks as you can find in the document. If information isn't available for certain fields, set them to null.
-        
-        Format your response as valid JSON in this structure:
-        {
-          "tasks": [
-            {
-              "title": "Task title",
-              "details": "<p>Task details as HTML</p>",
-              "assignee": "Name of assignee or null",
-              "group": "Group name or null",
-              "category": "Category value or null",
-              "dueDate": "YYYY-MM-DD or null",
-              "priority": "Low|Medium|High|Critical",
-              "ticketNumber": "Ticket number or null",
-              "externalUrl": "URL or null"
-            }
-          ]
-        }
-      `;
-
-      // For the thinking model, set up the generation config
-      const generationConfig = useThinkingModel ? {
-        responseStructure: { schema: TASK_SCHEMA }
-      } : {};
-
-      // Initial PDF content as attachment
-      const initialMessageContent = [
-        { text: initialPrompt },
-        { 
-          inlineData: {
-            mimeType: 'application/pdf',
-            data: base64File
+      Extract as many tasks as you can find in the document. If information isn't available for certain fields, set them to null.
+      
+      Format your response as valid JSON in this structure:
+      {
+        "tasks": [
+          {
+            "title": "Task title",
+            "details": "<p>Task details as HTML</p>",
+            "assignee": "Name of assignee or null",
+            "group": "Group name or null",
+            "category": "Category value or null",
+            "dueDate": "YYYY-MM-DD or null",
+            "priority": "Low|Medium|High|Critical",
+            "ticketNumber": "Ticket number or null",
+            "externalUrl": "URL or null"
           }
+        ]
+      }
+    `;
+
+    // For the thinking model, set up the generation config
+    const generationConfig = useThinkingModel ? {
+      responseStructure: { schema: TASK_SCHEMA }
+    } : {};
+
+    // Initial PDF content as attachment
+    const initialMessageContent = [
+      { text: initialPrompt },
+      { 
+        inlineData: {
+          mimeType: 'application/pdf',
+          data: base64File
         }
-      ];
+      }
+    ];
 
-      // Create a chat instance to maintain conversation context
-      const chat = genAI.chats.create({
-        model: MODEL,
-        ...(useThinkingModel ? { generationConfig } : {})
-      });
+    // Create a chat instance to maintain conversation context
+    const chat = genAI.chats.create({
+      model: MODEL,
+      ...(useThinkingModel ? { generationConfig } : {})
+    });
 
-      // Initialize an empty string to collect the full response
-      let fullResponseText = '';
-      
-      // Create a more resilient TransformStream to process chunks
-      const stream = new ReadableStream({
-        async start(controller) {
-          try {
-            // Send the initial message with PDF
-            const chatStream = await chat.sendMessageStream({
-              message: initialMessageContent
+    // Start streaming with the initial PDF content
+    let streamResponseText = '';
+    
+    // Create a text-decoder stream for the Gemini response
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          // Send the initial message with PDF
+          const chatStream = await chat.sendMessageStream({
+            message: initialMessageContent
+          });
+          
+          // Process the initial stream
+          for await (const chunk of chatStream) {
+            if (chunk && chunk.text) {
+              streamResponseText += chunk.text;
+              controller.enqueue(new TextEncoder().encode(chunk.text));
+            }
+          }
+          
+          // Check if the response seems complete
+          if (isResponseIncomplete(streamResponseText)) {
+            // Send a follow-up message asking to continue
+            controller.enqueue(new TextEncoder().encode("\n\n[System: Response seems incomplete. Requesting continuation...]\n\n"));
+            
+            const continuationStream = await chat.sendMessageStream({
+              message: "Please continue. It seems your response was cut off. Complete the JSON output of the tasks you were extracting."
             });
             
-            // Process the initial stream
-            for await (const chunk of chatStream) {
+            // Process the continuation stream
+            for await (const chunk of continuationStream) {
               if (chunk && chunk.text) {
-                fullResponseText += chunk.text;
+                streamResponseText += chunk.text;
                 controller.enqueue(new TextEncoder().encode(chunk.text));
               }
             }
             
-            // Check if the response seems incomplete
-            if (isResponseIncomplete(fullResponseText)) {
-              try {
-                // Try to extract any valid JSON from the partial response
-                const extractedJson = extractValidJSON(fullResponseText);
-                if (extractedJson) {
-                  controller.enqueue(new TextEncoder().encode("\n\n[System: Extracted partial JSON before timeout]\n\n"));
-                  controller.enqueue(new TextEncoder().encode(JSON.stringify(extractedJson, null, 2)));
-                } else {
-                  controller.enqueue(new TextEncoder().encode("\n\n[System: Response was incomplete due to timeout. Try processing a smaller PDF or using the standard model.]\n\n"));
+            // Check if we need a final message to complete/wrap up - only for standard model
+            if (!useThinkingModel) {
+              controller.enqueue(new TextEncoder().encode("\n\n[System: Finalizing response...]\n\n"));
+              
+              const finalStream = await chat.sendMessageStream({
+                message: "Please ensure your response is complete and properly formatted as JSON. If you're done, please state 'EXTRACTION COMPLETE'."
+              });
+              
+              // Process the final stream
+              for await (const chunk of finalStream) {
+                if (chunk && chunk.text) {
+                  streamResponseText += chunk.text;
+                  controller.enqueue(new TextEncoder().encode(chunk.text));
                 }
-              } catch (jsonError) {
-                controller.enqueue(new TextEncoder().encode("\n\n[System: Response was incomplete and could not extract valid JSON. Try a smaller PDF.]\n\n"));
               }
+            }
+          }
+
+          // Always perform task optimization as a final step
+          controller.enqueue(new TextEncoder().encode("\n\n[System: Optimizing and consolidating tasks...]\n\n"));
+          
+          try {
+            // Try to extract JSON from the response text
+            let extractedTasks = [];
+            try {
+              // Try to extract the JSON portion using regex pattern matching
+              const jsonMatch = streamResponseText.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                const jsonData = JSON.parse(jsonMatch[0]);
+                
+                if (jsonData && jsonData.tasks && Array.isArray(jsonData.tasks)) {
+                  extractedTasks = jsonData.tasks;
+                } 
+                // Handle case where the response is a direct tasks array
+                else if (Array.isArray(jsonData)) {
+                  extractedTasks = jsonData;
+                }
+                // Handle case where Gemini returned a differently shaped response
+                else {
+                  extractedTasks = [jsonData]; // Wrap in array as fallback
+                }
+              }
+            } catch (e) {
+              // If JSON extraction fails, let the client handle the raw text
+              controller.enqueue(new TextEncoder().encode("\n\n[System: Error parsing JSON. Will attempt to extract tasks for optimization.]\n\n"));
             }
             
-            controller.close();
-          } catch (error: any) {
-            // Handle timeout or other errors gracefully
-            if (error.name === 'AbortError' || error.message?.includes('timeout')) {
-              console.error("Request timed out:", error);
-              
-              // Try to extract any valid JSON from the partial response
-              try {
-                const extractedJson = extractValidJSON(fullResponseText);
-                if (extractedJson) {
-                  controller.enqueue(new TextEncoder().encode("\n\n[System: Vercel serverless function timed out. Extracted partial results:]\n\n"));
-                  controller.enqueue(new TextEncoder().encode(JSON.stringify(extractedJson, null, 2)));
-                } else {
-                  controller.enqueue(new TextEncoder().encode("\n\n[System: Vercel serverless function timed out. Could not extract any valid tasks.]\n\n"));
-                }
-              } catch (jsonError) {
-                controller.enqueue(new TextEncoder().encode("\n\n[System: Vercel serverless function timed out. Try processing a smaller PDF or upgrading your Vercel plan for longer timeouts.]\n\n"));
-              }
-            } else {
-              console.error("Error processing stream:", error);
-              controller.enqueue(new TextEncoder().encode(`\n\nError during streaming: ${error.message}\n\n`));
+            // Optimize tasks if we have them
+            if (extractedTasks.length > 0) {
+              const optimizedTasks = await optimizeTasks(extractedTasks);
+              controller.enqueue(new TextEncoder().encode("\n\n[System: Optimized " + extractedTasks.length + " tasks to " + optimizedTasks.length + " consolidated tasks.]\n\n"));
+              controller.enqueue(new TextEncoder().encode(JSON.stringify(optimizedTasks, null, 2)));
+            } else if (!streamOutput) {
+              controller.enqueue(new TextEncoder().encode("\n\n[System: Could not extract tasks for optimization. Original extraction will be used.]\n\n"));
             }
-            controller.close();
+          } catch (error: any) {
+            controller.enqueue(new TextEncoder().encode("\n\n[System: Error during task optimization: " + error.message + "]\n\n"));
           }
-        },
-      });
-      
-      return new StreamingTextResponse(stream);
-    } catch (error: any) {
-      console.error("Error processing document with Gemini:", error);
-      
-      // Check if it's a timeout error from Vercel
-      if (error.name === 'AbortError' || error.message?.includes('timeout')) {
-        return NextResponse.json(
-          { 
-            error: "Vercel serverless function timed out",
-            message: "The PDF processing exceeded the Vercel timeout limit. Try a smaller PDF or upgrade your Vercel plan." 
-          },
-          { status: 504 }
-        );
-      }
-      
-      return NextResponse.json(
-        { error: "An error occurred while processing the document", message: error.message },
-        { status: 500 }
-      );
-    }
-  } catch (error: any) {
-    console.error("Error in main request handler:", error);
+        } catch (error: any) {
+          console.error("Error processing stream:", error);
+          controller.enqueue(new TextEncoder().encode("\nError during streaming: " + error.message));
+        } finally {
+          controller.close();
+        }
+      },
+    });
+
+    return new StreamingTextResponse(stream);
+  } catch (error) {
+    console.error("Error processing document with Gemini:", error);
     return NextResponse.json(
-      { error: "An error occurred while processing the document", message: error.message },
+      { error: "An error occurred while processing the document" },
       { status: 500 }
     );
-  }
-}
-
-// Helper function to extract valid JSON from possibly truncated text
-function extractValidJSON(text: string): any {
-  try {
-    // First attempt: try to parse the whole text
-    try {
-      return JSON.parse(text);
-    } catch (e) {
-      // Not valid JSON
-    }
-    
-    // Second attempt: look for a complete JSON object
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        return JSON.parse(jsonMatch[0]);
-      } catch (e) {
-        // Not valid JSON
-      }
-    }
-    
-    // Third attempt: look for tasks array
-    const tasksArrayMatch = text.match(/\"tasks\"\s*:\s*\[\s*\{[\s\S]*?\}\s*\]/);
-    if (tasksArrayMatch) {
-      try {
-        return { tasks: JSON.parse(`[${text.match(/\"tasks\"\s*:\s*\[\s*(\{[\s\S]*?\})\s*\]/)?.[1]}]`) };
-      } catch (e) {
-        // Not valid JSON
-      }
-    }
-    
-    // Fourth attempt: extract tasks by finding individual complete task objects
-    const taskObjectsMatch = text.match(/\{[^\{\}]*"title"[^\{\}]*\}/g);
-    if (taskObjectsMatch && taskObjectsMatch.length > 0) {
-      try {
-        const validTasks = taskObjectsMatch
-          .map(taskStr => {
-            try {
-              return JSON.parse(taskStr);
-            } catch (e) {
-              return null;
-            }
-          })
-          .filter(task => task !== null);
-        
-        if (validTasks.length > 0) {
-          return { tasks: validTasks };
-        }
-      } catch (e) {
-        // Failed to extract tasks
-      }
-    }
-    
-    return null;
-  } catch (error) {
-    console.error("Error extracting JSON:", error);
-    return null;
   }
 } 

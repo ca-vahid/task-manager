@@ -116,254 +116,197 @@ export function BulkAddTaskFromPDF({
         });
       }, 300);
       
-      // Create AbortController for client-side timeout handling
-      const controller = new AbortController();
-      // Set a longer timeout for the client side (30 seconds)
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      // Send the file to the API for streaming analysis
+      const response = await fetch('/api/gemini/extract-tasks-from-pdf', {
+        method: 'POST',
+        body: formData,
+      });
       
-      try {
-        // Send the file to the API for streaming analysis with timeout handling
-        const response = await fetch('/api/gemini/extract-tasks-from-pdf', {
-          method: 'POST',
-          body: formData,
-          signal: controller.signal
-        });
-        
-        // Clear the timeout since we got a response
-        clearTimeout(timeoutId);
-        clearInterval(progressInterval);
-        setUploadProgress(100);
-        
-        if (!response.ok) {
-          // Handle HTTP error responses
-          if (response.status === 504) {
-            throw new Error('Request timed out on the server. The PDF may be too large or complex for Vercel\'s free tier limitations.');
-          }
-          
-          // Try to extract JSON error message if available
-          try {
-            const errorData = await response.json();
-            throw new Error(errorData.message || errorData.error || `Server responded with status ${response.status}`);
-          } catch (jsonError) {
-            throw new Error(`Server responded with status ${response.status}`);
-          }
-        }
-        
-        // Handle streaming response
-        const reader = response.body?.getReader();
-        if (!reader) {
-          throw new Error('Failed to get response stream');
-        }
-        
-        // Read the stream
-        let receivedText = '';
-        
-        // Create a function to read and process chunks
-        const processStream = async () => {
-          try {
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              
-              const chunk = new TextDecoder().decode(value);
-              receivedText += chunk;
-              
-              // Update the UI with each received chunk
-              setStreamedOutput(prevText => prevText + chunk);
-              
-              // Force a small delay to ensure React updates the UI
-              await new Promise(resolve => setTimeout(resolve, 10));
-            }
-            return receivedText;
-          } catch (error) {
-            console.error('Error reading stream:', error);
-            throw error;
-          }
-        };
-        
-        const completeText = await processStream();
-        
-        // After streaming completes, try to parse the accumulated JSON
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to analyze document');
+      }
+      
+      // Handle streaming response
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('Failed to get response stream');
+      }
+      
+      // Read the stream
+      let receivedText = '';
+      
+      // Create a function to read and process chunks
+      const processStream = async () => {
         try {
-          // Look for any JSON in the response
-          const jsonMatches = extractJSON(completeText);
-          
-          if (jsonMatches && jsonMatches.length > 0) {
-            // Use the largest JSON object found (likely the most complete)
-            let bestMatch = jsonMatches[0];
-            for (const match of jsonMatches) {
-              if (match.length > bestMatch.length) {
-                bestMatch = match;
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            const chunk = new TextDecoder().decode(value);
+            receivedText += chunk;
+            
+            // Update the UI with each received chunk
+            setStreamedOutput(prevText => prevText + chunk);
+            
+            // Force a small delay to ensure React updates the UI
+            await new Promise(resolve => setTimeout(resolve, 10));
+          }
+          return receivedText;
+        } catch (error) {
+          console.error('Error reading stream:', error);
+          throw error;
+        }
+      };
+      
+      const completeText = await processStream();
+      
+      // After streaming completes, try to parse the accumulated JSON
+      try {
+        // Try to extract the JSON object from the text
+        let jsonText = completeText;
+        
+        // First, let's extract just the JSON part
+        // Look for the first opening brace that starts a complete JSON object
+        const jsonStartIndex = jsonText.indexOf('{');
+        let jsonEndIndex = -1;
+        
+        if (jsonStartIndex >= 0) {
+          // We found a potential JSON object, now find the matching closing brace
+          let openBraces = 0;
+          for (let i = jsonStartIndex; i < jsonText.length; i++) {
+            if (jsonText[i] === '{') openBraces++;
+            else if (jsonText[i] === '}') {
+              openBraces--;
+              if (openBraces === 0) {
+                jsonEndIndex = i + 1; // Include the closing brace
+                break;
               }
             }
-            
-            console.log("Extracted JSON text:", bestMatch.substring(0, 100) + "...");
-            
-            // Now parse the found JSON
-            const parsedData = JSON.parse(bestMatch);
-            
-            // Process tasks based on structure
-            let extractedTasks = [];
-            if (parsedData && parsedData.tasks && Array.isArray(parsedData.tasks)) {
-              extractedTasks = parsedData.tasks;
-            } else if (Array.isArray(parsedData)) {
-              extractedTasks = parsedData;
-            } else {
-              extractedTasks = [parsedData]; // Fallback to treating the whole object as a single task
-            }
-            
-            if (extractedTasks.length === 0) {
-              throw new Error('No tasks could be extracted from the document');
-            }
-            
-            // Process and validate tasks
-            const processedTasks = extractedTasks.map((task: any) => ({
-              title: task.title || 'Untitled Task',
-              details: task.details || '',
-              assignee: task.assignee || null,
-              group: task.group || null,
-              category: task.category || null,
-              dueDate: task.dueDate || null,
-              priority: task.priority || 'Medium',
-              ticketNumber: task.ticketNumber || null,
-              externalUrl: task.externalUrl || null
-            }));
-            
-            console.log(`Successfully processed ${processedTasks.length} tasks`);
-            setParsedTasks(processedTasks);
-            setProcessingComplete(true);
-            setCountdown(5);
-          } else {
-            throw new Error('Could not extract valid JSON from the response');
-          }
-        } 
-        catch (error) {
-          console.error('Failed to parse streaming output as JSON:', error);
-          
-          // Try to salvage any tasks from the text response
-          const taskObjects = extractTasksFromText(completeText);
-          
-          if (taskObjects && taskObjects.length > 0) {
-            console.log(`Extracted ${taskObjects.length} tasks using fallback method`);
-            setParsedTasks(taskObjects);
-            setProcessingComplete(true);
-            setCountdown(5);
-          } else {
-            throw new Error('Could not extract valid tasks from the response');
           }
         }
-      } catch (fetchError: any) {
-        // Clear the timeouts if there was an error
-        clearTimeout(timeoutId);
-        clearInterval(progressInterval);
         
-        if (fetchError.name === 'AbortError') {
-          console.error('Request timed out on the client side');
-          setError('Request timed out. The PDF may be too large or complex for processing.');
-          setStreamedOutput(prevOutput => 
-            prevOutput + 
-            "\n\n❌ CLIENT TIMEOUT: The request took too long to complete. Try a smaller PDF file or using the standard model."
-          );
+        // If we found a complete JSON object, extract just that part
+        if (jsonStartIndex >= 0 && jsonEndIndex > jsonStartIndex) {
+          jsonText = jsonText.substring(jsonStartIndex, jsonEndIndex);
         } else {
-          throw fetchError; // Re-throw to be caught by the outer catch
+          // Try the regex approach as a fallback
+          const jsonMatch = jsonText.match(/\{[\s\S]*?\}/);
+          if (jsonMatch) {
+            jsonText = jsonMatch[0];
+          }
+        }
+        
+        console.log("Extracted JSON text:", jsonText.substring(0, 100) + "...");
+        
+        // Now parse the cleaned JSON
+        const parsedData = JSON.parse(jsonText);
+        
+        // Process tasks based on structure
+        let extractedTasks = [];
+        if (parsedData && parsedData.tasks && Array.isArray(parsedData.tasks)) {
+          extractedTasks = parsedData.tasks;
+        } else if (Array.isArray(parsedData)) {
+          extractedTasks = parsedData;
+        } else {
+          extractedTasks = [parsedData]; // Fallback to treating the whole object as a single task
+        }
+        
+        if (extractedTasks.length === 0) {
+          throw new Error('No tasks could be extracted from the document');
+        }
+        
+        // Process and validate tasks
+        const processedTasks = extractedTasks.map((task: any) => ({
+          title: task.title || 'Untitled Task',
+          details: task.details || '',
+          assignee: task.assignee || null,
+          group: task.group || null,
+          category: task.category || null,
+          dueDate: task.dueDate || null,
+          priority: task.priority || 'Medium',
+          ticketNumber: task.ticketNumber || null,
+          externalUrl: task.externalUrl || null
+        }));
+        
+        console.log(`Successfully processed ${processedTasks.length} tasks`);
+        setParsedTasks(processedTasks);
+        setProcessingComplete(true);
+        setCountdown(5);
+      } 
+      catch (error) {
+        console.error('Failed to parse streaming output as JSON, making direct request', error);
+        
+        try {
+          // Create new FormData without streaming flag
+          const formDataDirect = new FormData();
+          formDataDirect.append('file', selectedFile);
+          formDataDirect.append('technicians', JSON.stringify(technicians.map(tech => ({ id: tech.id, name: tech.name }))));
+          formDataDirect.append('groups', JSON.stringify(groups.map(group => ({ id: group.id, name: group.name }))));
+          formDataDirect.append('categories', JSON.stringify(categories.map(cat => ({ id: cat.id, value: cat.value }))));
+          formDataDirect.append('useThinkingModel', useThinkingModel.toString());
+          
+          // Make direct request
+          const directResponse = await fetch('/api/gemini/extract-tasks-from-pdf', {
+            method: 'POST',
+            body: formDataDirect,
+          });
+          
+          if (!directResponse.ok) {
+            const errorData = await directResponse.json();
+            throw new Error(errorData.error || errorData.message || 'Failed to analyze document');
+          }
+          
+          let extractedTasks = await directResponse.json();
+          
+          if (!extractedTasks || extractedTasks.length === 0) {
+            throw new Error('No tasks could be extracted from the document');
+          }
+          
+          // Process and validate tasks
+          const processedTasks = extractedTasks.map((task: any) => ({
+            title: task.title || 'Untitled Task',
+            details: task.details || '',
+            assignee: task.assignee || null,
+            group: task.group || null,
+            category: task.category || null,
+            dueDate: task.dueDate || null,
+            priority: task.priority || 'Medium',
+            ticketNumber: task.ticketNumber || null,
+            externalUrl: task.externalUrl || null
+          }));
+          
+          setParsedTasks(processedTasks);
+          setProcessingComplete(true);
+          setCountdown(5);
+        } catch (secondError: any) {
+          console.error('Error in fallback document analysis:', secondError);
+          setError(secondError.message || 'An error occurred while analyzing the document');
+          // Don't set processing to false yet to avoid going back to input mode
+          setIsProcessing(false);
+          // Show a more user-friendly error that stays on screen
+          if (streamedOutput) {
+            setStreamedOutput(prevOutput => 
+              prevOutput + 
+              "\n\n❌ ERROR: Failed to extract tasks from the document. Please try again or use a different file."
+            );
+            // Keep in processing complete state but with error
+            setProcessingComplete(true); 
+            setCountdown(10); // Give more time to see the error
+          }
         }
       }
     } 
     catch (err: any) {
       console.error('Error analyzing document:', err);
       setError(err.message || 'An error occurred while analyzing the document');
-      
-      // Add helpful message to the stream output
-      if (streamedOutput) {
-        setStreamedOutput(prevOutput => 
-          prevOutput + 
-          `\n\n❌ ERROR: ${err.message || 'Failed to extract tasks from the document'}. Please try again or use a different file.`
-        );
-      }
     } 
     finally {
       setIsProcessing(false);
     }
-  };
-  
-  // Helper function to extract any valid JSON from a potentially malformed response
-  const extractJSON = (text: string): string[] => {
-    const results: string[] = [];
-    
-    // First try: extract complete JSON objects
-    try {
-      const jsonRegex = /\{[\s\S]*?\}/g;
-      const matches = text.match(jsonRegex);
-      if (matches) {
-        for (const match of matches) {
-          try {
-            // Test if it's valid JSON by parsing it
-            JSON.parse(match);
-            results.push(match);
-          } catch (e) {
-            // Not valid JSON, skip it
-          }
-        }
-      }
-    } catch (e) {
-      console.error('Error extracting JSON objects:', e);
-    }
-    
-    // Second try: look for tasks arrays specifically
-    try {
-      const tasksRegex = /\"tasks\"\s*:\s*\[\s*\{[\s\S]*?\}\s*\]/g;
-      const matches = text.match(tasksRegex);
-      if (matches) {
-        for (const match of matches) {
-          try {
-            const wrappedMatch = `{${match}}`;
-            JSON.parse(wrappedMatch);
-            results.push(wrappedMatch);
-          } catch (e) {
-            // Not valid JSON, skip it
-          }
-        }
-      }
-    } catch (e) {
-      console.error('Error extracting tasks arrays:', e);
-    }
-    
-    return results;
-  };
-  
-  // Helper function to extract tasks from text when JSON parsing fails completely
-  const extractTasksFromText = (text: string): any[] => {
-    const tasks: any[] = [];
-    
-    // Look for task titles (simple heuristic)
-    const titleRegex = /["']title["']\s*:\s*["']([^"']+)["']/g;
-    let match;
-    
-    while ((match = titleRegex.exec(text)) !== null) {
-      const title = match[1];
-      
-      // Extract a details snippet near this title if possible
-      let details = '';
-      const detailsRegex = new RegExp(`"details"\\s*:\\s*"([^"]+)"`, 'g');
-      const detailsMatch = detailsRegex.exec(text.slice(match.index, match.index + 500));
-      if (detailsMatch) {
-        details = detailsMatch[1];
-      }
-      
-      tasks.push({
-        title: title || 'Untitled Task',
-        details: details || '',
-        assignee: null,
-        group: null,
-        category: null,
-        dueDate: null,
-        priority: 'Medium',
-        ticketNumber: null,
-        externalUrl: null
-      });
-    }
-    
-    return tasks;
   };
   
   // Function to handle final submission of tasks
