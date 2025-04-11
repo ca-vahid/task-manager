@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Control, Technician, ControlStatus, ViewDensity } from '@/lib/types';
 import { ControlCard } from './ControlCard';
 import {
@@ -173,17 +173,17 @@ export function ControlGroupView(props: ControlGroupViewProps) {
   const hasMultiplePages = totalPages > 1;
 
   // Simple navigation functions
-  const goToNextPage = () => {
+  const goToNextPage = useCallback(() => {
     if (currentPage < totalPages - 1) {
       setCurrentPage(currentPage + 1);
     }
-  };
+  }, [currentPage, totalPages]);
 
-  const goToPrevPage = () => {
+  const goToPrevPage = useCallback(() => {
     if (currentPage > 0) {
       setCurrentPage(currentPage - 1);
     }
-  };
+  }, [currentPage]);
 
   // Control IDs by group for SortableContext
   const controlIdsByGroup = useMemo(() => {
@@ -274,7 +274,7 @@ export function ControlGroupView(props: ControlGroupViewProps) {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [currentPage]); // Re-add when currentPage changes
+  }, [goToPrevPage, goToNextPage]); // Include all dependencies used in the effect
 
   // Render layout
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Task, Technician, TaskStatus, ViewDensity, Group, Category } from '@/lib/types';
 import { TaskCard } from './TaskCard';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
@@ -148,7 +148,7 @@ export function TaskGroupView({
   );
 
   // Navigate to previous page with animation
-  const goToPreviousPage = () => {
+  const goToPreviousPage = useCallback(() => {
     if (currentPage > 0 && !isAnimating) {
       setIsAnimating(true);
       setAnimationDirection('right');
@@ -161,10 +161,10 @@ export function TaskGroupView({
         }, 50);
       }, 250);
     }
-  };
+  }, [currentPage, isAnimating]);
 
   // Navigate to next page with animation
-  const goToNextPage = () => {
+  const goToNextPage = useCallback(() => {
     if (currentPage < totalPages - 1 && !isAnimating) {
       setIsAnimating(true);
       setAnimationDirection('left');
@@ -177,7 +177,7 @@ export function TaskGroupView({
         }, 50);
       }, 250);
     }
-  };
+  }, [currentPage, isAnimating, totalPages]);
 
   // Reset animation direction when animation ends
   useEffect(() => {
@@ -220,7 +220,7 @@ export function TaskGroupView({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [currentPage]); // Re-add when currentPage changes
+  }, [goToPreviousPage, goToNextPage]); // Add all dependencies used inside the effect
 
   return (
     <div className="relative">
