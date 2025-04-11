@@ -18,8 +18,8 @@ interface RouteParams {
 }
 
 // PUT /api/controls/[id] - Update a control
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
-  const { id } = params;
+export async function PUT(request: Request, context: { params: { id: string } }) {
+  const { id } = context.params;
   try {
     const body = await request.json();
     // Destructure all possible fields from Control, allowing partial updates
@@ -89,8 +89,8 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 }
 
 // DELETE /api/controls/[id] - Delete a control
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
-  const { id } = params;
+export async function DELETE(request: Request, context: { params: { id: string } }) {
+  const { id } = context.params;
   try {
     if (!id) {
       return NextResponse.json({ message: 'Control ID is required' }, { status: 400 });
