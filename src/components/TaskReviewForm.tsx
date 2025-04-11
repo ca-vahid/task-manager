@@ -158,38 +158,65 @@ export function TaskReviewForm({
   const findBestTechnicianMatch = (name: string | null): string => {
     if (!name) return '';
     
+    // If the name isn't a string or is empty, return empty
+    if (typeof name !== 'string' || name.trim() === '') return '';
+    
+    // For debugging
+    console.log("Trying to match technician:", name);
+    
     const normalizedName = name.toLowerCase().trim();
     
-    // Try to find an exact match
+    // Try to find an exact match (case insensitive)
     const exactMatch = technicians.find(tech => 
       tech.name.toLowerCase().trim() === normalizedName
     );
-    if (exactMatch) return exactMatch.id;
+    if (exactMatch) {
+      console.log(`Found exact match for ${name}: ${exactMatch.name}`);
+      return exactMatch.id;
+    }
     
     // Try if any technician name contains the input name
     const containsMatch = technicians.find(tech => 
       tech.name.toLowerCase().trim().includes(normalizedName)
     );
-    if (containsMatch) return containsMatch.id;
+    if (containsMatch) {
+      console.log(`Found contains match for ${name}: ${containsMatch.name}`);
+      return containsMatch.id;
+    }
     
     // Try if the input name contains any technician name
     const reverseContainsMatch = technicians.find(tech => 
       normalizedName.includes(tech.name.toLowerCase().trim())
     );
-    if (reverseContainsMatch) return reverseContainsMatch.id;
+    if (reverseContainsMatch) {
+      console.log(`Found reverse contains match for ${name}: ${reverseContainsMatch.name}`);
+      return reverseContainsMatch.id;
+    }
     
-    // Try if the input name contains any part (word) of any technician name
-    for (const tech of technicians) {
-      const techNameParts = tech.name.toLowerCase().trim().split(/\s+/);
-      for (const part of techNameParts) {
-        if (normalizedName.includes(part) && part.length > 1) {
-          return tech.id;
+    // Try more aggressive matching for first and last names
+    const nameParts = normalizedName.split(/\s+/);
+    
+    // If there's a multi-part name, try to match first+last
+    if (nameParts.length > 1) {
+      for (const tech of technicians) {
+        const techParts = tech.name.toLowerCase().trim().split(/\s+/);
+        
+        // Check if first and last match in any order
+        if (techParts.length > 1 && nameParts.length > 1) {
+          // Check first name match
+          if (techParts[0].includes(nameParts[0]) || nameParts[0].includes(techParts[0])) {
+            // Check last name match
+            if (techParts[techParts.length-1].includes(nameParts[nameParts.length-1]) || 
+                nameParts[nameParts.length-1].includes(techParts[techParts.length-1])) {
+              console.log(`Found first+last match for ${name}: ${tech.name}`);
+              return tech.id;
+            }
+          }
         }
       }
     }
     
-    // Try if any part of the input name matches any part of any technician name
-    const nameParts = normalizedName.split(/\s+/);
+    // Try to match parts (first name or last name)
     for (const part of nameParts) {
       if (part.length < 2) continue; // Skip very short parts
       
@@ -198,9 +225,28 @@ export function TaskReviewForm({
         return techParts.some(techPart => techPart.includes(part) || part.includes(techPart));
       });
       
-      if (partMatch) return partMatch.id;
+      if (partMatch) {
+        console.log(`Found part match for ${name}: ${partMatch.name}`);
+        return partMatch.id;
+      }
     }
     
+    // Last attempt: try to match initials
+    if (nameParts.length > 1) {
+      const initials = nameParts.map(part => part[0]).join('').toLowerCase();
+      
+      for (const tech of technicians) {
+        const techParts = tech.name.toLowerCase().trim().split(/\s+/);
+        const techInitials = techParts.map(part => part[0]).join('');
+        
+        if (techInitials === initials) {
+          console.log(`Found initials match for ${name}: ${tech.name}`);
+          return tech.id;
+        }
+      }
+    }
+    
+    console.log(`No match found for ${name}`);
     return '';
   };
   
@@ -228,19 +274,60 @@ export function TaskReviewForm({
   const findBestCategoryMatch = (categoryName: string | null): string => {
     if (!categoryName) return '';
     
+    // If the category name isn't a string or is empty, return empty
+    if (typeof categoryName !== 'string' || categoryName.trim() === '') return '';
+    
+    // For debugging
+    console.log("Trying to match category:", categoryName);
+    
+    const normalizedName = categoryName.toLowerCase().trim();
+    
     // Try to find an exact match
     const exactMatch = categories.find(category => 
-      category.value.toLowerCase() === categoryName.toLowerCase()
+      category.value.toLowerCase().trim() === normalizedName
     );
-    if (exactMatch) return exactMatch.id;
+    if (exactMatch) {
+      console.log(`Found exact category match for ${categoryName}: ${exactMatch.value}`);
+      return exactMatch.id;
+    }
     
-    // Try to find a partial match
+    // Try to find a partial match (category contains input or input contains category)
     const partialMatch = categories.find(category => 
-      category.value.toLowerCase().includes(categoryName.toLowerCase()) || 
-      categoryName.toLowerCase().includes(category.value.toLowerCase())
+      category.value.toLowerCase().trim().includes(normalizedName) || 
+      normalizedName.includes(category.value.toLowerCase().trim())
     );
-    if (partialMatch) return partialMatch.id;
+    if (partialMatch) {
+      console.log(`Found partial category match for ${categoryName}: ${partialMatch.value}`);
+      return partialMatch.id;
+    }
     
+    // Try word-by-word matching
+    const categoryWords = normalizedName.split(/\s+/);
+    if (categoryWords.length > 1) {
+      for (const category of categories) {
+        const categoryValueWords = category.value.toLowerCase().trim().split(/\s+/);
+        
+        // Count matching words
+        let matchingWords = 0;
+        for (const word of categoryWords) {
+          if (word.length < 3) continue; // Skip short words
+          
+          if (categoryValueWords.some(catWord => 
+            catWord.includes(word) || word.includes(catWord)
+          )) {
+            matchingWords++;
+          }
+        }
+        
+        // If more than half the words match, consider it a match
+        if (matchingWords > 0 && matchingWords >= Math.ceil(categoryWords.length/2)) {
+          console.log(`Found word-based category match for ${categoryName}: ${category.value}`);
+          return category.id;
+        }
+      }
+    }
+    
+    console.log(`No category match found for ${categoryName}`);
     return '';
   };
   

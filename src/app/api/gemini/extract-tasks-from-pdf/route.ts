@@ -303,26 +303,108 @@ async function processPdfJob(jobId: string): Promise<void> {
       // Try to extract tasks from the response
       let extractedTasks = [];
       try {
-        // Try to extract the JSON portion using regex pattern matching
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const jsonData = JSON.parse(jsonMatch[0]);
-          
-          if (jsonData && jsonData.tasks && Array.isArray(jsonData.tasks)) {
-            extractedTasks = jsonData.tasks;
-          } 
-          // Handle case where the response is a direct tasks array
-          else if (Array.isArray(jsonData)) {
-            extractedTasks = jsonData;
-          }
-          // Handle case where Gemini returned a differently shaped response
-          else {
-            extractedTasks = [jsonData]; // Wrap in array as fallback
+        // More aggressive patterns to find JSON
+        let jsonData = null;
+        
+        // First, try to find a tasks array pattern
+        const tasksArrayPattern = /"tasks"\s*:\s*\[([\s\S]*?)\]/;
+        const tasksMatch = responseText.match(tasksArrayPattern);
+        
+        if (tasksMatch) {
+          // Try to extract the tasks array by reconstructing it
+          try {
+            const tasksJsonText = `{"tasks":[${tasksMatch[1]}]}`;
+            jsonData = JSON.parse(tasksJsonText);
+          } catch (arrayParseError) {
+            console.error("Failed to parse tasks array:", arrayParseError);
           }
         }
-      } catch (e) {
+        
+        // If tasks array extraction failed, try for complete JSON object
+        if (!jsonData) {
+          // Try to extract the JSON object with more permissive pattern
+          const jsonPattern = /\{[\s\S]*?("tasks"\s*:[\s\S]*?|\[[\s\S]*?\])[\s\S]*?\}/g;
+          const jsonMatches = [...responseText.matchAll(jsonPattern)];
+          
+          if (jsonMatches.length > 0) {
+            // Try each match until we find one that parses
+            for (const match of jsonMatches) {
+              try {
+                const possibleJson = match[0];
+                jsonData = JSON.parse(possibleJson);
+                break; // If parsing succeeds, break out of the loop
+              } catch (err) {
+                // Continue to the next match
+              }
+            }
+          }
+        }
+        
+        // Standard fallback for basic JSON object
+        if (!jsonData) {
+          const basicJsonMatch = responseText.match(/\{[\s\S]*?\}/);
+          if (basicJsonMatch) {
+            try {
+              jsonData = JSON.parse(basicJsonMatch[0]);
+            } catch (e) {
+              console.error("Failed to parse even basic JSON match");
+            }
+          }
+        }
+        
+        // Process whatever JSON data we found
+        if (jsonData) {
+          if (jsonData.tasks && Array.isArray(jsonData.tasks)) {
+            extractedTasks = jsonData.tasks;
+          } else if (Array.isArray(jsonData)) {
+            extractedTasks = jsonData;
+          } else {
+            // Check if this is actually a task object itself
+            if (jsonData.title && typeof jsonData.title === 'string') {
+              extractedTasks = [jsonData]; // Single task object
+            }
+          }
+        }
+        
+        // Last resort: Try to find an array pattern directly
+        if (extractedTasks.length === 0) {
+          const arrayPattern = /\[\s*\{\s*"title"[\s\S]*?\}\s*\]/;
+          const arrayMatch = responseText.match(arrayPattern);
+          if (arrayMatch) {
+            try {
+              const possibleArray = JSON.parse(arrayMatch[0]);
+              if (Array.isArray(possibleArray)) {
+                extractedTasks = possibleArray;
+              }
+            } catch (e) {
+              console.error("Failed to parse array pattern");
+            }
+          }
+        }
+        
+        // Ensure each task has all required fields
+        if (extractedTasks.length > 0) {
+          extractedTasks = extractedTasks.map((task: any) => ({
+            title: task.title || "Untitled Task",
+            details: task.details || task.explanation || "",
+            assignee: task.assignee || null,
+            group: task.group || null,
+            category: task.category || null,
+            dueDate: task.dueDate || null,
+            priority: task.priority || "Medium",
+            ticketNumber: task.ticketNumber || null,
+            externalUrl: task.externalUrl || null
+          }));
+        }
+      } catch (e: unknown) {
         console.error("Failed to parse JSON from response:", e);
-        throw new Error("Failed to parse tasks from Gemini response");
+        const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+        throw new Error(`Failed to parse tasks from Gemini response: ${errorMessage}`);
+      }
+      
+      // If still no tasks after all attempts, throw an error
+      if (extractedTasks.length === 0) {
+        throw new Error("No tasks could be extracted from the document");
       }
       
       // Optimize tasks if we have them
@@ -627,26 +709,135 @@ async function handleStreamingRequest(
           // Try to extract JSON from the response text
           let extractedTasks = [];
           try {
-            // Try to extract the JSON portion using regex pattern matching
-            const jsonMatch = streamResponseText.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-              const jsonData = JSON.parse(jsonMatch[0]);
-              
-              if (jsonData && jsonData.tasks && Array.isArray(jsonData.tasks)) {
-                extractedTasks = jsonData.tasks;
-              } 
-              // Handle case where the response is a direct tasks array
-              else if (Array.isArray(jsonData)) {
-                extractedTasks = jsonData;
-              }
-              // Handle case where Gemini returned a differently shaped response
-              else {
-                extractedTasks = [jsonData]; // Wrap in array as fallback
+            // More aggressive patterns to find JSON
+            let jsonData = null;
+            
+            // First, try to find a tasks array pattern
+            const tasksArrayPattern = /"tasks"\s*:\s*\[([\s\S]*?)\]/;
+            const tasksMatch = streamResponseText.match(tasksArrayPattern);
+            
+            if (tasksMatch) {
+              // Try to extract the tasks array by reconstructing it
+              try {
+                const tasksJsonText = `{"tasks":[${tasksMatch[1]}]}`;
+                jsonData = JSON.parse(tasksJsonText);
+              } catch (arrayParseError) {
+                console.error("Failed to parse tasks array:", arrayParseError);
               }
             }
-          } catch (e) {
-            // If JSON extraction fails, let the client handle the raw text
-            controller.enqueue(new TextEncoder().encode("\n\n[System: Error parsing JSON. Will attempt to extract tasks for optimization.]\n\n"));
+            
+            // If tasks array extraction failed, try for complete JSON object
+            if (!jsonData) {
+              // Try to extract the JSON object with more permissive pattern
+              const jsonPattern = /\{[\s\S]*?("tasks"\s*:[\s\S]*?|\[[\s\S]*?\])[\s\S]*?\}/g;
+              const jsonMatches = [...streamResponseText.matchAll(jsonPattern)];
+              
+              if (jsonMatches.length > 0) {
+                // Try each match until we find one that parses
+                for (const match of jsonMatches) {
+                  try {
+                    const possibleJson = match[0];
+                    jsonData = JSON.parse(possibleJson);
+                    break; // If parsing succeeds, break out of the loop
+                  } catch (err) {
+                    // Continue to the next match
+                  }
+                }
+              }
+            }
+            
+            // Standard fallback for basic JSON object
+            if (!jsonData) {
+              const basicJsonMatch = streamResponseText.match(/\{[\s\S]*?\}/);
+              if (basicJsonMatch) {
+                try {
+                  jsonData = JSON.parse(basicJsonMatch[0]);
+                } catch (e) {
+                  console.error("Failed to parse even basic JSON match");
+                }
+              }
+            }
+            
+            // Process whatever JSON data we found
+            if (jsonData) {
+              if (jsonData.tasks && Array.isArray(jsonData.tasks)) {
+                extractedTasks = jsonData.tasks;
+              } else if (Array.isArray(jsonData)) {
+                extractedTasks = jsonData;
+              } else {
+                // Check if this is actually a task object itself
+                if (jsonData.title && typeof jsonData.title === 'string') {
+                  extractedTasks = [jsonData]; // Single task object
+                }
+              }
+            }
+            
+            // Last resort: Try to find an array pattern directly
+            if (extractedTasks.length === 0) {
+              const arrayPattern = /\[\s*\{\s*"title"[\s\S]*?\}\s*\]/;
+              const arrayMatch = streamResponseText.match(arrayPattern);
+              if (arrayMatch) {
+                try {
+                  const possibleArray = JSON.parse(arrayMatch[0]);
+                  if (Array.isArray(possibleArray)) {
+                    extractedTasks = possibleArray;
+                  }
+                } catch (e) {
+                  console.error("Failed to parse array pattern");
+                }
+              }
+            }
+            
+            // Log the extraction for debugging
+            console.log(`JSON extraction attempt: found ${extractedTasks.length} tasks`);
+            
+            // Ensure each task has all required fields
+            if (extractedTasks.length > 0) {
+              extractedTasks = extractedTasks.map((task: any) => ({
+                title: task.title || "Untitled Task",
+                details: task.details || task.explanation || "",
+                assignee: task.assignee || null,
+                group: task.group || null,
+                category: task.category || null,
+                dueDate: task.dueDate || null,
+                priority: task.priority || "Medium",
+                ticketNumber: task.ticketNumber || null,
+                externalUrl: task.externalUrl || null
+              }));
+            }
+            
+          } catch (e: unknown) {
+            console.error("Error extracting JSON:", e);
+            const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+            controller.enqueue(new TextEncoder().encode(`\n\n[System: Error parsing JSON: ${errorMessage}. Will attempt to extract tasks for optimization.]\n\n`));
+          }
+          
+          // If still no tasks, make an emergency extraction attempt from text
+          if (extractedTasks.length === 0) {
+            try {
+              // Look for patterns like "Task: X" or "Title: X" in the text
+              const taskTitlePattern = /(?:Task|Title):\s*([^\n]+)/g;
+              const titleMatches = [...streamResponseText.matchAll(taskTitlePattern)];
+              
+              if (titleMatches.length > 0) {
+                controller.enqueue(new TextEncoder().encode("\n\n[System: Attempting emergency task extraction from text patterns...]\n\n"));
+                
+                // Create basic task objects from text patterns
+                extractedTasks = titleMatches.map(match => ({
+                  title: match[1].trim(),
+                  details: `<p>Automatically extracted from text: ${match[1].trim()}</p>`,
+                  assignee: null,
+                  group: null,
+                  category: null,
+                  dueDate: null,
+                  priority: "Medium",
+                  ticketNumber: null,
+                  externalUrl: null
+                }));
+              }
+            } catch (e) {
+              console.error("Emergency extraction failed:", e);
+            }
           }
           
           // Optimize tasks if we have them
