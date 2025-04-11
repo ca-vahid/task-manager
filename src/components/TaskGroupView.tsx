@@ -77,7 +77,7 @@ function SortableGroupItem({
     <div 
       ref={setNodeRef} 
       style={style}
-      className={`bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden ${className || ''}`}
+      className={`bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden w-full ${className || ''}`}
     >
       {/* Group header - draggable */}
       <div 
@@ -464,7 +464,7 @@ export function TaskGroupView({
       >
         <div className={`grid grid-cols-1 md:grid-cols-2 ${
           columnsPerPage === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'
-        } gap-6 ${getAnimationClasses()}`}>
+        } gap-3 ${getAnimationClasses()}`}>
           <SortableContext items={currentGroups.map(([groupKey]) => groupKey)} strategy={verticalListSortingStrategy}>
             {/* Render current page groups */}
             {currentGroups.map(([groupKey, groupTasks]) => (
@@ -479,7 +479,7 @@ export function TaskGroupView({
                   ...prev,
                   [key]: !prev[key]
                 }))}
-                className={columnsPerPage === 4 ? 'max-w-[calc(100%-1rem)]' : ''}
+                className=""
               >
                 {(groupTasks as Task[]).map(task => (
                   <TaskCard
