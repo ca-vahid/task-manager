@@ -40,37 +40,69 @@ const JsonHighlight: React.FC<{ line: string }> = ({ line }) => {
   );
 };
 
-// Main component for highlighted output
+// Main component for highlighted output with improved code block detection
 const HighlightedOutput: React.FC<{ text: string }> = ({ text }) => {
   const lines = text.split('\n');
+  const [inJsonCodeBlock, setInJsonCodeBlock] = useState(false);
+  const jsonLines: string[] = [];
   
-  return (
-    <>
-      {lines.map((line, i) => {
-        // JSON lines
-        if ((line.trim().startsWith('{') || line.trim().startsWith('[')) ||
-            (line.includes('"') && (line.includes('{') || line.includes('}')))) {
-          return <JsonHighlight key={i} line={line} />;
-        }
-        
-        // System messages
-        if (line.includes('[System:')) {
-          return (
-            <div key={i} className="leading-relaxed text-emerald-600 dark:text-emerald-400 italic mt-2 mb-1">
-              {line || <br />}
-            </div>
-          );
-        }
-        
-        // Default line
-        return (
-          <div key={i} className="leading-relaxed">
-            {line || <br />}
-          </div>
-        );
-      })}
-    </>
-  );
+  // Process lines to handle code blocks
+  const processedLines = lines.map((line, i) => {
+    // Detect start of a JSON code block using markdown style ```json
+    if (line.trim().match(/^```\s*json\s*$/i)) {
+      setInJsonCodeBlock(true);
+      return null; // Skip the markdown delimiter
+    }
+    
+    // Detect end of a code block
+    if (inJsonCodeBlock && line.trim() === '```') {
+      setInJsonCodeBlock(false);
+      
+      // Process the accumulated JSON
+      const jsonText = jsonLines.join('\n');
+      // Remove the lines we've processed from the array
+      jsonLines.length = 0;
+      
+      return (
+        <div key={i} className="border-t border-b border-gray-200 dark:border-gray-700 my-2 py-2 px-1 rounded bg-gray-50 dark:bg-gray-900">
+          {jsonText.split('\n').map((jsonLine, j) => (
+            <JsonHighlight key={`json-${i}-${j}`} line={jsonLine} />
+          ))}
+        </div>
+      );
+    }
+    
+    // Collect JSON lines
+    if (inJsonCodeBlock) {
+      jsonLines.push(line);
+      return null; // Skip the line as we'll process it in batch when the block ends
+    }
+    
+    // Handle regular JSON without code block markers
+    if ((line.trim().startsWith('{') || line.trim().startsWith('[')) ||
+        (line.includes('"') && (line.includes('{') || line.includes('}')))) {
+      return <JsonHighlight key={i} line={line} />;
+    }
+    
+    // System messages
+    if (line.includes('[System:')) {
+      return (
+        <div key={i} className="leading-relaxed text-emerald-600 dark:text-emerald-400 italic mt-2 mb-1">
+          {line || <br />}
+        </div>
+      );
+    }
+    
+    // Default line
+    return (
+      <div key={i} className="leading-relaxed">
+        {line || <br />}
+      </div>
+    );
+  });
+  
+  // Filter out null items (which were handled specially)
+  return <>{processedLines.filter(line => line !== null)}</>;
 };
 
 export function BulkAddTaskFromPDF({
@@ -871,14 +903,15 @@ export function BulkAddTaskFromPDF({
           <div>
             <div
               ref={streamOutputRef}
-              className={`font-mono text-sm overflow-auto max-h-96 p-4 border ${
-                useThinkingModel 
-                  ? 'border-purple-200 dark:border-purple-800' 
-                  : 'border-gray-200 dark:border-gray-800'
-              } rounded-lg bg-white dark:bg-gray-900 whitespace-pre-wrap`}
+              className={`bg-gray-50 dark:bg-gray-900 border-2 ${
+                error
+                  ? 'border-red-200 dark:border-red-800'
+                  : useThinkingModel 
+                    ? 'border-purple-200 dark:border-purple-800' 
+                    : 'border-gray-200 dark:border-gray-800'
+              } rounded-lg p-4 h-64 overflow-auto font-mono text-xs relative`}
             >
               <HighlightedOutput text={streamedOutput} />
-              <div className="h-4"></div>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">
               {optimizationComplete 
@@ -986,17 +1019,7 @@ export function BulkAddTaskFromPDF({
                     : 'border-gray-200 dark:border-gray-800'
               } rounded-lg p-4 h-64 overflow-auto font-mono text-xs relative`}
             >
-              {streamedOutput.split('\n').map((line, i) => (
-                <div key={i} className={`leading-relaxed ${
-                  line.includes('ERROR:') 
-                    ? 'text-red-600 dark:text-red-400 font-semibold' 
-                    : i === streamedOutput.split('\n').length - 1 && !error 
-                      ? `${useThinkingModel ? 'text-purple-600 dark:text-purple-400' : 'text-green-600 dark:text-green-400'} font-semibold animate-pulse` 
-                      : ''
-                }`}>
-                  {line || <br />}
-                </div>
-              ))}
+              <HighlightedOutput text={streamedOutput} />
             </div>
             {error && (
               <div className="flex items-center justify-between mt-1">
