@@ -43,66 +43,76 @@ const JsonHighlight: React.FC<{ line: string }> = ({ line }) => {
 // Main component for highlighted output with improved code block detection
 const HighlightedOutput: React.FC<{ text: string }> = ({ text }) => {
   const lines = text.split('\n');
-  const [inJsonCodeBlock, setInJsonCodeBlock] = useState(false);
-  const jsonLines: string[] = [];
   
-  // Process lines to handle code blocks
-  const processedLines = lines.map((line, i) => {
+  // Process code blocks without using React state (which was causing infinite re-renders)
+  let inJsonCodeBlock = false;
+  const jsonLines: string[] = [];
+  const processedOutput: (JSX.Element | null)[] = [];
+  
+  // Process each line sequentially to properly track code blocks
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
     // Detect start of a JSON code block using markdown style ```json
     if (line.trim().match(/^```\s*json\s*$/i)) {
-      setInJsonCodeBlock(true);
-      return null; // Skip the markdown delimiter
+      inJsonCodeBlock = true;
+      continue; // Skip the markdown delimiter
     }
     
     // Detect end of a code block
     if (inJsonCodeBlock && line.trim() === '```') {
-      setInJsonCodeBlock(false);
+      inJsonCodeBlock = false;
       
       // Process the accumulated JSON
       const jsonText = jsonLines.join('\n');
-      // Remove the lines we've processed from the array
-      jsonLines.length = 0;
       
-      return (
-        <div key={i} className="border-t border-b border-gray-200 dark:border-gray-700 my-2 py-2 px-1 rounded bg-gray-50 dark:bg-gray-900">
+      // Create a block for all the JSON lines
+      processedOutput.push(
+        <div key={`json-block-${i}`} className="border-t border-b border-gray-200 dark:border-gray-700 my-2 py-2 px-1 rounded bg-gray-50 dark:bg-gray-900">
           {jsonText.split('\n').map((jsonLine, j) => (
             <JsonHighlight key={`json-${i}-${j}`} line={jsonLine} />
           ))}
         </div>
       );
+      
+      // Clear the accumulated JSON lines
+      jsonLines.length = 0;
+      continue;
     }
     
-    // Collect JSON lines
+    // Collect JSON lines within a code block
     if (inJsonCodeBlock) {
       jsonLines.push(line);
-      return null; // Skip the line as we'll process it in batch when the block ends
+      continue;
     }
     
     // Handle regular JSON without code block markers
     if ((line.trim().startsWith('{') || line.trim().startsWith('[')) ||
         (line.includes('"') && (line.includes('{') || line.includes('}')))) {
-      return <JsonHighlight key={i} line={line} />;
+      processedOutput.push(<JsonHighlight key={`line-${i}`} line={line} />);
+      continue;
     }
     
     // System messages
     if (line.includes('[System:')) {
-      return (
-        <div key={i} className="leading-relaxed text-emerald-600 dark:text-emerald-400 italic mt-2 mb-1">
+      processedOutput.push(
+        <div key={`line-${i}`} className="leading-relaxed text-emerald-600 dark:text-emerald-400 italic mt-2 mb-1">
           {line || <br />}
         </div>
       );
+      continue;
     }
     
     // Default line
-    return (
-      <div key={i} className="leading-relaxed">
+    processedOutput.push(
+      <div key={`line-${i}`} className="leading-relaxed">
         {line || <br />}
       </div>
     );
-  });
+  }
   
-  // Filter out null items (which were handled specially)
-  return <>{processedLines.filter(line => line !== null)}</>;
+  // Return all processed lines
+  return <>{processedOutput}</>;
 };
 
 export function BulkAddTaskFromPDF({
