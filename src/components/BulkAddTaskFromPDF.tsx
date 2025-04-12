@@ -15,6 +15,69 @@ interface BulkAddTaskFromPDFProps {
   onCreateGroup?: (name: string, description?: string) => Promise<Group>;
 }
 
+// Function to colorize JSON strings in the output
+const colorizeOutput = (text: string): React.ReactNode[] => {
+  // Split the text into lines
+  const lines = text.split('\n');
+  
+  return lines.map((line, i) => {
+    // Detect if this line is likely JSON
+    if ((line.trim().startsWith('{') || line.trim().startsWith('[') || 
+         line.includes('":"') || line.includes('": "')) && 
+        (line.includes('{') || line.includes('}'))) {
+      
+      // Replace parts of JSON with styled spans
+      const colorized = line
+        // Keys with quotes
+        .replace(/"([^"]+)":/g, '<span style="color:#e63946;font-weight:bold;">"$1":</span>')
+        // String values
+        .replace(/: "([^"]+)"/g, ': <span style="color:#118ab2;">"$1"</span>')
+        // Numbers
+        .replace(/: (\d+)([,}])/g, ': <span style="color:#06d6a0;">$1</span>$2')
+        // Booleans
+        .replace(/: (true|false)([,}])/g, ': <span style="color:#ffd166;">$1</span>$2')
+        // Null values
+        .replace(/: (null)([,}])/g, ': <span style="color:#073b4c;">$1</span>$2')
+        // Brackets and braces
+        .replace(/[{}[\]]/g, '<span style="color:#444;">$&</span>')
+        // Commas
+        .replace(/,/g, '<span style="color:#444;">$&</span>');
+      
+      return (
+        <div 
+          key={i} 
+          className="leading-relaxed" 
+          dangerouslySetInnerHTML={{ __html: colorized }}
+        />
+      );
+    }
+    
+    // Handle system messages with different styling
+    if (line.includes('[System:')) {
+      return (
+        <div 
+          key={i} 
+          className="leading-relaxed text-emerald-600 dark:text-emerald-400 italic mt-2 mb-1"
+        >
+          {line || <br />}
+        </div>
+      );
+    }
+    
+    // Regular line without special formatting
+    return (
+      <div 
+        key={i} 
+        className={`leading-relaxed ${
+          i === lines.length - 1 ? `animate-pulse` : ''
+        }`}
+      >
+        {line || <br />}
+      </div>
+    );
+  });
+};
+
 export function BulkAddTaskFromPDF({
   technicians,
   groups,
@@ -811,13 +874,9 @@ export function BulkAddTaskFromPDF({
                 useThinkingModel 
                   ? 'border-purple-200 dark:border-purple-800' 
                   : 'border-gray-200 dark:border-gray-800'
-              } rounded-lg`}
+              } rounded-lg bg-white dark:bg-gray-900`}
             >
-              {streamedOutput.split('\n').map((line, i) => (
-                <div key={i} className={`leading-relaxed ${i === streamedOutput.split('\n').length - 1 ? `${useThinkingModel ? 'text-purple-600 dark:text-purple-400' : 'text-green-600 dark:text-green-400'} font-semibold animate-pulse` : ''}`}>
-                  {line || <br />}
-                </div>
-              ))}
+              {colorizeOutput(streamedOutput)}
               <div className="h-4"></div> {/* Extra space to ensure auto-scroll works */}
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">
@@ -827,9 +886,17 @@ export function BulkAddTaskFromPDF({
             </p>
           </div>
           
-          {/* Confirmation button that appears after optimization is complete */}
+          {/* Buttons with better layout */}
           {optimizationComplete && (
-            <div className="flex justify-center mt-4">
+            <div className="flex justify-between mt-4">
+              <button
+                type="button"
+                onClick={onCancel}
+                className="px-4 py-2 border-2 border-gray-300 dark:border-gray-700 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+              
               <button
                 onClick={handleConfirmOptimization}
                 className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
@@ -838,15 +905,6 @@ export function BulkAddTaskFromPDF({
               </button>
             </div>
           )}
-          
-          {/* Always show cancel button */}
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-4 py-2 mt-4 border-2 border-gray-300 dark:border-gray-700 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-          >
-            Cancel
-          </button>
         </div>
       )}
       
