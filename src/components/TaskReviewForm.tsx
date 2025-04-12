@@ -91,10 +91,10 @@ const TaskReviewCard = memo(({
   
   return (
     <div 
-      className={`task-card border rounded-lg p-4 bg-white dark:bg-gray-800 shadow-sm relative ${
+      className={`task-card border-2 rounded-lg p-4 bg-white dark:bg-gray-800 shadow-md relative ${
         isThinkingModel 
-          ? 'border-purple-200 dark:border-purple-800'
-          : 'border-blue-100 dark:border-blue-900'
+          ? 'border-purple-300 dark:border-purple-600'
+          : 'border-blue-300 dark:border-blue-600'
       }`}
     >
       {/* Task header with title and remove button */}
