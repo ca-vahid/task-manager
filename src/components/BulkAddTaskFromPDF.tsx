@@ -24,9 +24,9 @@ const JsonHighlight: React.FC<{ line: string }> = ({ line }) => {
       dangerouslySetInnerHTML={{ 
         __html: line
           // Keys
-          .replace(/"([^"]+)":/g, '<span class="text-red-600 dark:text-red-400 font-semibold">"$1":</span>')
+          .replace(/"([^"]+)":/g, '<span class="text-red-600 dark:text-red-400 font-semibold">&quot;$1&quot;:</span>')
           // String values
-          .replace(/: "([^"]+)"/g, ': <span class="text-blue-600 dark:text-blue-400">"$1"</span>')
+          .replace(/: "([^"]+)"/g, ': <span class="text-blue-600 dark:text-blue-400">&quot;$1&quot;</span>')
           // Numbers
           .replace(/: (\d+)(,|$|})/g, ': <span class="text-green-600 dark:text-green-500">$1</span>$2')
           // Booleans
