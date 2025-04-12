@@ -70,26 +70,55 @@ const HighlightedOutput: React.FC<{ text: string }> = ({ text }) => {
       return;
     }
     
-    // System messages - collect separately
+    // System messages - collect separately with enhanced formatting
     if (line.includes('[System:')) {
-      // Store system messages to show at the end
-      const messageType = line.includes('Optimization complete') || 
-                         line.includes('optimization complete') || 
-                         line.includes('Optimized') ? 
-                         'success' : 'info';
-                         
-      systemMessages.push(
-        <div 
-          key={`system-${i}`} 
-          className={`leading-relaxed ${
-            messageType === 'success' 
-              ? 'text-green-600 dark:text-green-400 font-semibold bg-green-50 dark:bg-green-900/20 p-2 rounded-md border border-green-200 dark:border-green-800' 
-              : 'text-emerald-600 dark:text-emerald-400 italic'
-          } mt-2 mb-1`}
-        >
-          {line || <br />}
-        </div>
-      );
+      const isOptimizationSummary = line.includes('Successfully optimized:') || 
+                                   line.includes('Optimization complete');
+                                   
+      // Special highlighting for optimization summary
+      if (isOptimizationSummary) {
+        // Extract task counts for the optimization summary message
+        const countMatch = line.match(/(\d+)\s*→\s*(\d+)/);
+        let enhancedLine = line;
+        
+        if (countMatch && countMatch.length >= 3) {
+          const originalCount = countMatch[1];
+          const finalCount = countMatch[2];
+          
+          // Replace with enhanced formatting that highlights the numbers
+          enhancedLine = line.replace(
+            `${originalCount} → ${finalCount}`,
+            `<span class="font-bold text-amber-600 dark:text-amber-400">${originalCount}</span> → <span class="font-bold text-green-600 dark:text-green-400">${finalCount}</span>`
+          );
+        } else if (line.includes('Final result:')) {
+          // For the final result line, highlight the number
+          const taskCountMatch = line.match(/(\d+)\s+tasks/);
+          if (taskCountMatch && taskCountMatch[1]) {
+            enhancedLine = line.replace(
+              `${taskCountMatch[1]} tasks`,
+              `<span class="font-bold text-green-600 dark:text-green-400">${taskCountMatch[1]}</span> tasks`
+            );
+          }
+        }
+        
+        systemMessages.push(
+          <div 
+            key={`system-${i}`} 
+            className="leading-relaxed text-gray-800 dark:text-gray-200 font-medium bg-green-100 dark:bg-green-900/30 p-3 rounded-md border-l-4 border-green-500 dark:border-green-600 mt-3 mb-1"
+            dangerouslySetInnerHTML={{ __html: enhancedLine }}
+          />
+        );
+      } else {
+        // Regular system message
+        systemMessages.push(
+          <div 
+            key={`system-${i}`} 
+            className="leading-relaxed text-emerald-600 dark:text-emerald-400 italic mt-2 mb-1"
+          >
+            {line || <br />}
+          </div>
+        );
+      }
       return;
     }
     
@@ -101,12 +130,12 @@ const HighlightedOutput: React.FC<{ text: string }> = ({ text }) => {
     );
   });
   
-  // Return content lines first, then system messages at the end
+  // Return content lines first, then system messages at the end with enhanced styling
   return (
     <>
       {contentLines}
       {systemMessages.length > 0 && (
-        <div className="mt-4 sticky bottom-0 bg-white dark:bg-gray-800 pt-2 border-t border-gray-200 dark:border-gray-700">
+        <div className="mt-4 sticky bottom-0 bg-white dark:bg-gray-800 pt-3 border-t border-gray-200 dark:border-gray-700 shadow-lg">
           {systemMessages}
         </div>
       )}

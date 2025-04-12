@@ -807,16 +807,11 @@ async function handleStreamingRequest(
             const originalCount = extractedTasks.length;
             const finalCount = optimizedTasks.length;
             
-            if (originalCount !== finalCount) {
-              controller.enqueue(new TextEncoder().encode(
-                `[System: Successfully optimized: ${originalCount} → ${finalCount} tasks]\n` +
-                `[System: Optimization complete. Final result: ${finalCount} tasks]`
-              ));
-            } else {
-              controller.enqueue(new TextEncoder().encode(
-                `[System: Optimization complete. Final result: ${finalCount} tasks]`
-              ));
-            }
+            // Always include both counts for better visibility
+            controller.enqueue(new TextEncoder().encode(
+              `[System: Successfully optimized: ${originalCount} → ${finalCount} tasks]\n` +
+              `[System: Optimization complete. Final result: ${finalCount} tasks]`
+            ));
           } else {
             controller.enqueue(new TextEncoder().encode("\n\n[System: Could not extract tasks for optimization. Original extraction will be used.]\n\n"));
           }
