@@ -1175,7 +1175,27 @@ export function TaskCard({
 
         {/* Description toggle button and due date */}
         <div className="flex flex-wrap items-center gap-3 mb-3">
-          {/* Due date - moved next to where description button was */}
+          {/* Description toggle button */}
+          {task.explanation && (
+            <button
+              onClick={() => setShowDescription(!showDescription)}
+              className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 py-1 px-2 rounded flex items-center transition-colors"
+            >
+              {showDescription ? (
+                <>
+                  <ChevronUpIcon className="h-3.5 w-3.5 mr-1" />
+                  <span>Hide Details</span>
+                </>
+              ) : (
+                <>
+                  <ChevronDownIcon className="h-3.5 w-3.5 mr-1" />
+                  <span>Show Details</span>
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Due date */}
           <div className={`text-sm py-1 px-2 rounded-md flex items-center ${timeRemaining.overdue ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300' : timeRemaining.urgent ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-300' : 'bg-gray-50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-300'}`}>
             <ClockIcon className="h-3.5 w-3.5 mr-1.5 text-current" />
             {task.estimatedCompletionDate ? 
@@ -1187,22 +1207,10 @@ export function TaskCard({
             
         {/* Collapsible description */}
         {showDescription && task.explanation && (
-          <>
-            {/* Description toggle button for hiding */}
-            <div className="flex justify-end mb-1">
-              <button 
-                onClick={() => setShowDescription(false)}
-                className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 py-1 px-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center"
-              >
-                <ChevronUpIcon className="h-3.5 w-3.5 mr-1" />
-                Hide Details
-              </button>
-            </div>
-            <div 
-              className="mb-4 text-sm text-gray-700 dark:text-gray-300 bg-white/50 dark:bg-black/20 p-3 rounded-md border border-gray-200 dark:border-gray-700 transition-all duration-200 ease-in rich-text-content"
-              dangerouslySetInnerHTML={{ __html: sanitizeHtml(task.explanation || '') }}
-            />
-          </>
+          <div 
+            className="mb-4 text-sm text-gray-700 dark:text-gray-300 bg-white/50 dark:bg-black/20 p-3 rounded-md border border-gray-200 dark:border-gray-700 transition-all duration-200 ease-in rich-text-content"
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(task.explanation || '') }}
+          />
         )}
         
         {/* Task details */}
@@ -1304,7 +1312,7 @@ export function TaskCard({
                   value={editedDescription}
                   onChange={(e) => setEditedDescription(e.target.value)}
                   rows={8}
-                  className="block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm focus:border-blue-500 dark:focus:border-blue-400 focus:ring-blue-500 dark:focus:ring-blue-400"
+                  className="block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm focus:border-blue-500 dark:focus:border-blue-400"
                 />
               </div>
             </div>
