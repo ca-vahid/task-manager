@@ -34,6 +34,7 @@ export function BulkAddTaskFromPDF({
   const [processingComplete, setProcessingComplete] = useState(false);
   const [countdown, setCountdown] = useState(5);
   const [isPaused, setIsPaused] = useState(false);
+  const [optimizationComplete, setOptimizationComplete] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const streamOutputRef = useRef<HTMLDivElement>(null);
   
@@ -455,7 +456,7 @@ export function BulkAddTaskFromPDF({
           
           console.log(`Successfully processed ${processedTasks.length} optimized tasks`);
           setParsedTasks(processedTasks);
-          setIsProcessing(false);
+          setOptimizationComplete(true); // Mark optimization as complete
           return; // Exit early if we've found optimized tasks
         }
       } catch (e) {
@@ -523,7 +524,7 @@ export function BulkAddTaskFromPDF({
       
       console.log(`Successfully processed ${processedTasks.length} tasks`);
       setParsedTasks(processedTasks);
-      setIsProcessing(false);
+      setOptimizationComplete(true); // Mark optimization as complete
     } else {
       // Try the regex approach as a fallback
       const jsonMatch = inputText.match(/\{[\s\S]*?\}/);
@@ -563,7 +564,7 @@ export function BulkAddTaskFromPDF({
         
         console.log(`Successfully processed ${processedTasks.length} tasks`);
         setParsedTasks(processedTasks);
-        setIsProcessing(false);
+        setOptimizationComplete(true); // Mark optimization as complete
       } else {
         throw new Error('No valid JSON found in the streamed output');
       }
@@ -617,12 +618,12 @@ export function BulkAddTaskFromPDF({
       }));
       
       setParsedTasks(processedTasks);
-      setIsProcessing(false);
+      setOptimizationComplete(true); // Set optimization complete
+      // Don't set isProcessing to false yet - let user confirm first
     } catch (secondError: any) {
       console.error('Error in fallback document analysis:', secondError);
       setError(secondError.message || 'An error occurred while analyzing the document');
-      // Don't set processing to false yet to avoid going back to input mode
-      setIsProcessing(false);
+      setIsProcessing(false); // We can set this to false on error
       
       // Show a more user-friendly error that stays on screen
       setStreamedOutput(prevOutput => 
@@ -633,6 +634,12 @@ export function BulkAddTaskFromPDF({
       setProcessingComplete(true); 
       setCountdown(10); // Give more time to see the error
     }
+  };
+  
+  // Add a function to handle user confirmation
+  const handleConfirmOptimization = () => {
+    setOptimizationComplete(false); // Reset for next time
+    setIsProcessing(false); // Now end processing and move to review
   };
   
   return (
@@ -774,94 +781,65 @@ export function BulkAddTaskFromPDF({
       )}
       
       {showProcessingView && (
-        /* Processing view - Step 2: Showing analysis progress */
-        <div className="flex flex-col items-center space-y-4 py-6">
-          {/* Loading animation */}
-          <div className="relative w-32 h-32">
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className={`w-20 h-20 border-b-4 border-l-4 ${useThinkingModel ? 'border-purple-500' : 'border-blue-500'} rounded-full animate-spin`}></div>
-            </div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className={`w-16 h-16 border-t-4 border-r-4 ${useThinkingModel ? 'border-indigo-600' : 'border-indigo-500'} rounded-full animate-spin-slow`}></div>
-            </div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <svg className={`w-12 h-12 ${useThinkingModel ? 'text-purple-600 dark:text-purple-400' : 'text-blue-600 dark:text-blue-400'}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                {useThinkingModel ? (
-                  // Brain icon for thinking model
-                  <>
-                    <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-1.04Z"></path>
-                    <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-1.04Z"></path>
-                  </>
-                ) : (
-                  // Clock icon for standard model
-                  <>
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <path d="M12 6v6l4 2"></path>
-                  </>
-                )}
-              </svg>
-            </div>
-          </div>
-          
-          {/* Processing label */}
-          <div className="text-center">
-            <h3 className={`text-lg font-medium ${useThinkingModel ? 'text-purple-600 dark:text-purple-400' : 'text-blue-600 dark:text-blue-400'}`}>
-              {useThinkingModel ? 'Thinking deeply about your document...' : 'Analyzing your document...'}
+        /* Processing view - Step 2: Showing model output */
+        <div className="space-y-4">
+          <div className="flex items-center space-x-2">
+            <svg className="animate-spin h-5 w-5 text-blue-500 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+              {optimizationComplete ? 'Processing Complete!' : 'Processing Document...'}
             </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {useThinkingModel 
-                ? 'Using enhanced reasoning capabilities to extract tasks with higher accuracy' 
-                : 'Extracting tasks from your document'}
-            </p>
           </div>
           
           {/* Progress bar */}
-          <div className="w-full max-w-md">
-            <div className="relative pt-1">
-              <div className="overflow-hidden h-2 mb-2 text-xs flex rounded-full bg-gray-200 dark:bg-gray-700">
-                <div 
-                  style={{ width: `${uploadProgress}%` }} 
-                  className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center ${
-                    useThinkingModel 
-                      ? 'bg-gradient-to-r from-purple-500 to-indigo-600' 
-                      : 'bg-gradient-to-r from-blue-500 to-indigo-600'
-                  } transition-all duration-300`}
-                ></div>
-              </div>
-              <div className="text-center text-sm text-gray-600 dark:text-gray-300">
-                {uploadProgress < 100 ? 'Uploading document...' : 'Analyzing document...'}
-              </div>
-            </div>
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-4">
+            <div 
+              className={`h-2 rounded-full ${
+                useThinkingModel ? 'bg-purple-500 dark:bg-purple-400' : 'bg-blue-500 dark:bg-blue-400'
+              }`}
+              style={{ width: `${uploadProgress}%` }}
+            ></div>
           </div>
           
-          {/* Streamed output display */}
-          {streamedOutput && (
-            <div className="w-full mt-4">
-              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center">
-                <span className={`inline-block h-2 w-2 rounded-full ${useThinkingModel ? 'bg-purple-500' : 'bg-green-500'} animate-pulse mr-2`}></span>
-                {useThinkingModel ? 'Thinking in progress:' : 'Analysis in progress:'}
-              </h3>
-              <div 
-                ref={streamOutputRef}
-                className={`bg-gray-50 dark:bg-gray-900 border-2 ${
-                  useThinkingModel 
-                    ? 'border-purple-200 dark:border-purple-800' 
-                    : 'border-gray-200 dark:border-gray-800'
-                } rounded-lg p-4 h-64 overflow-auto font-mono text-xs relative`}
+          {/* Output display */}
+          <div>
+            <div
+              ref={streamOutputRef}
+              className={`font-mono text-sm overflow-auto max-h-96 p-4 border ${
+                useThinkingModel 
+                  ? 'border-purple-200 dark:border-purple-800' 
+                  : 'border-gray-200 dark:border-gray-800'
+              } rounded-lg`}
+            >
+              {streamedOutput.split('\n').map((line, i) => (
+                <div key={i} className={`leading-relaxed ${i === streamedOutput.split('\n').length - 1 ? `${useThinkingModel ? 'text-purple-600 dark:text-purple-400' : 'text-green-600 dark:text-green-400'} font-semibold animate-pulse` : ''}`}>
+                  {line || <br />}
+                </div>
+              ))}
+              <div className="h-4"></div> {/* Extra space to ensure auto-scroll works */}
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">
+              {optimizationComplete 
+                ? 'Optimization complete. Review the output above before continuing.'
+                : `Gemini ${useThinkingModel ? 'Thinking' : 'AI'} is analyzing your document and extracting tasks in real-time`}
+            </p>
+          </div>
+          
+          {/* Confirmation button that appears after optimization is complete */}
+          {optimizationComplete && (
+            <div className="flex justify-center mt-4">
+              <button
+                onClick={handleConfirmOptimization}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
               >
-                {streamedOutput.split('\n').map((line, i) => (
-                  <div key={i} className={`leading-relaxed ${i === streamedOutput.split('\n').length - 1 ? `${useThinkingModel ? 'text-purple-600 dark:text-purple-400' : 'text-green-600 dark:text-green-400'} font-semibold animate-pulse` : ''}`}>
-                    {line || <br />}
-                  </div>
-                ))}
-                <div className="h-4"></div> {/* Extra space to ensure auto-scroll works */}
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">
-                Gemini {useThinkingModel ? 'Thinking' : 'AI'} is analyzing your document and extracting tasks in real-time
-              </p>
+                Review Tasks
+              </button>
             </div>
           )}
           
+          {/* Always show cancel button */}
           <button
             type="button"
             onClick={onCancel}
