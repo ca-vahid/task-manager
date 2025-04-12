@@ -15,95 +15,29 @@ interface BulkAddTaskFromPDFProps {
   onCreateGroup?: (name: string, description?: string) => Promise<Group>;
 }
 
-// JSON syntax highlighting component
+// Fix the JsonHighlight component for better JSON colorization
 const JsonHighlight: React.FC<{ line: string }> = ({ line }) => {
-  // Create a highlighted version of the line by wrapping parts in spans
-  // This avoids the linter errors by using proper JSX instead of string replacement
-  
-  // Simple JSON parser for styling - converts a line of JSON to an array of styled pieces
-  const parseLine = (text: string): ReactNode[] => {
-    const result: ReactNode[] = [];
-    let currentPos = 0;
-    
-    // Find JSON keys (anything in quotes followed by a colon)
-    const keyRegex = /"([^"]+)":/g;
-    let keyMatch;
-    
-    while ((keyMatch = keyRegex.exec(text)) !== null) {
-      // Add text before the match
-      if (keyMatch.index > currentPos) {
-        result.push(text.substring(currentPos, keyMatch.index));
-      }
-      
-      // Add the key with styling
-      result.push(
-        <span key={`key-${keyMatch.index}`} className="text-red-600 dark:text-red-400 font-semibold">
-          {keyMatch[0]}
-        </span>
-      );
-      
-      currentPos = keyMatch.index + keyMatch[0].length;
-    }
-    
-    // Add any remaining text
-    if (currentPos < text.length) {
-      // Process string values in the remaining text
-      const remainder = text.substring(currentPos);
-      const stringRegex = /: "([^"]*)"/g;
-      let stringResult: ReactNode[] = [];
-      let stringCurrentPos = 0;
-      
-      let stringMatch;
-      while ((stringMatch = stringRegex.exec(remainder)) !== null) {
-        // Add text before the string
-        if (stringMatch.index > stringCurrentPos) {
-          stringResult.push(remainder.substring(stringCurrentPos, stringMatch.index));
-        }
-        
-        // Add the quoted string with styling
-        const [fullMatch, quotedContent] = stringMatch;
-        stringResult.push(
-          <>
-            : <span key={`str-${stringMatch.index}`} className="text-blue-600 dark:text-blue-400">"{quotedContent}"</span>
-          </>
-        );
-        
-        stringCurrentPos = stringMatch.index + fullMatch.length;
-      }
-      
-      // Add any remaining text after the last string
-      if (stringCurrentPos < remainder.length) {
-        const finalPart = remainder.substring(stringCurrentPos);
-        
-        // Style numbers
-        const numberPart = finalPart.replace(
-          /: (\d+)(,|\})/g,
-          (_, num, separator) => `: <span class="text-green-600 dark:text-green-500">${num}</span>${separator}`
-        );
-        
-        // Style null values
-        const nullPart = numberPart.replace(
-          /: (null)(,|\})/g,
-          (_, nullVal, separator) => `: <span class="text-gray-600 dark:text-gray-400">null</span>${separator}`
-        );
-        
-        // Style braces/brackets
-        const bracePart = nullPart.replace(
-          /([{}\[\]])/g,
-          (_, brace) => `<span class="text-gray-800 dark:text-gray-300">${brace}</span>`
-        );
-        
-        stringResult.push(<span dangerouslySetInnerHTML={{ __html: bracePart }} />);
-      }
-      
-      result.push(...stringResult);
-    }
-    
-    return result;
-  };
-  
-  // If it's a JSON line - just render the parsed content
-  return <div className="leading-relaxed">{parseLine(line)}</div>;
+  // For JSON content, apply proper syntax highlighting with CSS classes
+  return (
+    <div 
+      className="leading-relaxed json-line"
+      dangerouslySetInnerHTML={{ 
+        __html: line
+          // Keys
+          .replace(/"([^"]+)":/g, '<span class="text-red-600 dark:text-red-400 font-semibold">"$1":</span>')
+          // String values
+          .replace(/: "([^"]+)"/g, ': <span class="text-blue-600 dark:text-blue-400">"$1"</span>')
+          // Numbers
+          .replace(/: (\d+)(,|$|})/g, ': <span class="text-green-600 dark:text-green-500">$1</span>$2')
+          // Booleans
+          .replace(/: (true|false)(,|$|})/g, ': <span class="text-amber-600 dark:text-amber-400">$1</span>$2')
+          // Null values
+          .replace(/: (null)(,|$|})/g, ': <span class="text-gray-600 dark:text-gray-400">null</span>$2')
+          // Brackets and braces
+          .replace(/([{}\[\]])/g, '<span class="text-gray-700 dark:text-gray-300">$1</span>')
+      }}
+    />
+  );
 };
 
 // Main component for highlighted output
@@ -908,10 +842,16 @@ export function BulkAddTaskFromPDF({
         /* Processing view - Step 2: Showing model output */
         <div className="space-y-4">
           <div className="flex items-center space-x-2">
-            <svg className="animate-spin h-5 w-5 text-blue-500 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
+            {optimizationComplete ? (
+              <svg className="h-5 w-5 text-green-500 dark:text-green-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+            ) : (
+              <svg className="animate-spin h-5 w-5 text-blue-500 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            )}
             <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
               {optimizationComplete ? 'Processing Complete!' : 'Processing Document...'}
             </h3>
