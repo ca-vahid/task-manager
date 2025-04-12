@@ -93,8 +93,8 @@ export function Modal({
             </button>
           </div>
           
-          {/* Modal content - increased height and improved overflow */}
-          <div className="max-h-[85vh] overflow-y-auto px-6 py-4">
+          {/* Modal content - removed overflow-y-auto to prevent duplicate scrollbars */}
+          <div className="px-6 py-4">
             {children}
           </div>
         </div>

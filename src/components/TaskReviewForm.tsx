@@ -71,6 +71,24 @@ const TaskReviewCard = memo(({
     handleTaskChange(index, 'details', value);
   }, [index, handleTaskChange]);
   
+  // Helper function to determine field styles
+  const getFieldStyles = (field: string, value: any, aiMatched: boolean) => {
+    // If AI matched this field, use the existing AI highlight
+    if (aiMatched) {
+      return isThinkingModel 
+        ? 'border border-purple-300 dark:border-purple-700' 
+        : 'border border-blue-300 dark:border-blue-700';
+    }
+    
+    // If field is empty, highlight with green to indicate attention needed
+    if (!value || (typeof value === 'string' && value.trim() === '')) {
+      return 'border-2 border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/10';
+    }
+    
+    // Default styling for manually filled fields
+    return 'border border-gray-300 dark:border-gray-700';
+  };
+  
   return (
     <div 
       className={`task-card border rounded-lg p-4 bg-white dark:bg-gray-800 shadow-sm relative ${
@@ -91,11 +109,7 @@ const TaskReviewCard = memo(({
             value={task.title}
             onChange={handleTitleChange}
             className={`w-full text-md font-medium rounded-md ${
-              aiMatchedFields?.title
-                ? isThinkingModel 
-                  ? 'border border-purple-300 dark:border-purple-700' 
-                  : 'border border-blue-300 dark:border-blue-700'
-                : 'border border-gray-300 dark:border-gray-700'
+              getFieldStyles('title', task.title, aiMatchedFields?.title)
             } shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800 p-2 direction-ltr`}
             placeholder="Task title"
             dir="ltr"
@@ -119,7 +133,9 @@ const TaskReviewCard = memo(({
           <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
             Details
           </label>
-          <div className="flex-grow border border-gray-300 dark:border-gray-700 rounded-md overflow-hidden">
+          <div className={`flex-grow rounded-md overflow-hidden ${
+            getFieldStyles('details', task.details, aiMatchedFields?.details)
+          }`}>
             <QuillEditor
               value={task.details || ''}
               onChange={handleDetailsChange}
@@ -145,11 +161,7 @@ const TaskReviewCard = memo(({
                 handleTaskChange(index, 'assignee', techName);
               }}
               className={`w-full rounded-md text-sm ${
-                aiMatchedFields?.assignee
-                  ? isThinkingModel 
-                    ? 'border border-purple-300 dark:border-purple-700' 
-                    : 'border border-blue-300 dark:border-blue-700'
-                  : 'border border-gray-300 dark:border-gray-700'
+                getFieldStyles('assignee', task.assignee, aiMatchedFields?.assignee)
               } shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800 p-2`}
             >
               <option value="">Unassigned</option>
@@ -176,11 +188,7 @@ const TaskReviewCard = memo(({
                 handleTaskChange(index, 'category', categoryValue);
               }}
               className={`w-full rounded-md text-sm ${
-                aiMatchedFields?.category
-                  ? isThinkingModel 
-                    ? 'border border-purple-300 dark:border-purple-700' 
-                    : 'border border-blue-300 dark:border-blue-700'
-                  : 'border border-gray-300 dark:border-gray-700'
+                getFieldStyles('category', task.category, aiMatchedFields?.category)
               } shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800 p-2`}
             >
               <option value="">No Category</option>
@@ -202,11 +210,7 @@ const TaskReviewCard = memo(({
               value={task.dueDate || ''}
               onChange={(e) => handleTaskChange(index, 'dueDate', e.target.value)}
               className={`w-full rounded-md text-sm ${
-                aiMatchedFields?.dueDate
-                  ? isThinkingModel 
-                    ? 'border border-purple-300 dark:border-purple-700' 
-                    : 'border border-blue-300 dark:border-blue-700'
-                  : 'border border-gray-300 dark:border-gray-700'
+                getFieldStyles('dueDate', task.dueDate, aiMatchedFields?.dueDate)
               } shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800 p-2`}
             />
           </div>
@@ -220,11 +224,7 @@ const TaskReviewCard = memo(({
               value={task.priority || 'Medium'}
               onChange={(e) => handleTaskChange(index, 'priority', e.target.value)}
               className={`w-full rounded-md text-sm ${
-                aiMatchedFields?.priority
-                  ? isThinkingModel 
-                    ? 'border border-purple-300 dark:border-purple-700' 
-                    : 'border border-blue-300 dark:border-blue-700'
-                  : 'border border-gray-300 dark:border-gray-700'
+                getFieldStyles('priority', task.priority, aiMatchedFields?.priority)
               } shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800 p-2`}
             >
               <option value="Low">Low</option>
@@ -263,11 +263,7 @@ const TaskReviewCard = memo(({
                 handleTaskChange(index, 'group', groupName);
               }}
               className={`w-full rounded-md text-sm ${
-                aiMatchedFields?.group
-                  ? isThinkingModel 
-                    ? 'border border-purple-300 dark:border-purple-700' 
-                    : 'border border-blue-300 dark:border-blue-700'
-                  : 'border border-gray-300 dark:border-gray-700'
+                getFieldStyles('group', task.group, aiMatchedFields?.group)
               } shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 bg-white dark:bg-gray-800 p-2`}
             >
               <option value="">No Group</option>
@@ -529,26 +525,40 @@ export function TaskReviewForm({
   }, [categories]);
   
   return (
-    <div className="space-y-4 max-w-5xl mx-auto">
+    <div className="space-y-4 w-full max-w-4xl mx-auto">
       <div className="flex justify-between items-center sticky top-0 bg-white dark:bg-gray-800 z-10 py-2">
-        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 flex items-center">
-          Review Tasks ({editedTasks.length})
-          {isThinkingModel && (
-            <span className="ml-2 px-2 py-1 text-xs rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 flex items-center">
-              <svg className="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-1.04Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-1.04Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              Thinking Model
-            </span>
-          )}
-        </h3>
+        <div>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 flex items-center">
+            Review Tasks ({editedTasks.length})
+            {isThinkingModel && (
+              <span className="ml-2 px-2 py-1 text-xs rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 flex items-center">
+                <svg className="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-1.04Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-1.04Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Thinking Model
+              </span>
+            )}
+          </h3>
+          
+          {/* Field status legend */}
+          <div className="mt-1 flex items-center text-xs space-x-4">
+            <div className="flex items-center">
+              <span className={`inline-block w-3 h-3 rounded-sm mr-1 ${isThinkingModel ? 'bg-purple-300 dark:bg-purple-700' : 'bg-blue-300 dark:bg-blue-700'}`}></span>
+              <span className="text-gray-600 dark:text-gray-400">AI Detected</span>
+            </div>
+            <div className="flex items-center">
+              <span className="inline-block w-3 h-3 rounded-sm mr-1 bg-green-300 dark:bg-green-700"></span>
+              <span className="text-gray-600 dark:text-gray-400">Needs Input</span>
+            </div>
+          </div>
+        </div>
         
         <div className="flex gap-2">
           <button
             type="button"
             onClick={onBack}
-            className="px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded text-sm hover:bg-gray-200 dark:hover:bg-gray-700"
+            className="px-3 py-1.5 border-2 border-gray-300 dark:border-gray-700 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             disabled={isSubmitting}
           >
             Back
@@ -557,7 +567,7 @@ export function TaskReviewForm({
           <button
             type="button"
             onClick={handleSubmit}
-            className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 flex items-center space-x-1 disabled:opacity-50"
+            className="px-3 py-1.5 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-md text-sm shadow flex items-center space-x-1 disabled:opacity-50"
             disabled={isSubmitting || editedTasks.length === 0}
           >
             {isSubmitting ? (
@@ -638,8 +648,8 @@ export function TaskReviewForm({
         </div>
       )}
       
-      {/* Task cards */}
-      <div className="space-y-6 max-h-[calc(100vh-200px)] overflow-y-auto pr-1 pb-2">
+      {/* Task cards with improved scrollbar styling */}
+      <div className="space-y-6 max-h-[calc(100vh-220px)] overflow-y-auto pr-2 pb-2 scrollbar">
         {editedTasks.map((task, index) => (
           <TaskReviewCard
             key={`task-${index}`}
@@ -666,6 +676,41 @@ export function TaskReviewForm({
           </div>
         )}
       </div>
+      
+      {/* Add custom scrollbar styles */}
+      <style jsx global>{`
+        .scrollbar::-webkit-scrollbar {
+          width: 12px;
+        }
+        
+        .scrollbar::-webkit-scrollbar-track {
+          background: #f1f1f1;
+          border-radius: 10px;
+        }
+        
+        .scrollbar::-webkit-scrollbar-thumb {
+          background-color: #b8b8b8;
+          border-radius: 10px;
+          border: 3px solid #f1f1f1;
+        }
+        
+        .scrollbar::-webkit-scrollbar-thumb:hover {
+          background-color: #a0a0a0;
+        }
+        
+        .dark .scrollbar::-webkit-scrollbar-track {
+          background: #2d3748;
+        }
+        
+        .dark .scrollbar::-webkit-scrollbar-thumb {
+          background-color: #4a5568;
+          border: 3px solid #2d3748;
+        }
+        
+        .dark .scrollbar::-webkit-scrollbar-thumb:hover {
+          background-color: #718096;
+        }
+      `}</style>
     </div>
   );
 }
