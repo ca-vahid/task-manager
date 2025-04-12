@@ -113,13 +113,13 @@ const TaskReviewCard = memo(({
       </div>
       
       {/* Two-column layout with details on left, fields on right */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-        {/* Left column - Task details - now 75% width (9/12) */}
-        <div className="relative z-0 overflow-hidden rounded-md h-full md:col-span-9">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 h-full">
+        {/* Left column - Task details - changed to 8/12 width (was 9/12) */}
+        <div className="md:col-span-8 flex flex-col">
           <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
             Details
           </label>
-          <div className="overflow-hidden h-full rounded-md border border-gray-300 dark:border-gray-700">
+          <div className="flex-grow border border-gray-300 dark:border-gray-700 rounded-md overflow-hidden">
             <QuillEditor
               value={task.details || ''}
               onChange={handleDetailsChange}
@@ -128,8 +128,8 @@ const TaskReviewCard = memo(({
           </div>
         </div>
         
-        {/* Right column - Task metadata fields - now 25% width (3/12) */}
-        <div className="space-y-3 md:col-span-3">
+        {/* Right column - Task metadata fields - changed to 4/12 width (was 3/12) */}
+        <div className="space-y-3 md:col-span-4">
           {/* Assignee */}
           <div>
             <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
@@ -529,7 +529,7 @@ export function TaskReviewForm({
   }, [categories]);
   
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-w-5xl mx-auto">
       <div className="flex justify-between items-center sticky top-0 bg-white dark:bg-gray-800 z-10 py-2">
         <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 flex items-center">
           Review Tasks ({editedTasks.length})
@@ -641,15 +641,14 @@ export function TaskReviewForm({
       {/* Task cards */}
       <div className="space-y-6 max-h-[calc(100vh-200px)] overflow-y-auto pr-1 pb-2">
         {editedTasks.map((task, index) => (
-          // Use the memoized TaskReviewCard component here
           <TaskReviewCard
-            key={`task-${index}`} // Use stable key with index only
+            key={`task-${index}`}
             task={task}
             index={index}
             technicians={technicians}
             groups={groups}
             categories={categories}
-            aiMatchedFields={aiMatchedFields[index] || {}} // Pass relevant part of aiMatchedFields
+            aiMatchedFields={aiMatchedFields[index] || {}}
             isThinkingModel={isThinkingModel}
             handleTaskChange={handleTaskChange}
             handleRemoveTask={handleRemoveTask}
