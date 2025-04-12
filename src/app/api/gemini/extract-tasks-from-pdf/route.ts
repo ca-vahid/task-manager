@@ -95,14 +95,25 @@ function isResponseIncomplete(text: string): boolean {
 }
 
 // Function to optimize and consolidate tasks using the thinking model
-async function optimizeTasks(tasks: any[]): Promise<any[]> {
+async function optimizeTasks(tasks: any[], streamController?: ReadableStreamDefaultController): Promise<any[]> {
   if (!tasks || tasks.length === 0) {
+    if (streamController) {
+      streamController.enqueue(new TextEncoder().encode("\n[System: No tasks to optimize. Returning original input.]\n"));
+    }
     return tasks; // Nothing to optimize
+  }
+  
+  if (streamController) {
+    streamController.enqueue(new TextEncoder().encode(`\n[System: Starting task optimization with ${tasks.length} tasks...]\n`));
   }
   
   console.log(`Starting task optimization with ${tasks.length} tasks using Thinking model`);
   
   try {
+    if (streamController) {
+      streamController.enqueue(new TextEncoder().encode("\n[System: Creating optimization prompt for Gemini...]\n"));
+    }
+    
     // Create a new Gemini API client for task optimization
     const optimizationGenAI = new GoogleGenAI({
       apiKey: process.env.GEMINI_API_KEY || ""
@@ -131,11 +142,85 @@ async function optimizeTasks(tasks: any[]): Promise<any[]> {
       Do not include any explanation or additional text.
     `;
     
+    if (streamController) {
+      streamController.enqueue(new TextEncoder().encode("\n[System: Sending optimization request to Gemini...]\n"));
+    }
+    
+    // Use streaming if available
+    if (streamController) {
+      try {
+        const responseStream = await chat.sendMessageStream({
+          message: prompt
+        });
+        
+        streamController.enqueue(new TextEncoder().encode("\n[System: Receiving optimization results (streaming)...]\n"));
+        
+        let outputText = '';
+        for await (const chunk of responseStream) {
+          if (chunk && chunk.text) {
+            outputText += chunk.text;
+            
+            // Send a small chunk to show progress
+            streamController.enqueue(new TextEncoder().encode("."));
+            
+            // Every 5 chunks, send a newline for formatting
+            if (outputText.length % 500 === 0) {
+              streamController.enqueue(new TextEncoder().encode("\n"));
+            }
+          }
+        }
+        
+        // Extract the JSON array from the streamed response
+        try {
+          // Find a JSON array in the response
+          const arrayMatch = outputText.match(/\[[\s\S]*\]/);
+          if (arrayMatch) {
+            const optimizedTasks = JSON.parse(arrayMatch[0]);
+            
+            streamController.enqueue(new TextEncoder().encode(`\n[System: Successfully optimized: ${tasks.length} → ${optimizedTasks.length} tasks]\n`));
+            
+            return optimizedTasks;
+          }
+          
+          // If no array found, try to parse the entire response as JSON
+          try {
+            const parsedJson = JSON.parse(outputText);
+            if (Array.isArray(parsedJson)) {
+              streamController.enqueue(new TextEncoder().encode(`\n[System: Successfully optimized: ${tasks.length} → ${parsedJson.length} tasks]\n`));
+              return parsedJson;
+            } else if (parsedJson.tasks && Array.isArray(parsedJson.tasks)) {
+              // Handle case where model returns {tasks: [...]}
+              streamController.enqueue(new TextEncoder().encode(`\n[System: Successfully optimized: ${tasks.length} → ${parsedJson.tasks.length} tasks]\n`));
+              return parsedJson.tasks;
+            }
+          } catch (parseError) {
+            streamController.enqueue(new TextEncoder().encode("\n[System: Warning - Failed to parse streaming response as JSON, falling back to original tasks]\n"));
+          }
+          
+          // Fallback to original tasks if we couldn't parse the response
+          streamController.enqueue(new TextEncoder().encode("\n[System: Warning - Could not extract task array from model response, returning original tasks]\n"));
+          return tasks;
+        } catch (error) {
+          streamController.enqueue(new TextEncoder().encode(`\n[System: Error parsing optimized tasks: ${error instanceof Error ? error.message : 'Unknown error'}]\n`));
+          // Return original tasks if optimization fails
+          return tasks;
+        }
+      } catch (streamError) {
+        streamController.enqueue(new TextEncoder().encode(`\n[System: Error during streaming optimization: ${streamError instanceof Error ? streamError.message : 'Unknown error'}]\n`));
+        // Fall back to non-streaming approach
+      }
+    }
+    
+    // Non-streaming fallback approach
     const response = await chat.sendMessage({
       message: prompt
     });
     
     const outputText = response?.text || "";
+    
+    if (streamController) {
+      streamController.enqueue(new TextEncoder().encode("\n[System: Received optimization results (non-streaming)]\n"));
+    }
     
     // Extract the JSON array from the response
     try {
@@ -143,6 +228,11 @@ async function optimizeTasks(tasks: any[]): Promise<any[]> {
       const arrayMatch = outputText.match(/\[[\s\S]*\]/);
       if (arrayMatch) {
         const optimizedTasks = JSON.parse(arrayMatch[0]);
+        
+        if (streamController) {
+          streamController.enqueue(new TextEncoder().encode(`\n[System: Successfully optimized: ${tasks.length} → ${optimizedTasks.length} tasks]\n`));
+        }
+        
         console.log(`Successfully optimized: ${tasks.length} → ${optimizedTasks.length} tasks`);
         return optimizedTasks;
       }
@@ -151,26 +241,50 @@ async function optimizeTasks(tasks: any[]): Promise<any[]> {
       try {
         const parsedJson = JSON.parse(outputText);
         if (Array.isArray(parsedJson)) {
+          if (streamController) {
+            streamController.enqueue(new TextEncoder().encode(`\n[System: Successfully optimized: ${tasks.length} → ${parsedJson.length} tasks]\n`));
+          }
+          
           console.log(`Successfully optimized: ${tasks.length} → ${parsedJson.length} tasks`);
           return parsedJson;
         } else if (parsedJson.tasks && Array.isArray(parsedJson.tasks)) {
           // Handle case where model returns {tasks: [...]}
+          if (streamController) {
+            streamController.enqueue(new TextEncoder().encode(`\n[System: Successfully optimized: ${tasks.length} → ${parsedJson.tasks.length} tasks]\n`));
+          }
+          
           console.log(`Successfully optimized: ${tasks.length} → ${parsedJson.tasks.length} tasks`);
           return parsedJson.tasks;
         }
       } catch (parseError) {
         console.error("Failed to parse response as JSON, falling back to original tasks");
+        
+        if (streamController) {
+          streamController.enqueue(new TextEncoder().encode("\n[System: Failed to parse optimization response as JSON]\n"));
+        }
       }
       
       // Fallback to original tasks if we couldn't parse the response
+      if (streamController) {
+        streamController.enqueue(new TextEncoder().encode("\n[System: Could not extract task array from model response]\n"));
+      }
+      
       console.error("Could not extract task array from model response");
       return tasks;
     } catch (error) {
-      console.error("Error parsing optimized tasks:", error);
-      // Return original tasks if optimization fails
+      if (streamController) {
+        streamController.enqueue(new TextEncoder().encode(`\n[System: Error during task optimization: ${error instanceof Error ? error.message : 'Unknown error'}]\n`));
+      }
+      
+      console.error("Error during task optimization:", error);
+      // Return original tasks if there was an error
       return tasks;
     }
   } catch (error) {
+    if (streamController) {
+      streamController.enqueue(new TextEncoder().encode(`\n[System: Error during task optimization: ${error instanceof Error ? error.message : 'Unknown error'}]\n`));
+    }
+    
     console.error("Error during task optimization:", error);
     // Return original tasks if there was an error
     return tasks;
@@ -682,8 +796,8 @@ async function handleStreamingRequest(
             // Show task count
             controller.enqueue(new TextEncoder().encode(`[System: Found ${extractedTasks.length} tasks in the document. Optimizing...]\n\n`));
             
-            // Optimize tasks
-            const optimizedTasks = await optimizeTasks(extractedTasks);
+            // Optimize tasks - pass the controller for streaming updates
+            const optimizedTasks = await optimizeTasks(extractedTasks, controller);
             
             // Format results as JSON
             controller.enqueue(new TextEncoder().encode(`[System: Optimization complete. Final result: ${optimizedTasks.length} tasks]\n\n`));

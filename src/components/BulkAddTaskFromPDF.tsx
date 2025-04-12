@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, ReactNode } from 'react';
 import { Task, Technician, TaskStatus, Group, PriorityLevel, Category } from '@/lib/types';
 import { Timestamp } from 'firebase/firestore';
 import { TaskReviewForm } from './TaskReviewForm';
@@ -15,67 +15,128 @@ interface BulkAddTaskFromPDFProps {
   onCreateGroup?: (name: string, description?: string) => Promise<Group>;
 }
 
-// Function to colorize JSON strings in the output
-const colorizeOutput = (text: string): React.ReactNode[] => {
-  // Split the text into lines
+// JSON syntax highlighting component
+const JsonHighlight: React.FC<{ line: string }> = ({ line }) => {
+  // Create a highlighted version of the line by wrapping parts in spans
+  // This avoids the linter errors by using proper JSX instead of string replacement
+  
+  // Simple JSON parser for styling - converts a line of JSON to an array of styled pieces
+  const parseLine = (text: string): ReactNode[] => {
+    const result: ReactNode[] = [];
+    let currentPos = 0;
+    
+    // Find JSON keys (anything in quotes followed by a colon)
+    const keyRegex = /"([^"]+)":/g;
+    let keyMatch;
+    
+    while ((keyMatch = keyRegex.exec(text)) !== null) {
+      // Add text before the match
+      if (keyMatch.index > currentPos) {
+        result.push(text.substring(currentPos, keyMatch.index));
+      }
+      
+      // Add the key with styling
+      result.push(
+        <span key={`key-${keyMatch.index}`} className="text-red-600 dark:text-red-400 font-semibold">
+          {keyMatch[0]}
+        </span>
+      );
+      
+      currentPos = keyMatch.index + keyMatch[0].length;
+    }
+    
+    // Add any remaining text
+    if (currentPos < text.length) {
+      // Process string values in the remaining text
+      const remainder = text.substring(currentPos);
+      const stringRegex = /: "([^"]*)"/g;
+      let stringResult: ReactNode[] = [];
+      let stringCurrentPos = 0;
+      
+      let stringMatch;
+      while ((stringMatch = stringRegex.exec(remainder)) !== null) {
+        // Add text before the string
+        if (stringMatch.index > stringCurrentPos) {
+          stringResult.push(remainder.substring(stringCurrentPos, stringMatch.index));
+        }
+        
+        // Add the quoted string with styling
+        const [fullMatch, quotedContent] = stringMatch;
+        stringResult.push(
+          <>
+            : <span key={`str-${stringMatch.index}`} className="text-blue-600 dark:text-blue-400">"{quotedContent}"</span>
+          </>
+        );
+        
+        stringCurrentPos = stringMatch.index + fullMatch.length;
+      }
+      
+      // Add any remaining text after the last string
+      if (stringCurrentPos < remainder.length) {
+        const finalPart = remainder.substring(stringCurrentPos);
+        
+        // Style numbers
+        const numberPart = finalPart.replace(
+          /: (\d+)(,|\})/g,
+          (_, num, separator) => `: <span class="text-green-600 dark:text-green-500">${num}</span>${separator}`
+        );
+        
+        // Style null values
+        const nullPart = numberPart.replace(
+          /: (null)(,|\})/g,
+          (_, nullVal, separator) => `: <span class="text-gray-600 dark:text-gray-400">null</span>${separator}`
+        );
+        
+        // Style braces/brackets
+        const bracePart = nullPart.replace(
+          /([{}\[\]])/g,
+          (_, brace) => `<span class="text-gray-800 dark:text-gray-300">${brace}</span>`
+        );
+        
+        stringResult.push(<span dangerouslySetInnerHTML={{ __html: bracePart }} />);
+      }
+      
+      result.push(...stringResult);
+    }
+    
+    return result;
+  };
+  
+  // If it's a JSON line - just render the parsed content
+  return <div className="leading-relaxed">{parseLine(line)}</div>;
+};
+
+// Main component for highlighted output
+const HighlightedOutput: React.FC<{ text: string }> = ({ text }) => {
   const lines = text.split('\n');
   
-  return lines.map((line, i) => {
-    // Detect if this line is likely JSON
-    if ((line.trim().startsWith('{') || line.trim().startsWith('[') || 
-         line.includes('":"') || line.includes('": "')) && 
-        (line.includes('{') || line.includes('}'))) {
-      
-      // Replace parts of JSON with styled spans
-      const colorized = line
-        // Keys with quotes
-        .replace(/"([^"]+)":/g, '<span style="color:#e63946;font-weight:bold;">"$1":</span>')
-        // String values
-        .replace(/: "([^"]+)"/g, ': <span style="color:#118ab2;">"$1"</span>')
-        // Numbers
-        .replace(/: (\d+)([,}])/g, ': <span style="color:#06d6a0;">$1</span>$2')
-        // Booleans
-        .replace(/: (true|false)([,}])/g, ': <span style="color:#ffd166;">$1</span>$2')
-        // Null values
-        .replace(/: (null)([,}])/g, ': <span style="color:#073b4c;">$1</span>$2')
-        // Brackets and braces
-        .replace(/[{}[\]]/g, '<span style="color:#444;">$&</span>')
-        // Commas
-        .replace(/,/g, '<span style="color:#444;">$&</span>');
-      
-      return (
-        <div 
-          key={i} 
-          className="leading-relaxed" 
-          dangerouslySetInnerHTML={{ __html: colorized }}
-        />
-      );
-    }
-    
-    // Handle system messages with different styling
-    if (line.includes('[System:')) {
-      return (
-        <div 
-          key={i} 
-          className="leading-relaxed text-emerald-600 dark:text-emerald-400 italic mt-2 mb-1"
-        >
-          {line || <br />}
-        </div>
-      );
-    }
-    
-    // Regular line without special formatting
-    return (
-      <div 
-        key={i} 
-        className={`leading-relaxed ${
-          i === lines.length - 1 ? `animate-pulse` : ''
-        }`}
-      >
-        {line || <br />}
-      </div>
-    );
-  });
+  return (
+    <>
+      {lines.map((line, i) => {
+        // JSON lines
+        if ((line.trim().startsWith('{') || line.trim().startsWith('[')) ||
+            (line.includes('"') && (line.includes('{') || line.includes('}')))) {
+          return <JsonHighlight key={i} line={line} />;
+        }
+        
+        // System messages
+        if (line.includes('[System:')) {
+          return (
+            <div key={i} className="leading-relaxed text-emerald-600 dark:text-emerald-400 italic mt-2 mb-1">
+              {line || <br />}
+            </div>
+          );
+        }
+        
+        // Default line
+        return (
+          <div key={i} className="leading-relaxed">
+            {line || <br />}
+          </div>
+        );
+      })}
+    </>
+  );
 };
 
 export function BulkAddTaskFromPDF({
@@ -874,10 +935,10 @@ export function BulkAddTaskFromPDF({
                 useThinkingModel 
                   ? 'border-purple-200 dark:border-purple-800' 
                   : 'border-gray-200 dark:border-gray-800'
-              } rounded-lg bg-white dark:bg-gray-900`}
+              } rounded-lg bg-white dark:bg-gray-900 whitespace-pre-wrap`}
             >
-              {colorizeOutput(streamedOutput)}
-              <div className="h-4"></div> {/* Extra space to ensure auto-scroll works */}
+              <HighlightedOutput text={streamedOutput} />
+              <div className="h-4"></div>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">
               {optimizationComplete 
