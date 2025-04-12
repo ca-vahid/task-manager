@@ -73,10 +73,10 @@ export function Modal({
   };
   
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="fixed inset-0 bg-black bg-opacity-40 dark:bg-opacity-60 transition-opacity"></div>
       
-      <div className="flex items-center justify-center min-h-screen px-4 py-6 sm:py-12">
+      <div className="w-full max-h-[90vh] flex items-center justify-center px-4 py-6">
         <div ref={modalRef} className={`${sizeClasses[size]} w-full bg-white dark:bg-gray-800 rounded-lg shadow-xl transform transition-all relative`}>
           {/* Modal header */}
           <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 relative">
@@ -93,8 +93,8 @@ export function Modal({
             </button>
           </div>
           
-          {/* Modal content - removed overflow-y-auto to prevent duplicate scrollbars */}
-          <div className="px-6 py-4">
+          {/* Modal content - improved height */}
+          <div className="px-6 py-4 max-h-[calc(90vh-110px)] overflow-hidden">
             {children}
           </div>
         </div>

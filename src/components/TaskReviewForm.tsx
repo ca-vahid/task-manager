@@ -129,11 +129,11 @@ const TaskReviewCard = memo(({
       {/* Two-column layout with details on left, fields on right */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 h-full">
         {/* Left column - Task details - changed to 8/12 width (was 9/12) */}
-        <div className="md:col-span-8 flex flex-col">
+        <div className="md:col-span-8 flex flex-col h-[300px]">
           <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
             Details
           </label>
-          <div className={`flex-grow rounded-md overflow-hidden ${
+          <div className={`flex-grow rounded-md overflow-hidden h-full flex flex-col ${
             getFieldStyles('details', task.details, aiMatchedFields?.details)
           }`}>
             <QuillEditor
