@@ -40,79 +40,44 @@ const JsonHighlight: React.FC<{ line: string }> = ({ line }) => {
   );
 };
 
-// Main component for highlighted output with improved code block detection
+// Main component for highlighted output
 const HighlightedOutput: React.FC<{ text: string }> = ({ text }) => {
   const lines = text.split('\n');
   
-  // Process code blocks without using React state (which was causing infinite re-renders)
-  let inJsonCodeBlock = false;
-  const jsonLines: string[] = [];
-  const processedOutput: (JSX.Element | null)[] = [];
-  
-  // Process each line sequentially to properly track code blocks
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    
-    // Detect start of a JSON code block using markdown style ```json
-    if (line.trim().match(/^```\s*json\s*$/i)) {
-      inJsonCodeBlock = true;
-      continue; // Skip the markdown delimiter
-    }
-    
-    // Detect end of a code block
-    if (inJsonCodeBlock && line.trim() === '```') {
-      inJsonCodeBlock = false;
-      
-      // Process the accumulated JSON
-      const jsonText = jsonLines.join('\n');
-      
-      // Create a block for all the JSON lines
-      processedOutput.push(
-        <div key={`json-block-${i}`} className="border-t border-b border-gray-200 dark:border-gray-700 my-2 py-2 px-1 rounded bg-gray-50 dark:bg-gray-900">
-          {jsonText.split('\n').map((jsonLine, j) => (
-            <JsonHighlight key={`json-${i}-${j}`} line={jsonLine} />
-          ))}
-        </div>
-      );
-      
-      // Clear the accumulated JSON lines
-      jsonLines.length = 0;
-      continue;
-    }
-    
-    // Collect JSON lines within a code block
-    if (inJsonCodeBlock) {
-      jsonLines.push(line);
-      continue;
-    }
-    
-    // Handle regular JSON without code block markers
-    if ((line.trim().startsWith('{') || line.trim().startsWith('[')) ||
-        (line.includes('"') && (line.includes('{') || line.includes('}')))) {
-      processedOutput.push(<JsonHighlight key={`line-${i}`} line={line} />);
-      continue;
-    }
-    
-    // System messages
-    if (line.includes('[System:')) {
-      processedOutput.push(
-        <div key={`line-${i}`} className="leading-relaxed text-emerald-600 dark:text-emerald-400 italic mt-2 mb-1">
-          {line || <br />}
-        </div>
-      );
-      continue;
-    }
-    
-    // Default line
-    processedOutput.push(
-      <div key={`line-${i}`} className="leading-relaxed">
-        {line || <br />}
-      </div>
-    );
-  }
-  
-  // Return all processed lines
-  return <>{processedOutput}</>;
+  return (
+    <>
+      {lines.map((line, i) => {
+        // Remove ```json marker if present
+        const cleanedLine = line.replace(/^\s*```json\s*$/, '').trim();
+        
+        // Skip empty lines resulting from marker removal
+        if (cleanedLine === '' && line.includes('```json')) return null;
+
+        // JSON lines (use cleanedLine for detection and highlighting)
+        if ((cleanedLine.startsWith('{') || cleanedLine.startsWith('[')) ||
+            (cleanedLine.includes('"') && (cleanedLine.includes('{') || cleanedLine.includes('}')))) {
+          return <JsonHighlight key={i} line={cleanedLine} />;
+        }
+        
+        // System messages - Render normally during stream, they will be appended later
+        // We keep this check to style inline system messages if any remain
+        if (cleanedLine.includes('[System:')) {
+          return (
+            <div key={i} className="leading-relaxed text-emerald-600 dark:text-emerald-400 italic mt-2 mb-1">
+              {cleanedLine || <br />}
+            </div>
+          );
+        }
+        
+        // Default line
+        return (
+          <div key={i} className="leading-relaxed">
+            {cleanedLine || <br />}
+          </div>
+        );
+      })}
+    </>
+  );
 };
 
 export function BulkAddTaskFromPDF({
@@ -135,6 +100,7 @@ export function BulkAddTaskFromPDF({
   const [countdown, setCountdown] = useState(5);
   const [isPaused, setIsPaused] = useState(false);
   const [optimizationComplete, setOptimizationComplete] = useState(false);
+  const [systemMessages, setSystemMessages] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const streamOutputRef = useRef<HTMLDivElement>(null);
   
@@ -197,6 +163,7 @@ export function BulkAddTaskFromPDF({
     setError(null);
     setStreamedOutput('');
     setUploadProgress(0);
+    setSystemMessages([]);
     
     try {
       // Create a FormData object to send the file and context
@@ -249,10 +216,9 @@ export function BulkAddTaskFromPDF({
         throw new Error('Failed to get response stream');
       }
       
-      // Read the stream
       let receivedText = '';
-      
-      // Create a function to read and process chunks
+      const systemMsgRegex = /^\s*\[System:.*\]\s*$/;
+
       const processStream = async () => {
         try {
           while (true) {
@@ -260,15 +226,30 @@ export function BulkAddTaskFromPDF({
             if (done) break;
             
             const chunk = new TextDecoder().decode(value);
-            receivedText += chunk;
+            const chunkLines = chunk.split('\n');
+            let nonSystemChunkContent = '';
+
+            chunkLines.forEach(line => {
+              if (systemMsgRegex.test(line)) {
+                setSystemMessages(prev => [...prev, line.trim()]);
+              } else {
+                nonSystemChunkContent += line + '\n';
+              }
+            });
+
+            // Remove trailing newline if added unnecessarily
+            if (nonSystemChunkContent.endsWith('\n')) {
+              nonSystemChunkContent = nonSystemChunkContent.slice(0, -1);
+            }
+
+            if (nonSystemChunkContent) {
+                receivedText += nonSystemChunkContent + '\n'; // Re-add newline for separation
+                setStreamedOutput(prevText => prevText + nonSystemChunkContent + '\n');
+            }
             
-            // Update the UI with each received chunk
-            setStreamedOutput(prevText => prevText + chunk);
-            
-            // Force a small delay to ensure React updates the UI
             await new Promise(resolve => setTimeout(resolve, 10));
           }
-          return receivedText;
+          return receivedText.trim(); // Trim final result
         } catch (error) {
           console.error('Error reading stream:', error);
           throw error;
@@ -913,15 +894,24 @@ export function BulkAddTaskFromPDF({
           <div>
             <div
               ref={streamOutputRef}
-              className={`bg-gray-50 dark:bg-gray-900 border-2 ${
-                error
-                  ? 'border-red-200 dark:border-red-800'
-                  : useThinkingModel 
-                    ? 'border-purple-200 dark:border-purple-800' 
-                    : 'border-gray-200 dark:border-gray-800'
-              } rounded-lg p-4 h-64 overflow-auto font-mono text-xs relative`}
+              className={`font-mono text-sm overflow-auto max-h-96 p-4 border ${
+                useThinkingModel 
+                  ? 'border-purple-200 dark:border-purple-800' 
+                  : 'border-gray-200 dark:border-gray-800'
+              } rounded-lg bg-white dark:bg-gray-900 whitespace-pre-wrap`}
             >
               <HighlightedOutput text={streamedOutput} />
+              
+              {optimizationComplete && systemMessages.length > 0 && (
+                <div className="mt-4 pt-3 border-t border-dashed border-gray-300 dark:border-gray-700">
+                  {systemMessages.map((msg, index) => (
+                    <p key={index} className="text-sm font-semibold italic text-emerald-700 dark:text-emerald-300 mb-1">
+                      {msg}
+                    </p>
+                  ))}
+                </div>
+              )}
+              <div className="h-4"></div>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">
               {optimizationComplete 
@@ -1029,7 +1019,17 @@ export function BulkAddTaskFromPDF({
                     : 'border-gray-200 dark:border-gray-800'
               } rounded-lg p-4 h-64 overflow-auto font-mono text-xs relative`}
             >
-              <HighlightedOutput text={streamedOutput} />
+              {streamedOutput.split('\n').map((line, i) => (
+                <div key={i} className={`leading-relaxed ${
+                  line.includes('ERROR:') 
+                    ? 'text-red-600 dark:text-red-400 font-semibold' 
+                    : i === streamedOutput.split('\n').length - 1 && !error 
+                      ? `${useThinkingModel ? 'text-purple-600 dark:text-purple-400' : 'text-green-600 dark:text-green-400'} font-semibold animate-pulse` 
+                      : ''
+                }`}>
+                  {line || <br />}
+                </div>
+              ))}
             </div>
             {error && (
               <div className="flex items-center justify-between mt-1">
