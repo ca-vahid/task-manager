@@ -772,7 +772,7 @@ async function handleStreamingRequest(
             controller.enqueue(new TextEncoder().encode("\n\n[System: Finalizing response...]\n\n"));
             
             const finalStream = await chat.sendMessageStream({
-              message: "Please ensure your response is complete and properly formatted as JSON. If you're done, please state 'EXTRACTION COMPLETE'."
+              message: "Continue. If you're done, please state 'EXTRACTION COMPLETE'."
             });
             
             // Process the final stream
@@ -799,9 +799,24 @@ async function handleStreamingRequest(
             // Optimize tasks - pass the controller for streaming updates
             const optimizedTasks = await optimizeTasks(extractedTasks, controller);
             
-            // Format results as JSON
-            controller.enqueue(new TextEncoder().encode(`[System: Optimization complete. Final result: ${optimizedTasks.length} tasks]\n\n`));
-            controller.enqueue(new TextEncoder().encode(JSON.stringify(optimizedTasks, null, 2)));
+            // Output the tasks as JSON first, then the summary as the very last thing
+            controller.enqueue(new TextEncoder().encode(`\n\n`));
+            controller.enqueue(new TextEncoder().encode(`\`\`\`json\n${JSON.stringify(optimizedTasks, null, 2)}\n\`\`\`\n\n`));
+            
+            // Add the summary message at the very end with emphasis
+            const originalCount = extractedTasks.length;
+            const finalCount = optimizedTasks.length;
+            
+            if (originalCount !== finalCount) {
+              controller.enqueue(new TextEncoder().encode(
+                `[System: Successfully optimized: ${originalCount} → ${finalCount} tasks]\n` +
+                `[System: Optimization complete. Final result: ${finalCount} tasks]`
+              ));
+            } else {
+              controller.enqueue(new TextEncoder().encode(
+                `[System: Optimization complete. Final result: ${finalCount} tasks]`
+              ));
+            }
           } else {
             controller.enqueue(new TextEncoder().encode("\n\n[System: Could not extract tasks for optimization. Original extraction will be used.]\n\n"));
           }

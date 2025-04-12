@@ -15,67 +15,101 @@ interface BulkAddTaskFromPDFProps {
   onCreateGroup?: (name: string, description?: string) => Promise<Group>;
 }
 
-// Fix the JsonHighlight component for better JSON colorization
+// Fix the JsonHighlight component to better detect JSON content
 const JsonHighlight: React.FC<{ line: string }> = ({ line }) => {
   // For JSON content, apply proper syntax highlighting with CSS classes
+  const formattedLine = line
+    // Keys
+    .replace(/"([^"]+)":/g, '<span class="text-red-600 dark:text-red-400 font-semibold">&quot;$1&quot;:</span>')
+    // String values
+    .replace(/: "([^"]+)"/g, ': <span class="text-blue-600 dark:text-blue-400">&quot;$1&quot;</span>')
+    // Numbers
+    .replace(/: (\d+)(,|$|})/g, ': <span class="text-green-600 dark:text-green-500">$1</span>$2')
+    // Booleans
+    .replace(/: (true|false)(,|$|})/g, ': <span class="text-amber-600 dark:text-amber-400">$1</span>$2')
+    // Null values
+    .replace(/: (null)(,|$|})/g, ': <span class="text-gray-600 dark:text-gray-400">null</span>$2')
+    // Brackets and braces
+    .replace(/([{}\[\]])/g, '<span class="text-gray-700 dark:text-gray-300">$1</span>');
+  
   return (
     <div 
-      className="leading-relaxed json-line"
-      dangerouslySetInnerHTML={{ 
-        __html: line
-          // Keys
-          .replace(/"([^"]+)":/g, '<span class="text-red-600 dark:text-red-400 font-semibold">&quot;$1&quot;:</span>')
-          // String values
-          .replace(/: "([^"]+)"/g, ': <span class="text-blue-600 dark:text-blue-400">&quot;$1&quot;</span>')
-          // Numbers
-          .replace(/: (\d+)(,|$|})/g, ': <span class="text-green-600 dark:text-green-500">$1</span>$2')
-          // Booleans
-          .replace(/: (true|false)(,|$|})/g, ': <span class="text-amber-600 dark:text-amber-400">$1</span>$2')
-          // Null values
-          .replace(/: (null)(,|$|})/g, ': <span class="text-gray-600 dark:text-gray-400">null</span>$2')
-          // Brackets and braces
-          .replace(/([{}\[\]])/g, '<span class="text-gray-700 dark:text-gray-300">$1</span>')
-      }}
+      className="leading-relaxed json-line font-mono text-sm"
+      dangerouslySetInnerHTML={{ __html: formattedLine }}
     />
   );
 };
 
-// Main component for highlighted output
+// Improved HighlightedOutput component with enhanced JSON detection and system messages at the end
 const HighlightedOutput: React.FC<{ text: string }> = ({ text }) => {
   const lines = text.split('\n');
+  let jsonMode = false;
+  const systemMessages: JSX.Element[] = [];
+  const contentLines: JSX.Element[] = [];
   
+  // Process each line and categorize
+  lines.forEach((line, i) => {
+    // JSON detection logic - if a line starts with { or [ or specifically ```json
+    if (line.trim().startsWith('{') || line.trim().startsWith('[') || line.trim().startsWith('```json')) {
+      jsonMode = true;
+      // If the line starts with ```json, strip that prefix
+      const cleanLine = line.trim().startsWith('```json') ? line.replace('```json', '') : line;
+      contentLines.push(<JsonHighlight key={`json-${i}`} line={cleanLine} />);
+      return;
+    }
+    
+    // End of JSON block
+    if (jsonMode && line.trim() === '```') {
+      jsonMode = false;
+      return;
+    }
+    
+    // Continue JSON highlighting if in json mode
+    if (jsonMode) {
+      contentLines.push(<JsonHighlight key={`json-${i}`} line={line} />);
+      return;
+    }
+    
+    // System messages - collect separately
+    if (line.includes('[System:')) {
+      // Store system messages to show at the end
+      const messageType = line.includes('Optimization complete') || 
+                         line.includes('optimization complete') || 
+                         line.includes('Optimized') ? 
+                         'success' : 'info';
+                         
+      systemMessages.push(
+        <div 
+          key={`system-${i}`} 
+          className={`leading-relaxed ${
+            messageType === 'success' 
+              ? 'text-green-600 dark:text-green-400 font-semibold bg-green-50 dark:bg-green-900/20 p-2 rounded-md border border-green-200 dark:border-green-800' 
+              : 'text-emerald-600 dark:text-emerald-400 italic'
+          } mt-2 mb-1`}
+        >
+          {line || <br />}
+        </div>
+      );
+      return;
+    }
+    
+    // Default content
+    contentLines.push(
+      <div key={`content-${i}`} className="leading-relaxed">
+        {line || <br />}
+      </div>
+    );
+  });
+  
+  // Return content lines first, then system messages at the end
   return (
     <>
-      {lines.map((line, i) => {
-        // Remove ```json marker if present
-        const cleanedLine = line.replace(/^\s*```json\s*$/, '').trim();
-        
-        // Skip empty lines resulting from marker removal
-        if (cleanedLine === '' && line.includes('```json')) return null;
-
-        // JSON lines (use cleanedLine for detection and highlighting)
-        if ((cleanedLine.startsWith('{') || cleanedLine.startsWith('[')) ||
-            (cleanedLine.includes('"') && (cleanedLine.includes('{') || cleanedLine.includes('}')))) {
-          return <JsonHighlight key={i} line={cleanedLine} />;
-        }
-        
-        // System messages - Render normally during stream, they will be appended later
-        // We keep this check to style inline system messages if any remain
-        if (cleanedLine.includes('[System:')) {
-          return (
-            <div key={i} className="leading-relaxed text-emerald-600 dark:text-emerald-400 italic mt-2 mb-1">
-              {cleanedLine || <br />}
-            </div>
-          );
-        }
-        
-        // Default line
-        return (
-          <div key={i} className="leading-relaxed">
-            {cleanedLine || <br />}
-          </div>
-        );
-      })}
+      {contentLines}
+      {systemMessages.length > 0 && (
+        <div className="mt-4 sticky bottom-0 bg-white dark:bg-gray-800 pt-2 border-t border-gray-200 dark:border-gray-700">
+          {systemMessages}
+        </div>
+      )}
     </>
   );
 };
@@ -100,7 +134,6 @@ export function BulkAddTaskFromPDF({
   const [countdown, setCountdown] = useState(5);
   const [isPaused, setIsPaused] = useState(false);
   const [optimizationComplete, setOptimizationComplete] = useState(false);
-  const [systemMessages, setSystemMessages] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const streamOutputRef = useRef<HTMLDivElement>(null);
   
@@ -163,7 +196,6 @@ export function BulkAddTaskFromPDF({
     setError(null);
     setStreamedOutput('');
     setUploadProgress(0);
-    setSystemMessages([]);
     
     try {
       // Create a FormData object to send the file and context
@@ -216,9 +248,10 @@ export function BulkAddTaskFromPDF({
         throw new Error('Failed to get response stream');
       }
       
+      // Read the stream
       let receivedText = '';
-      const systemMsgRegex = /^\s*\[System:.*\]\s*$/;
-
+      
+      // Create a function to read and process chunks
       const processStream = async () => {
         try {
           while (true) {
@@ -226,30 +259,15 @@ export function BulkAddTaskFromPDF({
             if (done) break;
             
             const chunk = new TextDecoder().decode(value);
-            const chunkLines = chunk.split('\n');
-            let nonSystemChunkContent = '';
-
-            chunkLines.forEach(line => {
-              if (systemMsgRegex.test(line)) {
-                setSystemMessages(prev => [...prev, line.trim()]);
-              } else {
-                nonSystemChunkContent += line + '\n';
-              }
-            });
-
-            // Remove trailing newline if added unnecessarily
-            if (nonSystemChunkContent.endsWith('\n')) {
-              nonSystemChunkContent = nonSystemChunkContent.slice(0, -1);
-            }
-
-            if (nonSystemChunkContent) {
-                receivedText += nonSystemChunkContent + '\n'; // Re-add newline for separation
-                setStreamedOutput(prevText => prevText + nonSystemChunkContent + '\n');
-            }
+            receivedText += chunk;
             
+            // Update the UI with each received chunk
+            setStreamedOutput(prevText => prevText + chunk);
+            
+            // Force a small delay to ensure React updates the UI
             await new Promise(resolve => setTimeout(resolve, 10));
           }
-          return receivedText.trim(); // Trim final result
+          return receivedText;
         } catch (error) {
           console.error('Error reading stream:', error);
           throw error;
@@ -511,106 +529,95 @@ export function BulkAddTaskFromPDF({
   
   // Function to handle the parsing and extraction of tasks from JSON text
   const parseAndExtractTasks = (inputText: string) => {
-    // First, try to find the optimized tasks array that appears after the optimization message
-    const optimizationCompletePattern = /\[System: Optimized \d+ tasks to \d+ .*tasks.*\]\s*\n+\s*(\[[\s\S]*?\])/i;
-    const optimizationMatch = inputText.match(optimizationCompletePattern);
-    
-    if (optimizationMatch && optimizationMatch[1]) {
-      try {
-        console.log("Found tasks directly after optimization message");
-        const tasksJson = optimizationMatch[1];
-        const extractedTasks = JSON.parse(tasksJson);
-        
-        if (Array.isArray(extractedTasks) && extractedTasks.length > 0) {
-          // Process and validate tasks
-          const processedTasks = extractedTasks.map((task: any) => ({
-            title: task.title || 'Untitled Task',
-            details: task.details || '',
-            assignee: task.assignee || null,
-            group: task.group || null,
-            category: task.category || null,
-            dueDate: task.dueDate || null,
-            priority: task.priority || 'Medium',
-            ticketNumber: task.ticketNumber || null,
-            externalUrl: task.externalUrl || null
-          }));
+    try {
+      // Added improved JSON extraction for streaming case
+      let jsonString = '';
+      
+      // Look for JSON content with different formats:
+      // 1. Try to identify JSON blocks with ```json markers
+      const jsonBlockMatch = inputText.match(/```json([\s\S]*?)```/);
+      if (jsonBlockMatch && jsonBlockMatch[1]) {
+        jsonString = jsonBlockMatch[1].trim();
+      } 
+      // 2. Look for standard JSON arrays without markdown formatting
+      else {
+        const jsonArrayMatch = inputText.match(/\[\s*{\s*"title"[\s\S]*?\}\s*\]/);
+        if (jsonArrayMatch) {
+          jsonString = jsonArrayMatch[0];
+        }
+      }
+      
+      if (jsonString) {
+        const tasks = JSON.parse(jsonString);
+        if (Array.isArray(tasks) && tasks.length > 0) {
+          console.log("Successfully parsed JSON tasks:", tasks.length);
+          setParsedTasks(tasks);
+          setProcessingComplete(true);
+          setOptimizationComplete(true);
+          return tasks;
+        }
+      }
+      
+      // First, try to find the optimized tasks array that appears after the optimization message
+      const optimizationCompletePattern = /\[System: Optimized \d+ tasks to \d+ .*tasks.*\]\s*\n+\s*(\[[\s\S]*?\])/i;
+      const optimizationMatch = inputText.match(optimizationCompletePattern);
+      
+      if (optimizationMatch && optimizationMatch[1]) {
+        try {
+          console.log("Found tasks directly after optimization message");
+          const tasksJson = optimizationMatch[1];
+          const extractedTasks = JSON.parse(tasksJson);
           
-          console.log(`Successfully processed ${processedTasks.length} optimized tasks`);
-          setParsedTasks(processedTasks);
-          setOptimizationComplete(true); // Mark optimization as complete
-          return; // Exit early if we've found optimized tasks
-        }
-      } catch (e) {
-        console.error("Failed to parse optimized tasks array:", e);
-        // Continue to other parsing methods
-      }
-    }
-    
-    // Try to find JSON blocks in the text - look for opening and closing braces
-    let jsonStartIndex = -1;
-    let jsonEndIndex = -1;
-    let openBraces = 0;
-    
-    // Scan the text character by character to find valid JSON
-    for (let i = 0; i < inputText.length; i++) {
-      const char = inputText[i];
-      if (char === '{') {
-        openBraces++;
-        if (jsonStartIndex === -1) {
-          jsonStartIndex = i;
-        }
-      } else if (char === '}') {
-        openBraces--;
-        if (openBraces === 0) {
-          jsonEndIndex = i;
-          break;
+          if (Array.isArray(extractedTasks) && extractedTasks.length > 0) {
+            // Process and validate tasks
+            const processedTasks = extractedTasks.map((task: any) => ({
+              title: task.title || 'Untitled Task',
+              details: task.details || '',
+              assignee: task.assignee || null,
+              group: task.group || null,
+              category: task.category || null,
+              dueDate: task.dueDate || null,
+              priority: task.priority || 'Medium',
+              ticketNumber: task.ticketNumber || null,
+              externalUrl: task.externalUrl || null
+            }));
+            
+            console.log(`Successfully processed ${processedTasks.length} optimized tasks`);
+            setParsedTasks(processedTasks);
+            setOptimizationComplete(true); // Mark optimization as complete
+            return processedTasks;
+          }
+        } catch (e) {
+          console.error("Failed to parse optimized tasks array:", e);
+          // Continue to other parsing methods
         }
       }
-    }
-    
-    // If we found a complete JSON object, extract just that part
-    if (jsonStartIndex >= 0 && jsonEndIndex > jsonStartIndex) {
-      const jsonText = inputText.substring(jsonStartIndex, jsonEndIndex + 1);
-      console.log("Extracted JSON text:", jsonText.substring(0, 100) + "...");
       
-      // Now parse the cleaned JSON
-      const parsedData = JSON.parse(jsonText);
+      // Try to find JSON blocks in the text - look for opening and closing braces
+      let jsonStartIndex = -1;
+      let jsonEndIndex = -1;
+      let openBraces = 0;
       
-      // Process tasks based on structure
-      let extractedTasks = [];
-      if (parsedData && parsedData.tasks && Array.isArray(parsedData.tasks)) {
-        extractedTasks = parsedData.tasks;
-      } else if (Array.isArray(parsedData)) {
-        extractedTasks = parsedData;
-      } else {
-        extractedTasks = [parsedData]; // Fallback to treating the whole object as a single task
+      // Scan the text character by character to find valid JSON
+      for (let i = 0; i < inputText.length; i++) {
+        const char = inputText[i];
+        if (char === '{') {
+          openBraces++;
+          if (jsonStartIndex === -1) {
+            jsonStartIndex = i;
+          }
+        } else if (char === '}') {
+          openBraces--;
+          if (openBraces === 0) {
+            jsonEndIndex = i;
+            break;
+          }
+        }
       }
       
-      if (extractedTasks.length === 0) {
-        throw new Error('No tasks could be extracted from the document');
-      }
-      
-      // Process and validate tasks
-      const processedTasks = extractedTasks.map((task: any) => ({
-        title: task.title || 'Untitled Task',
-        details: task.details || '',
-        assignee: task.assignee || null,
-        group: task.group || null,
-        category: task.category || null,
-        dueDate: task.dueDate || null,
-        priority: task.priority || 'Medium',
-        ticketNumber: task.ticketNumber || null,
-        externalUrl: task.externalUrl || null
-      }));
-      
-      console.log(`Successfully processed ${processedTasks.length} tasks`);
-      setParsedTasks(processedTasks);
-      setOptimizationComplete(true); // Mark optimization as complete
-    } else {
-      // Try the regex approach as a fallback
-      const jsonMatch = inputText.match(/\{[\s\S]*?\}/);
-      if (jsonMatch) {
-        const jsonText = jsonMatch[0];
+      // If we found a complete JSON object, extract just that part
+      if (jsonStartIndex >= 0 && jsonEndIndex > jsonStartIndex) {
+        const jsonText = inputText.substring(jsonStartIndex, jsonEndIndex + 1);
         console.log("Extracted JSON text:", jsonText.substring(0, 100) + "...");
         
         // Now parse the cleaned JSON
@@ -647,8 +654,54 @@ export function BulkAddTaskFromPDF({
         setParsedTasks(processedTasks);
         setOptimizationComplete(true); // Mark optimization as complete
       } else {
-        throw new Error('No valid JSON found in the streamed output');
+        // Try the regex approach as a fallback
+        const jsonMatch = inputText.match(/\{[\s\S]*?\}/);
+        if (jsonMatch) {
+          const jsonText = jsonMatch[0];
+          console.log("Extracted JSON text:", jsonText.substring(0, 100) + "...");
+          
+          // Now parse the cleaned JSON
+          const parsedData = JSON.parse(jsonText);
+          
+          // Process tasks based on structure
+          let extractedTasks = [];
+          if (parsedData && parsedData.tasks && Array.isArray(parsedData.tasks)) {
+            extractedTasks = parsedData.tasks;
+          } else if (Array.isArray(parsedData)) {
+            extractedTasks = parsedData;
+          } else {
+            extractedTasks = [parsedData]; // Fallback to treating the whole object as a single task
+          }
+          
+          if (extractedTasks.length === 0) {
+            throw new Error('No tasks could be extracted from the document');
+          }
+          
+          // Process and validate tasks
+          const processedTasks = extractedTasks.map((task: any) => ({
+            title: task.title || 'Untitled Task',
+            details: task.details || '',
+            assignee: task.assignee || null,
+            group: task.group || null,
+            category: task.category || null,
+            dueDate: task.dueDate || null,
+            priority: task.priority || 'Medium',
+            ticketNumber: task.ticketNumber || null,
+            externalUrl: task.externalUrl || null
+          }));
+          
+          console.log(`Successfully processed ${processedTasks.length} tasks`);
+          setParsedTasks(processedTasks);
+          setOptimizationComplete(true); // Mark optimization as complete
+        } else {
+          throw new Error('No valid JSON found in the streamed output');
+        }
       }
+    } catch (error) {
+      console.error('Error in parsing tasks:', error);
+      setError(error instanceof Error ? error.message : 'An error occurred while parsing tasks');
+      setIsProcessing(false);
+      setProcessingComplete(true);
     }
   };
   
@@ -901,16 +954,6 @@ export function BulkAddTaskFromPDF({
               } rounded-lg bg-white dark:bg-gray-900 whitespace-pre-wrap`}
             >
               <HighlightedOutput text={streamedOutput} />
-              
-              {optimizationComplete && systemMessages.length > 0 && (
-                <div className="mt-4 pt-3 border-t border-dashed border-gray-300 dark:border-gray-700">
-                  {systemMessages.map((msg, index) => (
-                    <p key={index} className="text-sm font-semibold italic text-emerald-700 dark:text-emerald-300 mb-1">
-                      {msg}
-                    </p>
-                  ))}
-                </div>
-              )}
               <div className="h-4"></div>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">
