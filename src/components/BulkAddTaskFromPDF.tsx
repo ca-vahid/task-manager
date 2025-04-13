@@ -348,9 +348,9 @@ export function BulkAddTaskFromPDF({
       // Validate file type - now accept PDF and Word documents
       if (file.type === 'application/pdf') {
         // Reset state for PDF files
-      setSelectedFile(file);
-      setStreamedOutput('');
-      setError(null);
+        setSelectedFile(file);
+        setStreamedOutput('');
+        setError(null);
       } else if (
         fileExt === 'docx' || 
         fileExt === 'doc' || 
@@ -381,9 +381,9 @@ export function BulkAddTaskFromPDF({
       // Validate file type - now accept PDF and Word documents
       if (file.type === 'application/pdf') {
         // Reset state for PDF files
-      setSelectedFile(file);
-      setStreamedOutput('');
-      setError(null);
+        setSelectedFile(file);
+        setStreamedOutput('');
+        setError(null);
       } else if (
         fileExt === 'docx' || 
         fileExt === 'doc' || 
@@ -482,7 +482,7 @@ export function BulkAddTaskFromPDF({
     } 
   };
   
-  // Update the processFile function to better handle system messages and task extraction
+  // New function to continue processing after confirmation
   const processFile = async (fileToProcess: File) => {
     setIsProcessing(true);
     
@@ -534,57 +534,36 @@ export function BulkAddTaskFromPDF({
         method: 'POST',
         body: formData,
       });
-        
+      
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
         progressIntervalRef.current = null;
       }
       setUploadProgress(100);
-        
+      
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to analyze document');
       }
-        
+      
       // Handle streaming response
       const reader = response.body?.getReader();
       if (!reader) {
         throw new Error('Failed to get response stream');
       }
-        
+      
       // Read the stream
       let receivedText = '';
-      let tasksFoundInStream = false;
-      let rawTasksJson = ''; // Variable to store raw JSON for task extraction
-        
+      
       // Create a function to read and process chunks
       const processStream = async () => {
         try {
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-              
+            
             const chunk = new TextDecoder().decode(value);
             receivedText += chunk;
-            
-            // Look for task array pattern in chunks as they come in
-            if (!tasksFoundInStream && chunk.includes('[{') && chunk.includes('title')) {
-              tasksFoundInStream = true;
-              console.log("Tasks detected in stream output");
-              
-              // Try to extract JSON array from receivedText
-              const arrayMatch = receivedText.match(/(\[\s*\{.*?\}\s*\])/s);
-              if (arrayMatch && arrayMatch[1]) {
-                rawTasksJson = arrayMatch[1];
-                console.log("Found potential JSON array:", rawTasksJson.substring(0, 100) + "...");
-              }
-            }
-            
-            // Check for successful optimization message
-            if (chunk.includes("Optimization complete") || chunk.includes("Successfully optimized")) {
-              setOptimizationComplete(true);
-              console.log("Optimization complete detected in stream");
-            }
             
             // Check if this chunk contains meeting summary data
             if (isMeetingTranscript && chunk.includes('[MEETING-SUMMARY-DATA-START]')) {
@@ -627,10 +606,10 @@ export function BulkAddTaskFromPDF({
                 meetingTitleRef.current = titleContent || "Meeting Summary";
               }
             }
-              
+            
             // Update the UI with each received chunk
             setStreamedOutput(prevText => prevText + chunk);
-              
+            
             // Force a small delay to ensure React updates the UI
             await new Promise(resolve => setTimeout(resolve, 10));
           }
@@ -640,27 +619,44 @@ export function BulkAddTaskFromPDF({
           throw error;
         }
       };
-        
+      
       const completeText = await processStream();
       
-      // After streaming completes, try to extract tasks from either rawTasksJson or the complete text
-      const extractedTasks = extractTasksAfterStreamingCompletes(completeText, rawTasksJson);
-      
-      if (extractedTasks && extractedTasks.length > 0) {
-        console.log(`Successfully extracted ${extractedTasks.length} tasks`);
-        setParsedTasks(extractedTasks);
-        // Don't set isProcessing to false yet, show confirmation first
-      } else {
-        // If we didn't get any tasks but the optimization is complete,
-        // try the fallback direct request
-        if (optimizationComplete) {
-          console.log("Optimization complete but no tasks extracted, trying fallback request");
-          await makeFallbackRequest();
+      // After streaming completes, try to parse the accumulated JSON
+      try {
+        // Check if we have reached the completion markers in the streamed output
+        if (hasStreamingCompleted(completeText)) {
+          console.log("Streaming has completed based on output patterns");
+          
+          // Force extraction of tasks
+          try {
+            parseAndExtractTasks(completeText);
+          } catch (parseError) {
+            console.error('Failed to parse streaming output as JSON, making direct request', parseError);
+            await makeFallbackRequest();
+          }
         } else {
-          // No tasks and no optimization completion - real error
-          setNoTasksFound(true);
-          setIsProcessing(false);
+          // Regular JSON extraction attempt
+          try {
+            parseAndExtractTasks(completeText);
+          } catch (parseError) {
+            console.error('Failed to parse streaming output as JSON, making direct request', parseError);
+            await makeFallbackRequest();
+          }
         }
+      } catch (error) {
+        console.error('Error in streaming process:', error);
+        setError(error instanceof Error ? error.message : 'An error occurred while analyzing the document');
+        setIsProcessing(false);
+        
+        // Show a more user-friendly error that stays on screen
+        setStreamedOutput(prevOutput => 
+          prevOutput + 
+          "\n\n❌ ERROR: Failed to extract tasks from the document. Please try again or use a different file."
+        );
+        // Keep in processing complete state but with error
+        setProcessingComplete(true); 
+        setCountdown(10); // Give more time to see the error
       }
     } catch (err: any) {
       if (progressIntervalRef.current) {
@@ -671,246 +667,6 @@ export function BulkAddTaskFromPDF({
       setError(err.message || 'An error occurred while analyzing the document');
       setIsProcessing(false);
     }
-  };
-  
-  // Extract tasks using multiple strategies after streaming completes
-  const extractTasksAfterStreamingCompletes = (completeText: string, rawJson: string = ''): any[] => {
-    console.log("Attempting to extract tasks after streaming completes");
-    
-    try {
-      // Strategy 1: Try to use the raw JSON we extracted during streaming
-      if (rawJson) {
-        try {
-          console.log("Attempting to parse raw JSON captured during streaming");
-          const parsedTasks = JSON.parse(rawJson);
-          if (Array.isArray(parsedTasks) && parsedTasks.length > 0) {
-            return processTaskData(parsedTasks);
-          }
-        } catch (e) {
-          console.log("Failed to parse raw JSON, continuing with other strategies");
-        }
-      }
-      
-      // Strategy 2: Try to find a JSON array in the complete text using a more robust regex
-      // Use a regex pattern that doesn't rely on the 's' flag
-      const jsonArrayPattern = /\[\s*\{[^[]*?\}\s*\]/g;
-      const jsonArrayMatches = completeText.match(jsonArrayPattern);
-      
-      if (jsonArrayMatches && jsonArrayMatches.length > 0) {
-        // Sort by length to get the largest (likely most complete) JSON array
-        const sortedMatches = [...jsonArrayMatches].sort((a, b) => b.length - a.length);
-        
-        for (const jsonMatch of sortedMatches) {
-          try {
-            console.log("Attempting to parse JSON array match");
-            const parsedTasks = JSON.parse(jsonMatch);
-            if (Array.isArray(parsedTasks) && parsedTasks.length > 0 && 
-                // Verify these look like task objects with title properties
-                parsedTasks.some(task => task.title)) {
-              return processTaskData(parsedTasks);
-            }
-          } catch (e) {
-            console.log(`Failed to parse JSON array match: ${e}`);
-            // Continue to next match
-          }
-        }
-      }
-      
-      // Strategy 3: Check if we have a "tasks" field in a JSON object
-      const jsonObjectPattern = /\{[^{]*?"tasks"\s*:\s*\[[^[]*?\][^}]*?\}/g;
-      const jsonObjectMatches = completeText.match(jsonObjectPattern);
-      
-      if (jsonObjectMatches && jsonObjectMatches.length > 0) {
-        for (const jsonMatch of jsonObjectMatches) {
-          try {
-            console.log("Attempting to parse JSON object with tasks field");
-            const parsedData = JSON.parse(jsonMatch);
-            if (parsedData.tasks && Array.isArray(parsedData.tasks) && parsedData.tasks.length > 0) {
-              return processTaskData(parsedData.tasks);
-            }
-          } catch (e) {
-            console.log(`Failed to parse JSON object match: ${e}`);
-            // Continue to next match
-          }
-        }
-      }
-      
-      // Strategy 4: Look for task-like patterns in the text
-      if (completeText.includes("[System: Successfully optimized:") || 
-          completeText.includes("[System: Optimization complete")) {
-          
-        console.log("System message indicates success, searching for task-like patterns");
-        
-        // This regex looks for title-description patterns that might be tasks
-        const taskPatterns = completeText.match(/title:\s*["'](.+?)["'][\s,]*details:\s*["'](.+?)["']/g);
-        
-        if (taskPatterns && taskPatterns.length > 0) {
-          console.log(`Found ${taskPatterns.length} task-like patterns`);
-          const extractedTasks = taskPatterns.map(pattern => {
-            // Extract title
-            const titleMatch = pattern.match(/title:\s*["'](.+?)["']/);
-            const title = titleMatch ? titleMatch[1] : "Untitled Task";
-            
-            // Extract details
-            const detailsMatch = pattern.match(/details:\s*["'](.+?)["']/);
-            const details = detailsMatch ? detailsMatch[1] : "";
-            
-            return { title, details };
-          });
-          
-          return processTaskData(extractedTasks);
-        }
-      }
-      
-      // No tasks found through any method
-      console.log("Could not extract tasks through any method");
-      return [];
-      
-    } catch (error) {
-      console.error("Error in task extraction:", error);
-      return [];
-    }
-  };
-  
-  // Process raw task data into consistent format
-  const processTaskData = (tasks: any[]): any[] => {
-    if (!tasks || tasks.length === 0) return [];
-    
-    // Process and validate tasks
-    return tasks.map((task: any) => ({
-      title: task.title || 'Untitled Task',
-      details: task.details || '',
-      assignee: task.assignee || null,
-      group: task.group || null,
-      category: task.category || null,
-      dueDate: task.dueDate || null,
-      priority: task.priority || 'Medium',
-      ticketNumber: task.ticketNumber || null,
-      externalUrl: task.externalUrl || null
-    }));
-  };
-  
-  // Update the makeFallbackRequest function to better handle task extraction
-  const makeFallbackRequest = async () => {
-    try {
-      // Check if file exists
-      if (!selectedFile) {
-        throw new Error('No file selected for processing');
-      }
-      
-      // Create new FormData without streaming flag
-      const formDataDirect = new FormData();
-      formDataDirect.append('file', selectedFile);
-      formDataDirect.append('technicians', JSON.stringify(technicians.map(tech => ({ id: tech.id, name: tech.name }))));
-      formDataDirect.append('groups', JSON.stringify(groups.map(group => ({ id: group.id, name: group.name }))));
-      formDataDirect.append('categories', JSON.stringify(categories.map(cat => ({ id: cat.id, value: cat.value }))));
-      formDataDirect.append('useThinkingModel', useThinkingModel.toString());
-      formDataDirect.append('isMeetingTranscript', isMeetingTranscript.toString());
-      
-      // Make direct request
-      const directResponse = await fetch('/api/gemini/extract-tasks-from-pdf', {
-        method: 'POST',
-        body: formDataDirect,
-      });
-      
-      if (!directResponse.ok) {
-        const errorData = await directResponse.json();
-        throw new Error(errorData.error || errorData.message || 'Failed to analyze document');
-      }
-      
-      let extractedTasks = await directResponse.json();
-      
-      if (!extractedTasks || extractedTasks.length === 0) {
-        // Handle empty tasks array as a valid state
-        console.log("No tasks found in direct request response");
-        setParsedTasks([]);
-        setProcessingComplete(true);
-        setOptimizationComplete(true);
-        setNoTasksFound(true);
-        return;
-      }
-      
-      // Process and validate tasks
-      const processedTasks = extractedTasks.map((task: any) => ({
-        title: task.title || 'Untitled Task',
-        details: task.details || '',
-        assignee: task.assignee || null,
-        group: task.group || null,
-        category: task.category || null,
-        dueDate: task.dueDate || null,
-        priority: task.priority || 'Medium',
-        ticketNumber: task.ticketNumber || null,
-        externalUrl: task.externalUrl || null
-      }));
-      
-      setParsedTasks(processedTasks);
-      setOptimizationComplete(true); // Set optimization complete
-      // Don't set isProcessing to false yet - let user confirm first
-    } catch (secondError: any) {
-      console.error('Error in fallback document analysis:', secondError);
-      setError(secondError.message || 'An error occurred while analyzing the document');
-      setIsProcessing(false); // We can set this to false on error
-      
-      // Show a more user-friendly error that stays on screen
-      setStreamedOutput(prevOutput => 
-        prevOutput + 
-        `\n\n❌ ERROR: ${secondError.message || 'Failed to extract tasks from the document. Please try again or use a different file.'}`
-      );
-      // Keep in processing complete state but with error
-      setProcessingComplete(true); 
-      setCountdown(10); // Give more time to see the error
-    }
-  };
-  
-  // Add a confirmation step with task count display
-  const handleConfirmOptimization = () => {
-    // Check if we have parsed tasks, if not, check if we can extract them now
-    if (!parsedTasks || parsedTasks.length === 0) {
-      // Try to extract tasks from the streamed output one more time
-      const extractedTasks = extractTasksAfterStreamingCompletes(streamedOutput);
-      if (extractedTasks && extractedTasks.length > 0) {
-        console.log(`Found ${extractedTasks.length} tasks before proceeding to review`);
-        setParsedTasks(extractedTasks);
-      } else {
-        console.log("No tasks found before proceeding to review");
-        setParsedTasks([]);
-        setNoTasksFound(true);
-      }
-    }
-    
-    setOptimizationComplete(false); // Reset for next time
-    setIsProcessing(false); // Now end processing and move to review
-  };
-  
-  // Update the task confirmation screen with better handling
-  const OptimizationConfirmation = () => {
-    const taskCount = parsedTasks?.length || 0;
-    
-    return (
-      <div className="flex items-center justify-center p-4 mt-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/50 rounded-lg">
-        <div className="text-center">
-          <svg className="mx-auto h-12 w-12 text-green-500 dark:text-green-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-gray-100">
-            Analysis Complete!
-          </h3>
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-            {taskCount > 0 
-              ? `${taskCount} tasks have been extracted from your document.` 
-              : "Processing complete. Continue to review the extraction results."}
-          </p>
-          <div className="mt-4 flex justify-center">
-            <button
-              onClick={handleConfirmOptimization}
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
-            >
-              Continue to Review
-            </button>
-          </div>
-        </div>
-      </div>
-    );
   };
   
   // Update the download function for extracted text
@@ -959,7 +715,7 @@ export function BulkAddTaskFromPDF({
     setConvertedPdfFile(null);
     setConversionUrl(null);
     setShowConversionConfirmation(false);
-          setIsProcessing(false);
+    setIsProcessing(false);
     setStreamedOutput('');
   };
   
@@ -1177,6 +933,166 @@ export function BulkAddTaskFromPDF({
     }
     
     // Removed popup notifications as requested
+  };
+  
+  // Function to handle the parsing and extraction of tasks from JSON text
+  const parseAndExtractTasks = (jsonString: string) => {
+    try {
+      // This is the optimized case where we get back valid JSON
+      // In this case, we check if there's a 'tasks' array field or assume the whole response is the tasks array
+      let extractedTasks: any[] = [];
+      
+      try {
+        const parsedData = JSON.parse(jsonString);
+        
+        if (Array.isArray(parsedData)) {
+          // Direct array of tasks
+          extractedTasks = parsedData;
+        } else if (parsedData.tasks && Array.isArray(parsedData.tasks)) {
+          // Object with tasks array
+          extractedTasks = parsedData.tasks;
+        } else if (typeof parsedData === 'object' && parsedData !== null) {
+          // Single task object
+          extractedTasks = [parsedData];
+        }
+        
+        if (extractedTasks.length === 0) {
+          // Instead of throwing an error, treat this as a valid "no tasks found" state
+          console.log('No tasks could be extracted from the document');
+          setParsedTasks([]);
+          setNoTasksFound(true);
+          setIsProcessing(false);
+          return [];
+        }
+      } catch (jsonError) {
+        console.log("Couldn't parse as direct JSON, trying regex fallback", jsonError);
+        
+        // Fallback: try to find JSON in the text with regex
+        const jsonMatches = jsonString ? jsonString.match(/\[.*\]/g) || [] : [];
+        if (jsonMatches.length > 0) {
+          try {
+            const potentialJson = jsonMatches[0];
+            extractedTasks = JSON.parse(potentialJson);
+            
+            if (extractedTasks.length === 0) {
+              // Instead of throwing an error, treat this as a valid "no tasks found" state
+              console.log('No tasks could be extracted from the document');
+              setParsedTasks([]);
+              setNoTasksFound(true);
+              setIsProcessing(false);
+              return [];
+            }
+          } catch (fallbackError) {
+            console.error("Fallback JSON parsing failed", fallbackError);
+          }
+        }
+        
+        // If we still don't have tasks, we can consider this an error
+        if (extractedTasks.length === 0) {
+          // Handle empty tasks array as a valid state
+          console.log("No tasks found after all parsing attempts");
+          setParsedTasks([]);
+          setNoTasksFound(true);
+          return [];
+        }
+      }
+      
+      // Process and validate tasks
+      const processedTasks = extractedTasks.map((task: any) => ({
+        title: task.title || 'Untitled Task',
+        details: task.details || '',
+        assignee: task.assignee || null,
+        group: task.group || null,
+        category: task.category || null,
+        dueDate: task.dueDate || null,
+        priority: task.priority || 'Medium',
+        ticketNumber: task.ticketNumber || null,
+        externalUrl: task.externalUrl || null
+      }));
+      
+      return processedTasks;
+    } catch (error: any) {
+      console.error('Error parsing JSON:', error);
+      throw new Error(`Failed to extract tasks: ${error.message}`);
+    }
+  };
+  
+  // Function to make a fallback direct request instead of streaming
+  const makeFallbackRequest = async () => {
+    try {
+      // Check if file exists
+      if (!selectedFile) {
+        throw new Error('No file selected for processing');
+      }
+      
+      // Create new FormData without streaming flag
+      const formDataDirect = new FormData();
+      formDataDirect.append('file', selectedFile);
+      formDataDirect.append('technicians', JSON.stringify(technicians.map(tech => ({ id: tech.id, name: tech.name }))));
+      formDataDirect.append('groups', JSON.stringify(groups.map(group => ({ id: group.id, name: group.name }))));
+      formDataDirect.append('categories', JSON.stringify(categories.map(cat => ({ id: cat.id, value: cat.value }))));
+      formDataDirect.append('useThinkingModel', useThinkingModel.toString());
+      formDataDirect.append('isMeetingTranscript', isMeetingTranscript.toString());
+      
+      // Make direct request
+      const directResponse = await fetch('/api/gemini/extract-tasks-from-pdf', {
+        method: 'POST',
+        body: formDataDirect,
+      });
+      
+      if (!directResponse.ok) {
+        const errorData = await directResponse.json();
+        throw new Error(errorData.error || errorData.message || 'Failed to analyze document');
+      }
+      
+      let extractedTasks = await directResponse.json();
+      
+      if (!extractedTasks || extractedTasks.length === 0) {
+        // Handle empty tasks array as a valid state
+        console.log("No tasks found in direct request response");
+        setParsedTasks([]);
+        setProcessingComplete(true);
+        setOptimizationComplete(true);
+        setNoTasksFound(true);
+        return;
+      }
+      
+      // Process and validate tasks
+      const processedTasks = extractedTasks.map((task: any) => ({
+        title: task.title || 'Untitled Task',
+        details: task.details || '',
+        assignee: task.assignee || null,
+        group: task.group || null,
+        category: task.category || null,
+        dueDate: task.dueDate || null,
+        priority: task.priority || 'Medium',
+        ticketNumber: task.ticketNumber || null,
+        externalUrl: task.externalUrl || null
+      }));
+      
+      setParsedTasks(processedTasks);
+      setOptimizationComplete(true); // Set optimization complete
+      // Don't set isProcessing to false yet - let user confirm first
+    } catch (secondError: any) {
+      console.error('Error in fallback document analysis:', secondError);
+      setError(secondError.message || 'An error occurred while analyzing the document');
+      setIsProcessing(false); // We can set this to false on error
+      
+      // Show a more user-friendly error that stays on screen
+      setStreamedOutput(prevOutput => 
+        prevOutput + 
+        `\n\n❌ ERROR: ${secondError.message || 'Failed to extract tasks from the document. Please try again or use a different file.'}`
+      );
+      // Keep in processing complete state but with error
+      setProcessingComplete(true); 
+      setCountdown(10); // Give more time to see the error
+    }
+  };
+  
+  // Add a function to handle user confirmation
+  const handleConfirmOptimization = () => {
+    setOptimizationComplete(false); // Reset for next time
+    setIsProcessing(false); // Now end processing and move to review
   };
   
   // Add a function to download meeting summary as PDF
@@ -1574,40 +1490,40 @@ export function BulkAddTaskFromPDF({
           
           {/* Thinking model and transcript toggles */}
           <div className="space-y-3">
-          {/* Thinking model toggle */}
-          <div className="flex items-center">
-            <label htmlFor="thinking-model-toggle" className="flex items-center cursor-pointer">
-              <div className="relative inline-flex items-center">
-                <input 
-                  type="checkbox" 
-                  id="thinking-model-toggle" 
-                  className="sr-only"
-                  checked={useThinkingModel}
-                  onChange={toggleThinkingModel} 
+            {/* Thinking model toggle */}
+            <div className="flex items-center">
+              <label htmlFor="thinking-model-toggle" className="flex items-center cursor-pointer">
+                <div className="relative inline-flex items-center">
+                  <input 
+                    type="checkbox" 
+                    id="thinking-model-toggle" 
+                    className="sr-only"
+                    checked={useThinkingModel}
+                    onChange={toggleThinkingModel} 
                     disabled={isMeetingTranscript} // Disable if transcript mode is on as it requires thinking model
-                />
-                <div className={`w-11 h-6 rounded-full transition-colors ${useThinkingModel ? 'bg-purple-600' : 'bg-gray-200 dark:bg-gray-700'}`}>
-                  <div className={`transform transition-transform duration-200 ease-in-out h-5 w-5 rounded-full bg-white border border-gray-300 inline-block ${useThinkingModel ? 'translate-x-6' : 'translate-x-1'}`} style={{marginTop: '2px'}}></div>
+                  />
+                  <div className={`w-11 h-6 rounded-full transition-colors ${useThinkingModel ? 'bg-purple-600' : 'bg-gray-200 dark:bg-gray-700'}`}>
+                    <div className={`transform transition-transform duration-200 ease-in-out h-5 w-5 rounded-full bg-white border border-gray-300 inline-block ${useThinkingModel ? 'translate-x-6' : 'translate-x-1'}`} style={{marginTop: '2px'}}></div>
+                  </div>
+                  <span className="ml-3 text-sm font-medium text-gray-900 dark:text-gray-300">
+                    Use Gemini Thinking Model
+                  </span>
                 </div>
-                <span className="ml-3 text-sm font-medium text-gray-900 dark:text-gray-300">
-                  Use Gemini Thinking Model
-                </span>
-              </div>
-            </label>
-            <div className="relative ml-2 group">
-              <button
-                type="button"
-                className="text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400"
-                aria-label="More information about thinking model"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-                </svg>
-              </button>
-              <div className="absolute hidden group-hover:block bg-black text-white text-xs rounded py-1 px-2 z-10 bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-60">
-                Uses Gemini 2.5 Pro&apos;s enhanced reasoning capabilities for better task extraction. May improve accuracy for complex documents.
-                <div className="absolute left-1/2 transform -translate-x-1/2 top-full">
-                  <div className="w-2 h-2 bg-black rotate-45"></div>
+              </label>
+              <div className="relative ml-2 group">
+                <button
+                  type="button"
+                  className="text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400"
+                  aria-label="More information about thinking model"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                <div className="absolute hidden group-hover:block bg-black text-white text-xs rounded py-1 px-2 z-10 bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-60">
+                  Uses Gemini 2.5 Pro&apos;s enhanced reasoning capabilities for better task extraction. May improve accuracy for complex documents.
+                  <div className="absolute left-1/2 transform -translate-x-1/2 top-full">
+                    <div className="w-2 h-2 bg-black rotate-45"></div>
                   </div>
                 </div>
               </div>
@@ -1707,88 +1623,51 @@ export function BulkAddTaskFromPDF({
           
           {/* Progress bar */}
           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-4">
-                <div 
+            <div 
               className={`h-2 rounded-full ${
                 useThinkingModel ? 'bg-purple-500 dark:bg-purple-400' : 'bg-blue-500 dark:bg-blue-400'
               }`}
-                  style={{ width: `${uploadProgress}%` }} 
-                ></div>
+              style={{ width: `${uploadProgress}%` }}
+            ></div>
           </div>
           
           {/* Output display */}
           <div>
-              <div 
-                ref={streamOutputRef}
+            <div
+              ref={streamOutputRef}
               className={`font-mono text-sm overflow-auto max-h-96 p-4 border ${
-                  useThinkingModel 
-                    ? 'border-purple-200 dark:border-purple-800' 
-                    : 'border-gray-200 dark:border-gray-800'
+                useThinkingModel 
+                  ? 'border-purple-200 dark:border-purple-800' 
+                  : 'border-gray-200 dark:border-gray-800'
               } rounded-lg bg-white dark:bg-gray-900 whitespace-pre-wrap`}
             >
               <HighlightedOutput text={streamedOutput} />
               <div className="h-4"></div>
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">
               {optimizationComplete 
                 ? 'Optimization complete. Review the output above before continuing.'
                 : `Gemini ${useThinkingModel ? 'Thinking' : 'AI'} is analyzing your document and extracting tasks in real-time`}
-              </p>
-            </div>
+            </p>
+          </div>
           
           {/* Buttons with better layout */}
           {optimizationComplete && (
-            <>
-              <OptimizationConfirmation />
-              <div className="flex justify-between mt-4">
-                <button
-                  type="button"
-                  onClick={onCancel}
-                  className="px-4 py-2 border-2 border-gray-300 dark:border-gray-700 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </>
-          )}
-          
-          {/* Emergency button for when JSON parsing fails but optimization is complete */}
-          {!optimizationComplete && isProcessing && streamedOutput.includes("[System: Optimization complete") && (
-            <div className="flex justify-center mt-4">
-              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-md p-4 w-full">
-                <div className="flex items-start">
-                  <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-amber-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div className="ml-3 flex-1">
-                    <h3 className="text-sm font-medium text-amber-800 dark:text-amber-200">Processing appears to be complete</h3>
-                    <div className="mt-2 text-sm text-amber-700 dark:text-amber-300">
-                      <p>The optimization process appears to be complete but we're unable to automatically proceed.</p>
-                    </div>
-                    <div className="mt-4">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setOptimizationComplete(true);
-                          // Try to extract tasks from the streamed output one more time
-                          const extractedTasks = extractTasksAfterStreamingCompletes(streamedOutput);
-                          if (extractedTasks && extractedTasks.length > 0) {
-                            console.log(`Found ${extractedTasks.length} tasks in emergency continue`);
-                            setParsedTasks(extractedTasks);
-                          }
-                        }}
-                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-amber-700 bg-amber-100 hover:bg-amber-200 dark:text-amber-100 dark:bg-amber-800 dark:hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500"
-                      >
-                        <svg className="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" />
-                        </svg>
-                        Continue to Review
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div className="flex justify-between mt-4">
+              <button
+                type="button"
+                onClick={onCancel}
+                className="px-4 py-2 border-2 border-gray-300 dark:border-gray-700 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+              
+              <button
+                onClick={handleConfirmOptimization}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+              >
+                Review Tasks
+              </button>
             </div>
           )}
           
@@ -1817,9 +1696,9 @@ export function BulkAddTaskFromPDF({
               ? 'bg-red-100 dark:bg-red-900/30' 
               : noTasksFound
                 ? 'bg-amber-100 dark:bg-amber-900/30'
-              : useThinkingModel 
-                ? 'bg-purple-100 dark:bg-purple-900/30' 
-                : 'bg-green-100 dark:bg-green-900/30'
+                : useThinkingModel 
+                  ? 'bg-purple-100 dark:bg-purple-900/30' 
+                  : 'bg-green-100 dark:bg-green-900/30'
           } rounded-full flex items-center justify-center`}>
             {error ? (
               <svg className="w-10 h-10 text-red-600 dark:text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -1847,17 +1726,17 @@ export function BulkAddTaskFromPDF({
                 ? 'text-red-600 dark:text-red-400' 
                 : noTasksFound
                   ? 'text-amber-600 dark:text-amber-400'
-                : useThinkingModel 
-                  ? 'text-purple-600 dark:text-purple-400' 
-                  : 'text-green-600 dark:text-green-400'
+                  : useThinkingModel 
+                    ? 'text-purple-600 dark:text-purple-400' 
+                    : 'text-green-600 dark:text-green-400'
             }`}>
               {error 
                 ? 'Error Processing Document' 
                 : noTasksFound
                   ? 'No Tasks Found'
-                : useThinkingModel 
-                  ? 'Thinking Analysis Complete!' 
-                  : 'Document Analysis Complete!'
+                  : useThinkingModel 
+                    ? 'Thinking Analysis Complete!' 
+                    : 'Document Analysis Complete!'
               }
             </h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -1865,8 +1744,8 @@ export function BulkAddTaskFromPDF({
                 ? error 
                 : noTasksFound
                   ? 'No tasks could be extracted from this document. The document may not contain any task descriptions or action items.'
-                : `We found ${parsedTasks?.length || 0} tasks in your document using
-                   ${useThinkingModel ? ' Gemini Thinking with enhanced reasoning' : ' Gemini standard analysis'}.`
+                  : `We found ${parsedTasks?.length || 0} tasks in your document using
+                     ${useThinkingModel ? ' Gemini Thinking with enhanced reasoning' : ' Gemini standard analysis'}.`
               }
             </p>
           </div>
@@ -1879,17 +1758,17 @@ export function BulkAddTaskFromPDF({
                   ? 'bg-red-500' 
                   : noTasksFound
                     ? 'bg-amber-500'
-                  : useThinkingModel 
-                    ? 'bg-purple-500' 
-                    : 'bg-green-500'
+                    : useThinkingModel 
+                      ? 'bg-purple-500' 
+                      : 'bg-green-500'
               } mr-2`}></span>
               {error 
                 ? 'Error Details:' 
                 : noTasksFound
                   ? 'Details:'
-                : useThinkingModel 
-                  ? 'Gemini Thinking output:' 
-                  : 'Analysis output:'
+                  : useThinkingModel 
+                    ? 'Gemini Thinking output:' 
+                    : 'Analysis output:'
               }
             </h3>
             <div 
@@ -1899,9 +1778,9 @@ export function BulkAddTaskFromPDF({
                   ? 'border-red-200 dark:border-red-800'
                   : noTasksFound
                     ? 'border-amber-200 dark:border-amber-800'
-                  : useThinkingModel 
-                    ? 'border-purple-200 dark:border-purple-800' 
-                    : 'border-gray-200 dark:border-gray-800'
+                    : useThinkingModel 
+                      ? 'border-purple-200 dark:border-purple-800' 
+                      : 'border-gray-200 dark:border-gray-800'
               } rounded-lg p-4 h-64 overflow-auto font-mono text-xs relative`}
             >
               {streamedOutput.split('\n').map((line, i) => (
@@ -1926,7 +1805,7 @@ export function BulkAddTaskFromPDF({
                   onClick={toggleCountdown}
                   className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                 >
-                  {isPaused ? 'Resume countdown' : 'Pause countdown'}
+                  {isPaused ? "Resume countdown" : "Pause countdown"}
                 </button>
               </div>
             )}
