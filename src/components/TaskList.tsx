@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Task, Technician, TaskStatus, ViewMode, BatchOperation, ViewDensity, PriorityLevel, Group, Category } from '@/lib/types';
 import { TaskCard } from './TaskCard'; 
 import { Timestamp } from 'firebase/firestore';
@@ -31,6 +31,7 @@ import { db } from '@/lib/firebase/firebase';
 import { useUndo, UndoableActionType } from '@/lib/contexts/UndoContext';
 import { useTheme } from '@/lib/contexts/ThemeContext';
 import { CompactView } from './CompactView';
+import { APP_VERSION, ChangelogModal } from '@/lib/changelog';
 
 interface TaskListProps {
   initialTasks?: Task[];
@@ -75,6 +76,9 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
   const isDraggingRef = useRef(false);
   const lastDragOperationTimeRef = useRef(0);
   const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Changelog modal state
+  const [isChangelogOpen, setIsChangelogOpen] = useState(false);
 
   // Fetch initial data (tasks, technicians, groups, and categories)
   const fetchData = useCallback(async () => {
@@ -755,7 +759,13 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
             </span>
             <div className="flex flex-col">
               <span>BGC IT Task Manager</span>
-              <span className="text-xs text-gray-500 dark:text-gray-400">v0.8.6</span>
+              <button 
+                onClick={() => setIsChangelogOpen(true)}
+                className="text-xs text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:underline focus:outline-none"
+                aria-label="View changelog"
+              >
+                v{APP_VERSION}
+              </button>
             </div>
           </h1>
 
@@ -990,6 +1000,11 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
             onCreateGroup={handleCreateGroup}
           />
         </Modal>
+      )}
+
+      {/* Changelog Modal */}
+      {isChangelogOpen && (
+        <ChangelogModal isOpen={isChangelogOpen} onClose={() => setIsChangelogOpen(false)} />
       )}
     </div>
   );

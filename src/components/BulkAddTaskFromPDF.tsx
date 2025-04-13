@@ -936,188 +936,84 @@ export function BulkAddTaskFromPDF({
   };
   
   // Function to handle the parsing and extraction of tasks from JSON text
-  const parseAndExtractTasks = (inputText: string) => {
+  const parseAndExtractTasks = (jsonString: string) => {
     try {
-      // Added improved JSON extraction for streaming case
-      let jsonString = '';
+      // This is the optimized case where we get back valid JSON
+      // In this case, we check if there's a 'tasks' array field or assume the whole response is the tasks array
+      let extractedTasks: any[] = [];
       
-      // Look for JSON content with different formats:
-      // 1. Try to identify JSON blocks with ```json markers
-      const jsonBlockMatch = inputText.match(/```json([\s\S]*?)```/);
-      if (jsonBlockMatch && jsonBlockMatch[1]) {
-        jsonString = jsonBlockMatch[1].trim();
-      } 
-      // 2. Look for standard JSON arrays without markdown formatting
-      else {
-        const jsonArrayMatch = inputText.match(/\[\s*{\s*"title"[\s\S]*?\}\s*\]/);
-        if (jsonArrayMatch) {
-          jsonString = jsonArrayMatch[0];
+      try {
+        const parsedData = JSON.parse(jsonString);
+        
+        if (Array.isArray(parsedData)) {
+          // Direct array of tasks
+          extractedTasks = parsedData;
+        } else if (parsedData.tasks && Array.isArray(parsedData.tasks)) {
+          // Object with tasks array
+          extractedTasks = parsedData.tasks;
+        } else if (typeof parsedData === 'object' && parsedData !== null) {
+          // Single task object
+          extractedTasks = [parsedData];
         }
-      }
-      
-      if (jsonString) {
-        const tasks = JSON.parse(jsonString);
-        if (Array.isArray(tasks) && tasks.length > 0) {
-          console.log("Successfully parsed JSON tasks:", tasks.length);
-          setParsedTasks(tasks);
-          setProcessingComplete(true);
-          setOptimizationComplete(true);
-          return tasks;
-        } else if (Array.isArray(tasks) && tasks.length === 0) {
-          // Handle empty tasks array as a valid result, not an error
-          console.log("No tasks found in document");
+        
+        if (extractedTasks.length === 0) {
+          // Instead of throwing an error, treat this as a valid "no tasks found" state
+          console.log('No tasks could be extracted from the document');
           setParsedTasks([]);
-          setProcessingComplete(true);
-          setOptimizationComplete(true);
-          setNoTasksFound(true); // New state for "no tasks" as distinct from error
+          setNoTasksFound(true);
+          setIsProcessing(false);
+          return [];
+        }
+      } catch (jsonError) {
+        console.log("Couldn't parse as direct JSON, trying regex fallback", jsonError);
+        
+        // Fallback: try to find JSON in the text with regex
+        const jsonMatches = jsonString ? jsonString.match(/\[.*\]/g) || [] : [];
+        if (jsonMatches.length > 0) {
+          try {
+            const potentialJson = jsonMatches[0];
+            extractedTasks = JSON.parse(potentialJson);
+            
+            if (extractedTasks.length === 0) {
+              // Instead of throwing an error, treat this as a valid "no tasks found" state
+              console.log('No tasks could be extracted from the document');
+              setParsedTasks([]);
+              setNoTasksFound(true);
+              setIsProcessing(false);
+              return [];
+            }
+          } catch (fallbackError) {
+            console.error("Fallback JSON parsing failed", fallbackError);
+          }
+        }
+        
+        // If we still don't have tasks, we can consider this an error
+        if (extractedTasks.length === 0) {
+          // Handle empty tasks array as a valid state
+          console.log("No tasks found after all parsing attempts");
+          setParsedTasks([]);
+          setNoTasksFound(true);
           return [];
         }
       }
       
-      // First, try to find the optimized tasks array that appears after the optimization message
-      const optimizationCompletePattern = /\[System: Optimized \d+ tasks to \d+ .*tasks.*\]\s*\n+\s*(\[[\s\S]*?\])/i;
-      const optimizationMatch = inputText.match(optimizationCompletePattern);
+      // Process and validate tasks
+      const processedTasks = extractedTasks.map((task: any) => ({
+        title: task.title || 'Untitled Task',
+        details: task.details || '',
+        assignee: task.assignee || null,
+        group: task.group || null,
+        category: task.category || null,
+        dueDate: task.dueDate || null,
+        priority: task.priority || 'Medium',
+        ticketNumber: task.ticketNumber || null,
+        externalUrl: task.externalUrl || null
+      }));
       
-      if (optimizationMatch && optimizationMatch[1]) {
-        try {
-          console.log("Found tasks directly after optimization message");
-          const tasksJson = optimizationMatch[1];
-          const extractedTasks = JSON.parse(tasksJson);
-          
-          if (Array.isArray(extractedTasks) && extractedTasks.length > 0) {
-            // Process and validate tasks
-            const processedTasks = extractedTasks.map((task: any) => ({
-              title: task.title || 'Untitled Task',
-              details: task.details || '',
-              assignee: task.assignee || null,
-              group: task.group || null,
-              category: task.category || null,
-              dueDate: task.dueDate || null,
-              priority: task.priority || 'Medium',
-              ticketNumber: task.ticketNumber || null,
-              externalUrl: task.externalUrl || null
-            }));
-            
-            console.log(`Successfully processed ${processedTasks.length} optimized tasks`);
-            setParsedTasks(processedTasks);
-            setOptimizationComplete(true); // Mark optimization as complete
-            return processedTasks;
-          }
-        } catch (e) {
-          console.error("Failed to parse optimized tasks array:", e);
-          // Continue to other parsing methods
-        }
-      }
-      
-      // Try to find JSON blocks in the text - look for opening and closing braces
-      let jsonStartIndex = -1;
-      let jsonEndIndex = -1;
-      let openBraces = 0;
-      
-      // Scan the text character by character to find valid JSON
-      for (let i = 0; i < inputText.length; i++) {
-        const char = inputText[i];
-        if (char === '{') {
-          openBraces++;
-          if (jsonStartIndex === -1) {
-            jsonStartIndex = i;
-          }
-        } else if (char === '}') {
-          openBraces--;
-          if (openBraces === 0) {
-            jsonEndIndex = i;
-            break;
-          }
-        }
-      }
-      
-      // If we found a complete JSON object, extract just that part
-      if (jsonStartIndex >= 0 && jsonEndIndex > jsonStartIndex) {
-        const jsonText = inputText.substring(jsonStartIndex, jsonEndIndex + 1);
-        console.log("Extracted JSON text:", jsonText.substring(0, 100) + "...");
-        
-        // Now parse the cleaned JSON
-        const parsedData = JSON.parse(jsonText);
-        
-        // Process tasks based on structure
-        let extractedTasks = [];
-        if (parsedData && parsedData.tasks && Array.isArray(parsedData.tasks)) {
-          extractedTasks = parsedData.tasks;
-        } else if (Array.isArray(parsedData)) {
-          extractedTasks = parsedData;
-        } else {
-          extractedTasks = [parsedData]; // Fallback to treating the whole object as a single task
-        }
-        
-        if (extractedTasks.length === 0) {
-          throw new Error('No tasks could be extracted from the document');
-        }
-        
-        // Process and validate tasks
-        const processedTasks = extractedTasks.map((task: any) => ({
-          title: task.title || 'Untitled Task',
-          details: task.details || '',
-          assignee: task.assignee || null,
-          group: task.group || null,
-          category: task.category || null,
-          dueDate: task.dueDate || null,
-          priority: task.priority || 'Medium',
-          ticketNumber: task.ticketNumber || null,
-          externalUrl: task.externalUrl || null
-        }));
-        
-        console.log(`Successfully processed ${processedTasks.length} tasks`);
-        setParsedTasks(processedTasks);
-        setOptimizationComplete(true); // Mark optimization as complete
-      } else {
-        // Try the regex approach as a fallback
-        const jsonMatch = inputText.match(/\{[\s\S]*?\}/);
-        if (jsonMatch) {
-          const jsonText = jsonMatch[0];
-          console.log("Extracted JSON text:", jsonText.substring(0, 100) + "...");
-          
-          // Now parse the cleaned JSON
-          const parsedData = JSON.parse(jsonText);
-          
-          // Process tasks based on structure
-          let extractedTasks = [];
-          if (parsedData && parsedData.tasks && Array.isArray(parsedData.tasks)) {
-            extractedTasks = parsedData.tasks;
-          } else if (Array.isArray(parsedData)) {
-            extractedTasks = parsedData;
-          } else {
-            extractedTasks = [parsedData]; // Fallback to treating the whole object as a single task
-          }
-          
-          if (extractedTasks.length === 0) {
-            throw new Error('No tasks could be extracted from the document');
-          }
-          
-          // Process and validate tasks
-          const processedTasks = extractedTasks.map((task: any) => ({
-            title: task.title || 'Untitled Task',
-            details: task.details || '',
-            assignee: task.assignee || null,
-            group: task.group || null,
-            category: task.category || null,
-            dueDate: task.dueDate || null,
-            priority: task.priority || 'Medium',
-            ticketNumber: task.ticketNumber || null,
-            externalUrl: task.externalUrl || null
-          }));
-          
-          console.log(`Successfully processed ${processedTasks.length} tasks`);
-          setParsedTasks(processedTasks);
-          setOptimizationComplete(true); // Mark optimization as complete
-        } else {
-          throw new Error('No valid JSON found in the streamed output');
-        }
-      }
-    } catch (error) {
-      console.error('Error in parsing tasks:', error);
-      setError(error instanceof Error ? error.message : 'An error occurred while parsing tasks');
-      setIsProcessing(false);
-      setProcessingComplete(true);
+      return processedTasks;
+    } catch (error: any) {
+      console.error('Error parsing JSON:', error);
+      throw new Error(`Failed to extract tasks: ${error.message}`);
     }
   };
   
@@ -1152,7 +1048,13 @@ export function BulkAddTaskFromPDF({
       let extractedTasks = await directResponse.json();
       
       if (!extractedTasks || extractedTasks.length === 0) {
-        throw new Error('No tasks could be extracted from the document');
+        // Handle empty tasks array as a valid state
+        console.log("No tasks found in direct request response");
+        setParsedTasks([]);
+        setProcessingComplete(true);
+        setOptimizationComplete(true);
+        setNoTasksFound(true);
+        return;
       }
       
       // Process and validate tasks
