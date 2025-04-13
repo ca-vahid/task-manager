@@ -6,19 +6,6 @@ import { TaskCard } from './TaskCard';
 import { Timestamp } from 'firebase/firestore';
 import { TaskFilterBar } from './TaskFilterBar';
 import { TaskGroupView } from './TaskGroupView';
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  sortableKeyboardCoordinates,
-} from '@dnd-kit/sortable';
 import { AddTaskForm } from './AddTaskForm';
 import { TimelineView } from './TimelineView';
 import { CollapsibleGroup } from './CollapsibleGroup';
@@ -64,15 +51,7 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
   // Theme context to detect dark mode
   const { theme } = useTheme();
 
-  // Sensors for dnd-kit
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
-  // Ref to track drag operations
+  // Ref to track operations
   const isDraggingRef = useRef(false);
   const lastDragOperationTimeRef = useRef(0);
   const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -544,102 +523,6 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
     }
   }, []);
 
-  // Handler for dragging and dropping tasks for reordering
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
-    
-    if (over && active.id !== over.id) {
-      const activeId = active.id as string;
-      const overId = over.id as string;
-      
-      setTasks(prevTasks => {
-        const oldIndex = prevTasks.findIndex(t => t.id === activeId);
-        const newIndex = prevTasks.findIndex(t => t.id === overId);
-        
-        if (oldIndex !== -1 && newIndex !== -1) {
-          return arrayMove(prevTasks, oldIndex, newIndex);
-        }
-        
-        return prevTasks;
-      });
-      
-      // Record this drag operation for preventing duplicate toast on the same operation
-      isDraggingRef.current = true;
-      lastDragOperationTimeRef.current = Date.now();
-      
-      // Update order map
-      const orderedTasks = arrayMove(
-        [...tasks],
-        tasks.findIndex(t => t.id === activeId),
-        tasks.findIndex(t => t.id === overId)
-      );
-      
-      const newOrderMap = new Map<string, number>();
-      orderedTasks.forEach((task, index) => {
-        newOrderMap.set(task.id, index);
-      });
-      
-      setCurrentOrderMap(newOrderMap);
-      
-      // Update order in the database
-      fetch('/api/tasks/reorder', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(
-          Object.fromEntries(newOrderMap)
-        ),
-      }).catch(error => {
-        console.error("Failed to update task order:", error);
-        setError("Failed to update task order. The changes will be lost on refresh.");
-      });
-    }
-  }, [tasks]);
-
-  // Handler for batch operations on multiple tasks
-  const handleBatchOperation = useCallback(async (operation: BatchOperation) => {
-    setError(null);
-    
-    // Store original tasks for potential rollback
-    const originalTasks = [...tasks];
-    
-    // Optimistically update UI
-    setTasks(prevTasks => {
-      return prevTasks.map(task => {
-        if (operation.taskIds.includes(task.id)) {
-          return { ...task, ...operation.updates };
-        }
-        return task;
-      });
-    });
-    
-    try {
-      // API call to perform the batch operation
-      const response = await fetch('/api/tasks/batch', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(operation),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to perform batch operation. Status: ${response.status}`);
-      }
-      
-      // Clear selection after successful batch operation
-      setSelectedTaskIds([]);
-      
-    } catch (err: any) {
-      console.error("Failed to perform batch operation:", err);
-      setError(err.message || "Failed to perform batch operation.");
-      
-      // Rollback to original tasks on error
-      setTasks(originalTasks);
-    }
-  }, [tasks]);
-
   // Handler for adding or removing tasks from selection
   const handleTaskSelection = useCallback((taskId: string, selected: boolean) => {
     setSelectedTaskIds(prevSelected => {
@@ -720,6 +603,49 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
       throw err;
     }
   }, []);
+
+  // Handler for batch operations on multiple tasks
+  const handleBatchOperation = useCallback(async (operation: BatchOperation) => {
+    setError(null);
+    
+    // Store original tasks for potential rollback
+    const originalTasks = [...tasks];
+    
+    // Optimistically update UI
+    setTasks(prevTasks => {
+      return prevTasks.map(task => {
+        if (operation.taskIds.includes(task.id)) {
+          return { ...task, ...operation.updates };
+        }
+        return task;
+      });
+    });
+    
+    try {
+      // API call to perform the batch operation
+      const response = await fetch('/api/tasks/batch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(operation),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to perform batch operation. Status: ${response.status}`);
+      }
+      
+      // Clear selection after successful batch operation
+      setSelectedTaskIds([]);
+      
+    } catch (err: any) {
+      console.error("Failed to perform batch operation:", err);
+      setError(err.message || "Failed to perform batch operation.");
+      
+      // Rollback to original tasks on error
+      setTasks(originalTasks);
+    }
+  }, [tasks]);
 
   // Render loading state
   if (loading) {
@@ -928,31 +854,26 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
             onTaskSelection={handleTaskSelection}
           />
         ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <div className="space-y-4">
-              {filteredTasks.map(task => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  technicians={technicians}
-                  categories={categories}
-                  onUpdateTask={handleUpdateTask}
-                  onDeleteTask={handleDeleteTask}
-                  viewDensity={viewDensity}
-                  isSelected={selectedTaskIds.includes(task.id)}
-                  onSelect={selected => handleTaskSelection(task.id, selected)}
-                />
-              ))}
-            </div>
-          </DndContext>
+          // Regular list view without drag and drop
+          <div className="space-y-4">
+            {filteredTasks.map(task => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                technicians={technicians}
+                categories={categories}
+                onUpdateTask={handleUpdateTask}
+                onDeleteTask={handleDeleteTask}
+                viewDensity={viewDensity}
+                isSelected={selectedTaskIds.includes(task.id)}
+                onSelect={selected => handleTaskSelection(task.id, selected)}
+              />
+            ))}
+          </div>
         )}
       </div>
 
-      {/* Modal for adding a new task */}
+      {/* Modals */}
       {showAddForm && (
         <Modal onClose={() => setShowAddForm(false)} title="Add New Task">
           <AddTaskForm

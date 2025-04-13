@@ -4,25 +4,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Task, Technician, TaskStatus, ViewDensity, Group, Category } from '@/lib/types';
 import { TaskCard } from './TaskCard';
 import { ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-  DragStartEvent,
-  DragOverlay
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-  useSortable
-} from '@dnd-kit/sortable';
-import { createPortal } from 'react-dom';
 
 interface TaskGroupViewProps {
   tasks: Task[];
@@ -38,9 +19,8 @@ interface TaskGroupViewProps {
   getGroupName: (groupId: string | null) => string;
 }
 
-// Sortable Group Component
-function SortableGroupItem({
-  id,
+// Non-draggable Group Component
+function GroupItem({
   groupKey,
   groupTitle,
   groupTasks,
@@ -49,7 +29,6 @@ function SortableGroupItem({
   children,
   className
 }: {
-  id: string;
   groupKey: string;
   groupTitle: string;
   groupTasks: Task[];
@@ -58,33 +37,13 @@ function SortableGroupItem({
   children: React.ReactNode;
   className?: string;
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging
-  } = useSortable({ id });
-
-  const style = {
-    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-    transition,
-    zIndex: isDragging ? 10 : 1,
-    opacity: isDragging ? 0.5 : 1
-  };
-
   return (
     <div 
-      ref={setNodeRef} 
-      style={style}
       className={`bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden w-full ${className || ''}`}
     >
-      {/* Group header - draggable */}
+      {/* Group header */}
       <div 
-        className="mb-0 px-3 py-2 flex justify-between items-center cursor-grab bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
-        {...attributes}
-        {...listeners}
+        className="mb-0 px-3 py-2 flex justify-between items-center bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
       >
         <div>
           <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 flex items-center">
@@ -97,10 +56,7 @@ function SortableGroupItem({
         
         {/* Collapse/Expand button */}
         <button 
-          onClick={(e) => {
-            e.stopPropagation(); // Prevent dragging when clicking the button
-            onToggleCollapse(groupKey);
-          }}
+          onClick={() => onToggleCollapse(groupKey)}
           className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
           aria-label={isCollapsed ? "Expand group" : "Collapse group"}
         >
@@ -153,11 +109,8 @@ export function TaskGroupView({
   // State for collapsed groups
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   
-  // State for group order
+  // State for group order (default ordering, no longer draggable)
   const [groupOrder, setGroupOrder] = useState<string[]>([]);
-  
-  // State for active dragged group
-  const [activeGroup, setActiveGroup] = useState<string | null>(null);
 
   // Group tasks by the specified grouping
   const groupedTasks = React.useMemo(() => {
@@ -273,7 +226,7 @@ export function TaskGroupView({
     return arr2.every(item => set1.has(item));
   }
 
-  // Then define currentGroups with proper typing
+  // Define currentGroups with proper typing
   const currentGroups: [string, Task[]][] = React.useMemo(() => {
     const orderedGroups: [string, Task[]][] = [];
     
@@ -306,39 +259,6 @@ export function TaskGroupView({
 
   // Calculate total pages
   const totalPages = Math.ceil(groupEntries.length / columnsPerPage);
-
-  // Sensors for drag and drop
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 } // Requires dragging at least 8px to start
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates
-    })
-  );
-  
-  // Handle drag start
-  const handleDragStart = useCallback((event: DragStartEvent) => {
-    setActiveGroup(event.active.id as string);
-  }, []);
-  
-  // Handle drag end
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
-    
-    if (over && active.id !== over.id) {
-      // Find the indices of the dragged group and the target position
-      const oldIndex = groupOrder.indexOf(active.id as string);
-      const newIndex = groupOrder.indexOf(over.id as string);
-      
-      // Reorder the groups
-      if (oldIndex !== -1 && newIndex !== -1) {
-        setGroupOrder(arrayMove(groupOrder, oldIndex, newIndex));
-      }
-    }
-    
-    setActiveGroup(null);
-  }, [groupOrder]);
 
   // Navigate to previous page with animation
   const goToPreviousPage = useCallback(() => {
@@ -399,55 +319,51 @@ export function TaskGroupView({
   // Handle keyboard navigation for left/right arrow keys
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') {
+      // Only handle keypresses if we have pagination
+      if (totalPages <= 1) return;
+      
+      if (e.key === 'ArrowLeft' && currentPage > 0) {
         goToPreviousPage();
-      } else if (e.key === 'ArrowRight') {
+      } else if (e.key === 'ArrowRight' && currentPage < totalPages - 1) {
         goToNextPage();
       }
     };
-
-    // Add the event listener
-    window.addEventListener('keydown', handleKeyDown);
     
-    // Remove the event listener on cleanup
+    window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [goToPreviousPage, goToNextPage]); // Add all dependencies used inside the effect
+  }, [currentPage, goToNextPage, goToPreviousPage, totalPages]);
 
-  // Listen for column count change events
+  // Listen for custom column count change event
   useEffect(() => {
     const handleColumnCountChange = (event: CustomEvent) => {
-      if (event.detail && event.detail.count) {
-        setColumnsPerPage(event.detail.count);
+      const count = event.detail.count;
+      if (count >= 2 && count <= 4) {
+        setColumnsPerPage(count);
+        // If changing columns would put us past the end, go back to page 0
+        if (currentPage * count >= groupEntries.length) {
+          setCurrentPage(0);
+        }
       }
     };
-
-    // Add the event listener (need to cast as any due to CustomEvent typing)
-    window.addEventListener('setColumnCount', handleColumnCountChange as any);
     
-    // Remove the event listener on cleanup
+    window.addEventListener('columnCountChange' as any, handleColumnCountChange);
     return () => {
-      window.removeEventListener('setColumnCount', handleColumnCountChange as any);
+      window.removeEventListener('columnCountChange' as any, handleColumnCountChange);
     };
-  }, []);
-
-  // Handle saving the description
-  const handleSaveDescription = async (taskId: string, explanation: string) => {
-    await onUpdateTask(taskId, { explanation });
-  };
+  }, [currentPage, groupEntries.length]);
 
   return (
     <div className="relative">
-      {/* Pagination controls - now fixed to viewport edges */}
+      {/* Pagination controls */}
       {totalPages > 1 && (
         <>
-          {/* Left arrow - fixed position */}
           <button 
             onClick={goToPreviousPage}
-            disabled={currentPage === 0 || isAnimating}
+            disabled={currentPage <= 0 || isAnimating}
             className={`fixed left-4 top-1/2 -translate-y-1/2 p-4 rounded-full bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700
-              ${(currentPage === 0 || isAnimating) 
+              ${(currentPage <= 0 || isAnimating) 
                 ? 'opacity-50 cursor-not-allowed' 
                 : 'hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:border-indigo-300 dark:hover:border-indigo-700'
               } transition-all z-50`}
@@ -458,7 +374,6 @@ export function TaskGroupView({
             </svg>
           </button>
           
-          {/* Right arrow - fixed position */}
           <button 
             onClick={goToNextPage}
             disabled={currentPage >= totalPages - 1 || isAnimating}
@@ -483,70 +398,42 @@ export function TaskGroupView({
         </div>
       )}
       
-      {/* Main content with drag and drop for groups */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
-        <div className={`grid grid-cols-1 md:grid-cols-2 ${
-          columnsPerPage === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'
-        } gap-3 ${getAnimationClasses()}`}>
-          <SortableContext items={currentGroups.map(([groupKey]) => groupKey)} strategy={verticalListSortingStrategy}>
-            {/* Render current page groups */}
-            {currentGroups.map(([groupKey, groupTasks]) => (
-              <SortableGroupItem
-                key={groupKey}
-                id={groupKey}
-                groupKey={groupKey}
-                groupTitle={getGroupTitle(groupKey)}
-                groupTasks={groupTasks as Task[]}
-                isCollapsed={collapsedGroups[groupKey] || false}
-                onToggleCollapse={(key) => setCollapsedGroups(prev => ({
-                  ...prev,
-                  [key]: !prev[key]
-                }))}
-                className=""
-              >
-                {(groupTasks as Task[]).map(task => (
-                  <div key={task.id}>
-                    <TaskCard
-                      key={task.id}
-                      task={task}
-                      technicians={technicians}
-                      categories={categories}
-                      onUpdateTask={onUpdateTask}
-                      onDeleteTask={onDeleteTask}
-                      viewDensity={viewDensity}
-                      isSelected={selectedTaskIds.includes(task.id)}
-                      onSelect={(selected) => onTaskSelection(task.id, selected)}
-                    />
-                  </div>
-                ))}
-              </SortableGroupItem>
-            ))}
-          </SortableContext>
-          
-          {/* Drag Overlay */}
-          <DragOverlay>
-            {activeGroup && (
-              <div className="bg-white dark:bg-gray-800 shadow-lg rounded-lg border border-gray-200 dark:border-gray-700 opacity-75">
-                <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
-                    {getGroupTitle(activeGroup)}
-                  </h3>
-                </div>
-                <div className="p-4">
-                  <div className="h-24 flex items-center justify-center">
-                    <p className="text-gray-500 dark:text-gray-400">Moving group...</p>
-                  </div>
-                </div>
+      {/* Main content with non-draggable groups */}
+      <div className={`grid grid-cols-1 md:grid-cols-2 ${
+        columnsPerPage === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'
+      } gap-3 ${getAnimationClasses()}`}>
+        {/* Render current page groups */}
+        {currentGroups.map(([groupKey, groupTasks]) => (
+          <GroupItem
+            key={groupKey}
+            groupKey={groupKey}
+            groupTitle={getGroupTitle(groupKey)}
+            groupTasks={groupTasks as Task[]}
+            isCollapsed={collapsedGroups[groupKey] || false}
+            onToggleCollapse={(key) => setCollapsedGroups(prev => ({
+              ...prev,
+              [key]: !prev[key]
+            }))}
+            className=""
+          >
+            {(groupTasks as Task[]).map(task => (
+              <div key={task.id}>
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  technicians={technicians}
+                  categories={categories}
+                  onUpdateTask={onUpdateTask}
+                  onDeleteTask={onDeleteTask}
+                  viewDensity={viewDensity}
+                  isSelected={selectedTaskIds.includes(task.id)}
+                  onSelect={(selected) => onTaskSelection(task.id, selected)}
+                />
               </div>
-            )}
-          </DragOverlay>
-        </div>
-      </DndContext>
+            ))}
+          </GroupItem>
+        ))}
+      </div>
     </div>
   );
 } 
