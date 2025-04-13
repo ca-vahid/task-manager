@@ -2,6 +2,9 @@ import { GoogleGenAI } from "@google/genai";
 import { NextResponse } from "next/server";
 import { StreamingTextResponse } from 'ai';
 
+// Configure for Edge Runtime
+export const runtime = 'edge';
+
 // Initialize the Gemini API with the key from environment variables
 const genAI = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY || ""
