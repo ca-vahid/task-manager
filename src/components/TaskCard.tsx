@@ -1208,10 +1208,10 @@ export function TaskCard({
             
         {/* Collapsible description */}
         {showDescription && task.explanation && (
-          <div 
-            className="mb-4 text-sm text-gray-700 dark:text-gray-300 bg-white/50 dark:bg-black/20 p-3 rounded-md border border-gray-200 dark:border-gray-700 transition-all duration-200 ease-in rich-text-content"
-            dangerouslySetInnerHTML={{ __html: sanitizeHtml(task.explanation || '') }}
-          />
+            <div 
+              className="mb-4 text-sm text-gray-700 dark:text-gray-300 bg-white/50 dark:bg-black/20 p-3 rounded-md border border-gray-200 dark:border-gray-700 transition-all duration-200 ease-in rich-text-content"
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(task.explanation || '') }}
+            />
         )}
         
         {/* Task details */}
@@ -1310,10 +1310,10 @@ export function TaskCard({
                 </label>
                 <div className="min-h-[300px]">
                   <QuillEditor
-                    value={editedDescription}
+                  value={editedDescription}
                     onChange={setEditedDescription}
                     placeholder="Enter task description and details..."
-                  />
+                />
                 </div>
               </div>
             </div>

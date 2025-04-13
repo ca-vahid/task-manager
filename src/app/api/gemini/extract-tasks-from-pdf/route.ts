@@ -775,13 +775,13 @@ async function handleStreamingRequest(
           for await (const chunk of summaryStream) {
             if (chunk && chunk.text) {
               meetingSummary += chunk.text;
-              // Don't display the full meeting summary to the user - just collect it silently
-              // Only output progress indicators instead
+              
+              // Send the actual summary chunk to the frontend stream
+              controller.enqueue(new TextEncoder().encode(chunk.text));
+              
+              // Check for completion marker, but don't send progress dots anymore
               if (chunk.text.includes('MEETING SUMMARY COMPLETE')) {
                 controller.enqueue(new TextEncoder().encode("\n[System: Meeting summary generation complete]\n"));
-              } else if (meetingSummary.length % 1000 === 0) {
-                // Show occasional progress indicator
-                controller.enqueue(new TextEncoder().encode("."));
               }
             }
           }
@@ -816,8 +816,6 @@ async function handleStreamingRequest(
                 // Don't show the content, just progress indicators
                 if (chunk.text.includes('MEETING SUMMARY COMPLETE')) {
                   controller.enqueue(new TextEncoder().encode("\n[System: Meeting summary completion finished]\n"));
-                } else if (meetingSummary.length % 1000 === 0) {
-                  controller.enqueue(new TextEncoder().encode("."));
                 }
               }
             }
@@ -1012,29 +1010,52 @@ async function handleStreamingRequest(
           
           if (extractedTasks.length > 0) {
             // Show task count
-            controller.enqueue(new TextEncoder().encode(`[System: Found ${extractedTasks.length} tasks in the ${isMeetingTranscript ? 'meeting summary' : 'document'}. Optimizing...]\n\n`));
+            controller.enqueue(new TextEncoder().encode(`[System: Found ${extractedTasks.length} tasks in the ${isMeetingTranscript ? 'meeting summary' : 'document'}. `));
             
-            // Optimize tasks - pass the controller for streaming updates
-            const optimizedTasks = await optimizeTasks(extractedTasks, controller);
-            
-            // Output the tasks as JSON first, then the summary as the very last thing
-            controller.enqueue(new TextEncoder().encode(`\n\n`));
-            controller.enqueue(new TextEncoder().encode(`\`\`\`json\n${JSON.stringify(optimizedTasks, null, 2)}\n\`\`\`\n\n`));
-            
-            // Add the summary message at the very end with emphasis
-            const originalCount = extractedTasks.length;
-            const finalCount = optimizedTasks.length;
-            
-            // Always include both counts for better visibility
-            controller.enqueue(new TextEncoder().encode(
-              `[System: Successfully optimized: ${originalCount} → ${finalCount} tasks]\n` +
-              `[System: Optimization complete. Final result: ${finalCount} tasks]` +
-              (isMeetingTranscript ? `\n[System: Meeting summary available for download]` : '')
-            ));
-            
-            // If it's a meeting transcript, add a marker that can be detected by the client
-            if (isMeetingTranscript) {
-              controller.enqueue(new TextEncoder().encode(`\n\n[MEETING-SUMMARY-DATA-START]\n${meetingSummary}\n[MEETING-SUMMARY-DATA-END]\n\n`));
+            // Skip optimization for 4 or fewer tasks
+            if (extractedTasks.length <= 4) {
+              controller.enqueue(new TextEncoder().encode(`Skipping optimization for ${extractedTasks.length} tasks as it's not needed for small task sets.]\n\n`));
+              
+              // Output the tasks as JSON directly
+              controller.enqueue(new TextEncoder().encode(`\n\n`));
+              controller.enqueue(new TextEncoder().encode(`\`\`\`json\n${JSON.stringify(extractedTasks, null, 2)}\n\`\`\`\n\n`));
+              
+              // Add completion message
+              controller.enqueue(new TextEncoder().encode(
+                `[System: Analysis complete. Final result: ${extractedTasks.length} tasks]` +
+                (isMeetingTranscript ? `\n[System: Meeting summary available for download]` : '')
+              ));
+              
+              // If it's a meeting transcript, add the summary data
+              if (isMeetingTranscript) {
+                controller.enqueue(new TextEncoder().encode(`\n\n<!-- NON-DISPLAY DATA BEGIN - FOR CLIENT PROCESSING ONLY -->\n[MEETING-SUMMARY-DATA-START]\n${meetingSummary}\n[MEETING-SUMMARY-DATA-END]\n<!-- NON-DISPLAY DATA END -->\n\n`));
+              }
+            } else {
+              // Proceed with optimization for larger task sets
+              controller.enqueue(new TextEncoder().encode(`Optimizing...]\n\n`));
+              
+              // Optimize tasks - pass the controller for streaming updates
+              const optimizedTasks = await optimizeTasks(extractedTasks, controller);
+              
+              // Output the tasks as JSON first, then the summary as the very last thing
+              controller.enqueue(new TextEncoder().encode(`\n\n`));
+              controller.enqueue(new TextEncoder().encode(`\`\`\`json\n${JSON.stringify(optimizedTasks, null, 2)}\n\`\`\`\n\n`));
+              
+              // Add the summary message at the very end with emphasis
+              const originalCount = extractedTasks.length;
+              const finalCount = optimizedTasks.length;
+              
+              // Always include both counts for better visibility
+              controller.enqueue(new TextEncoder().encode(
+                `[System: Successfully optimized: ${originalCount} → ${finalCount} tasks]\n` +
+                `[System: Optimization complete. Final result: ${finalCount} tasks]` +
+                (isMeetingTranscript ? `\n[System: Meeting summary available for download]` : '')
+              ));
+              
+              // If it's a meeting transcript, add a marker that can be detected by the client
+              if (isMeetingTranscript) {
+                controller.enqueue(new TextEncoder().encode(`\n\n<!-- NON-DISPLAY DATA BEGIN - FOR CLIENT PROCESSING ONLY -->\n[MEETING-SUMMARY-DATA-START]\n${meetingSummary}\n[MEETING-SUMMARY-DATA-END]\n<!-- NON-DISPLAY DATA END -->\n\n`));
+              }
             }
           } else {
             controller.enqueue(new TextEncoder().encode("\n\n[System: Could not extract tasks for optimization. Original extraction will be used.]\n\n"));
