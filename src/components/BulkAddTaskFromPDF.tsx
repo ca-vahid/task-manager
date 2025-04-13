@@ -370,7 +370,7 @@ export function BulkAddTaskFromPDF({
     { stage: 'Uploading Document', percent: 1 },
     { stage: 'Initializing Analysis', percent: 15 },
     { stage: isMeetingTranscript ? 'Creating Meeting Summary' : 'Reading Document', percent: isMeetingTranscript ? 30 : 20 },
-    { stage: 'Extracting Tasks', percent: 70 },
+    { stage: 'Extracting Tasks', percent: 50 },
     { stage: 'Optimizing Results', percent: 95 },
     { stage: 'Complete', percent: 100 },
   ]);
@@ -1612,7 +1612,7 @@ export function BulkAddTaskFromPDF({
       { stage: 'Uploading Document', percent: 1 },
       { stage: 'Initializing Analysis', percent: 15 },
       { stage: isMeetingTranscript ? 'Creating Meeting Summary' : 'Reading Document', percent: isMeetingTranscript ? 30 : 20 },
-      { stage: 'Extracting Tasks', percent: 70 },
+      { stage: 'Extracting Tasks', percent: 50 },
       { stage: 'Optimizing Results', percent: 95 },
       { stage: 'Complete', percent: 100 },
     ]);
