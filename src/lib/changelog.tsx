@@ -1,7 +1,7 @@
 import React from 'react';
 
 // Application version
-export const APP_VERSION = "1.0.0";
+export const APP_VERSION = "1.0.2";
 
 // Version history for changelog
 export interface VersionInfo {
@@ -15,8 +15,44 @@ export interface VersionInfo {
 
 export const VERSION_HISTORY: VersionInfo[] = [
   {
+    version: "1.0.2",
+    date: "April 20, 2025",
+    changes: [
+      {
+        category: "UI Improvements",
+        items: [
+          "Redesigned version history popup with modern interface",
+          "Added custom scrollbar for better user experience",
+          "Implemented smooth animations for modals and popups"
+        ]
+      },
+      {
+        category: "PDF Processing",
+        items: [
+          "Improved JSON parsing for task extraction from complex documents",
+          "Added smarter optimization logic to skip processing for small tasks sets",
+          "Enhanced error handling and debugging for document analysis"
+        ]
+      }
+    ]
+  },
+  {
+    version: "1.0.1",
+    date: "April 12, 2025",
+    changes: [
+      {
+        category: "UI Improvements",
+        items: [
+          "Enhanced analysis complete screen with better task count visibility",
+          "Improved layout of task extraction confirmation for better readability",
+          "Made processing complete view more compact and user-friendly"
+        ]
+      }
+    ]
+  },
+  {
     version: "1.0.0",
-    date: "April 18, 2025",
+    date: "April 12, 2025",
     changes: [
       {
         category: "Major Release",
@@ -39,7 +75,7 @@ export const VERSION_HISTORY: VersionInfo[] = [
   },
   {
     version: "0.9.0",
-    date: "April 15, 2025",
+    date: "April 12, 2025",
     changes: [
       {
         category: "New Features",
@@ -168,63 +204,86 @@ export const ChangelogModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: 
   if (!isOpen) return null;
   
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="changelog-modal" role="dialog" aria-modal="true">
-      <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75 transition-opacity" aria-hidden="true" onClick={onClose}></div>
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      {/* Backdrop with animation */}
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fadeIn" />
+      
+      {/* Modal container */}
+      <div 
+        className="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md transform transition-all animate-scaleIn overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="border-b border-gray-200 dark:border-gray-700 py-3 px-4 flex justify-between items-center sticky top-0 bg-white dark:bg-gray-800 z-10">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            <span className="bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">
+              Version History
+            </span>
+          </h3>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors rounded-full p-1 hover:bg-gray-100 dark:hover:bg-gray-700"
+          >
+            <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
         
-        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-        
-        <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl w-full">
-          <div className="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-            <div className="flex justify-between items-start">
-              <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100" id="modal-title">
-                Version History
-              </h3>
-              <button
-                onClick={onClose}
-                className="text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400"
-              >
-                <span className="sr-only">Close</span>
-                <svg className="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            
-            <div className="mt-4 max-h-[70vh] overflow-y-auto pr-2 space-y-8">
-              {VERSION_HISTORY.map((versionInfo) => (
-                <div key={versionInfo.version} className="border-b border-gray-200 dark:border-gray-700 pb-6 last:border-0">
-                  <div className="flex justify-between items-baseline">
-                    <h4 className="text-base font-semibold text-blue-600 dark:text-blue-400">
-                      Version {versionInfo.version}
-                    </h4>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">{versionInfo.date}</span>
-                  </div>
-                  
-                  <div className="mt-3 space-y-4">
-                    {versionInfo.changes.map((change, changeIndex) => (
-                      <div key={changeIndex}>
-                        <h5 className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-2">{change.category}</h5>
-                        <ul className="list-disc pl-5 space-y-1">
-                          {change.items.map((item, itemIndex) => (
-                            <li key={itemIndex} className="text-sm text-gray-600 dark:text-gray-300">
-                              {item}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
+        {/* Content area with custom scrollbar */}
+        <div className="py-2 px-4 overflow-y-auto max-h-[70vh] scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
+          {VERSION_HISTORY.map((versionInfo) => (
+            <div key={versionInfo.version} className="mb-4 last:mb-0">
+              <div className="flex justify-between items-center py-2">
+                <div className="flex items-center">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 mr-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </span>
+                  <h4 className="text-sm font-bold text-gray-900 dark:text-white">
+                    {versionInfo.version}
+                  </h4>
+                </div>
+                <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full">
+                  {versionInfo.date}
+                </span>
+              </div>
+              
+              {versionInfo.changes.map((change, changeIndex) => (
+                <div key={changeIndex} className="ml-9 mb-3">
+                  <h5 className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-1">
+                    {change.category}
+                  </h5>
+                  <ul className="space-y-1">
+                    {change.items.map((item, itemIndex) => (
+                      <li key={itemIndex} className="text-sm text-gray-700 dark:text-gray-300 flex items-start">
+                        <span className="text-green-500 dark:text-green-400 mr-1.5 mt-0.5">•</span>
+                        {item}
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 </div>
               ))}
+              
+              {/* Version separator */}
+              {versionInfo.version !== VERSION_HISTORY[VERSION_HISTORY.length - 1].version && (
+                <div className="border-b border-gray-100 dark:border-gray-700 my-3" />
+              )}
             </div>
-          </div>
-          
-          <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+          ))}
+        </div>
+        
+        {/* Footer */}
+        <div className="border-t border-gray-200 dark:border-gray-700 py-2 px-4 bg-gray-50 dark:bg-gray-800">
+          <div className="flex justify-end">
             <button
               type="button"
               onClick={onClose}
-              className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm"
+              className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
             >
               Close
             </button>
