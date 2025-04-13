@@ -21,9 +21,9 @@ export const VERSION_HISTORY: VersionInfo[] = [
       {
         category: "UI Improvements",
         items: [
-          "Streamlined Word document processing workflow",
-          "Removed confirmation window for Word document content extraction",
-          "Automatic processing of extracted content for faster task analysis"
+          "Changed Word document extraction confirmation to use friendlier blue color scheme",
+          "Added auto-progression after 5 seconds of inactivity for document extraction",
+          "Improved overall document processing workflow for a more seamless experience"
         ]
       }
     ]

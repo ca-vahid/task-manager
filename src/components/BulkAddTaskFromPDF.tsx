@@ -353,6 +353,9 @@ export function BulkAddTaskFromPDF({
   const [convertedPdfFile, setConvertedPdfFile] = useState<File | null>(null);
   const [showConversionConfirmation, setShowConversionConfirmation] = useState(false);
   const [conversionUrl, setConversionUrl] = useState<string | null>(null);
+  const [autoProgressTimer, setAutoProgressTimer] = useState<NodeJS.Timeout | null>(null);
+  const [autoProgressCountdown, setAutoProgressCountdown] = useState(5);
+  const [userInteracted, setUserInteracted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const streamOutputRef = useRef<HTMLDivElement>(null);
   const meetingSummaryRef = useRef<string | null>(null);
@@ -474,17 +477,31 @@ export function BulkAddTaskFromPDF({
           // Extract text from the Word document
           const extractedText = await extractWordContent(selectedFile);
           
-          // Store the extracted text and proceed with processing
+          // Create a preview text area
+          setConversionUrl(null); // Clear any existing preview URL
+          setStreamedOutput(prev => prev + '[System: Word document content extracted successfully.]\n\n');
+          
+          // Show the Word preview confirmation dialog
+          setShowConversionConfirmation(true);
+          setIsProcessing(false);
+          
+          // Store the extracted text
           const textBlob = new Blob([extractedText], { type: 'text/plain' });
           const textFile = new File([textBlob], `${selectedFile.name.split('.')[0]}.txt`, {
             type: 'text/plain',
             lastModified: new Date().getTime(),
           });
           
-          setStreamedOutput(prev => prev + '[System: Word document content extracted successfully. Proceeding with analysis...]\n\n');
+          setConvertedPdfFile(textFile);
           
-          // Process the extracted text file directly without showing confirmation
-          await processFile(textFile);
+          // Create a data URL for preview
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            if (e.target?.result) {
+              setConversionUrl(e.target.result as string);
+            }
+          };
+          reader.readAsDataURL(textBlob);
           
           return;
         } catch (conversionError) {
@@ -550,7 +567,7 @@ export function BulkAddTaskFromPDF({
           body: formData,
         });
         
-      if (!response.ok) {
+        if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.message || 'Failed to analyze document');
         }
@@ -733,8 +750,8 @@ export function BulkAddTaskFromPDF({
     document.body.removeChild(a);
   };
   
-  // New function to confirm conversion and proceed
-  const confirmConversionAndProceed = () => {
+  // Memoize the confirm conversion function to avoid dependency issues
+  const memoizedConfirmProceed = React.useCallback(() => {
     if (!convertedPdfFile) {
       setError('Converted PDF file not found');
       return;
@@ -742,8 +759,62 @@ export function BulkAddTaskFromPDF({
     
     setShowConversionConfirmation(false);
     setStreamedOutput('[System: Word document successfully converted to PDF.]\n\n');
-    processFile(convertedPdfFile);
-  };
+    // Use processFile directly here without making it a dependency
+    if (convertedPdfFile) {
+      processFile(convertedPdfFile);
+    }
+  }, [convertedPdfFile]); // Remove processFile from dependencies
+  
+  // Use the memoized function for the auto-progression useEffect
+  useEffect(() => {
+    if (showConversionConfirmation && !userInteracted) {
+      // Start or continue the countdown
+      const timer = setInterval(() => {
+        setAutoProgressCountdown(prev => {
+          // If countdown reaches 0, auto-progress
+          if (prev <= 1) {
+            if (convertedPdfFile) {
+              memoizedConfirmProceed();
+            }
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      
+      setAutoProgressTimer(timer);
+      
+      // Setup event listeners to detect user interaction
+      const handleUserInteraction = () => {
+        setUserInteracted(true);
+        if (autoProgressTimer) {
+          clearInterval(autoProgressTimer);
+          setAutoProgressTimer(null);
+        }
+      };
+      
+      window.addEventListener('click', handleUserInteraction);
+      window.addEventListener('keydown', handleUserInteraction);
+      window.addEventListener('mousemove', handleUserInteraction);
+      
+      return () => {
+        if (autoProgressTimer) {
+          clearInterval(autoProgressTimer);
+        }
+        window.removeEventListener('click', handleUserInteraction);
+        window.removeEventListener('keydown', handleUserInteraction);
+        window.removeEventListener('mousemove', handleUserInteraction);
+      };
+    } else if (!showConversionConfirmation) {
+      // Reset the countdown and interaction state when dialog closes
+      setAutoProgressCountdown(5);
+      setUserInteracted(false);
+      if (autoProgressTimer) {
+        clearInterval(autoProgressTimer);
+        setAutoProgressTimer(null);
+      }
+    }
+  }, [showConversionConfirmation, userInteracted, autoProgressTimer, convertedPdfFile, memoizedConfirmProceed]);
   
   // New function to cancel conversion and go back
   const cancelConversion = () => {
@@ -1685,14 +1756,14 @@ export function BulkAddTaskFromPDF({
       {/* Show conversion confirmation UI */}
       {showConversionConfirmation && convertedPdfFile && (
         <div className="space-y-4">
-          <div className="bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-800/50 rounded-lg p-4">
+          <div className="bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-800/50 rounded-lg p-4">
             <div className="flex items-center mb-3">
-              <svg className="h-6 w-6 text-amber-500 dark:text-amber-400 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <svg className="h-6 w-6 text-blue-500 dark:text-blue-400 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
-              <h3 className="text-base font-medium text-amber-800 dark:text-amber-300">Word Document Content Extracted</h3>
+              <h3 className="text-base font-medium text-blue-800 dark:text-blue-300">Word Document Content Extracted</h3>
             </div>
-            <p className="text-sm text-amber-700 dark:text-amber-200 mb-4">
+            <p className="text-sm text-blue-700 dark:text-blue-200 mb-4">
               Your Word document has been processed. Please verify the content is extracted correctly before proceeding with task analysis.
             </p>
             
@@ -1727,13 +1798,27 @@ export function BulkAddTaskFromPDF({
                   Extraction Failed, Go Back
                 </button>
                 <button
-                  onClick={confirmConversionAndProceed}
-                  className="w-full sm:w-auto px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                  onClick={memoizedConfirmProceed}
+                  className="w-full sm:w-auto px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors flex items-center"
                 >
                   Looks Good, Continue
+                  {!userInteracted && autoProgressCountdown > 0 && (
+                    <span className="ml-2 text-xs bg-white/20 rounded-full h-5 w-5 inline-flex items-center justify-center">
+                      {autoProgressCountdown}
+                    </span>
+                  )}
                 </button>
               </div>
             </div>
+            
+            {/* Auto-progression notice */}
+            {!userInteracted && autoProgressCountdown > 0 && (
+              <div className="text-center mt-3">
+                <p className="text-xs text-blue-600 dark:text-blue-400">
+                  Continuing automatically in {autoProgressCountdown} {autoProgressCountdown === 1 ? 'second' : 'seconds'}...
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
