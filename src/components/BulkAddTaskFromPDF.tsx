@@ -474,31 +474,17 @@ export function BulkAddTaskFromPDF({
           // Extract text from the Word document
           const extractedText = await extractWordContent(selectedFile);
           
-          // Create a preview text area
-          setConversionUrl(null); // Clear any existing preview URL
-          setStreamedOutput(prev => prev + '[System: Word document content extracted successfully.]\n\n');
-          
-          // Show the Word preview confirmation dialog
-          setShowConversionConfirmation(true);
-          setIsProcessing(false);
-          
-          // Store the extracted text
+          // Store the extracted text and proceed with processing
           const textBlob = new Blob([extractedText], { type: 'text/plain' });
           const textFile = new File([textBlob], `${selectedFile.name.split('.')[0]}.txt`, {
             type: 'text/plain',
             lastModified: new Date().getTime(),
           });
           
-          setConvertedPdfFile(textFile);
+          setStreamedOutput(prev => prev + '[System: Word document content extracted successfully. Proceeding with analysis...]\n\n');
           
-          // Create a data URL for preview
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            if (e.target?.result) {
-              setConversionUrl(e.target.result as string);
-            }
-          };
-          reader.readAsDataURL(textBlob);
+          // Process the extracted text file directly without showing confirmation
+          await processFile(textFile);
           
           return;
         } catch (conversionError) {
