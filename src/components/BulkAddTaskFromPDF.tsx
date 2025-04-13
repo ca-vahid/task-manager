@@ -334,6 +334,9 @@ export function BulkAddTaskFromPDF({
   // Add a ref for the progress interval:
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Add state for no tasks found case
+  const [noTasksFound, setNoTasksFound] = useState(false);
+  
   // Function to handle file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -932,7 +935,7 @@ export function BulkAddTaskFromPDF({
     // Removed popup notifications as requested
   };
   
-  // Function to extract tasks from the response
+  // Function to handle the parsing and extraction of tasks from JSON text
   const parseAndExtractTasks = (inputText: string) => {
     try {
       // Added improved JSON extraction for streaming case
@@ -960,6 +963,14 @@ export function BulkAddTaskFromPDF({
           setProcessingComplete(true);
           setOptimizationComplete(true);
           return tasks;
+        } else if (Array.isArray(tasks) && tasks.length === 0) {
+          // Handle empty tasks array as a valid result, not an error
+          console.log("No tasks found in document");
+          setParsedTasks([]);
+          setProcessingComplete(true);
+          setOptimizationComplete(true);
+          setNoTasksFound(true); // New state for "no tasks" as distinct from error
+          return [];
         }
       }
       
@@ -990,7 +1001,6 @@ export function BulkAddTaskFromPDF({
             console.log(`Successfully processed ${processedTasks.length} optimized tasks`);
             setParsedTasks(processedTasks);
             setOptimizationComplete(true); // Mark optimization as complete
-            setProcessingComplete(true);
             return processedTasks;
           }
         } catch (e) {
@@ -1782,8 +1792,8 @@ export function BulkAddTaskFromPDF({
           <div className={`w-20 h-20 ${
             error 
               ? 'bg-red-100 dark:bg-red-900/30' 
-              : parsedTasks?.length === 0 
-                ? 'bg-amber-100 dark:bg-amber-900/30' 
+              : noTasksFound
+                ? 'bg-amber-100 dark:bg-amber-900/30'
                 : useThinkingModel 
                   ? 'bg-purple-100 dark:bg-purple-900/30' 
                   : 'bg-green-100 dark:bg-green-900/30'
@@ -1792,9 +1802,9 @@ export function BulkAddTaskFromPDF({
               <svg className="w-10 h-10 text-red-600 dark:text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
               </svg>
-            ) : parsedTasks?.length === 0 ? (
+            ) : noTasksFound ? (
               <svg className="w-10 h-10 text-amber-600 dark:text-amber-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
             ) : useThinkingModel ? (
               <svg className="w-10 h-10 text-purple-600 dark:text-purple-400" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1812,7 +1822,7 @@ export function BulkAddTaskFromPDF({
             <h3 className={`text-lg font-medium ${
               error 
                 ? 'text-red-600 dark:text-red-400' 
-                : parsedTasks?.length === 0
+                : noTasksFound
                   ? 'text-amber-600 dark:text-amber-400'
                   : useThinkingModel 
                     ? 'text-purple-600 dark:text-purple-400' 
@@ -1820,8 +1830,8 @@ export function BulkAddTaskFromPDF({
             }`}>
               {error 
                 ? 'Error Processing Document' 
-                : parsedTasks?.length === 0
-                  ? 'No Tasks Found in Document'
+                : noTasksFound
+                  ? 'No Tasks Found'
                   : useThinkingModel 
                     ? 'Thinking Analysis Complete!' 
                     : 'Document Analysis Complete!'
@@ -1830,8 +1840,8 @@ export function BulkAddTaskFromPDF({
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               {error 
                 ? error 
-                : parsedTasks?.length === 0
-                  ? 'The document was processed successfully, but no tasks were identified. You may want to try a different document.'
+                : noTasksFound
+                  ? 'No tasks could be extracted from this document. The document may not contain any task descriptions or action items.'
                   : `We found ${parsedTasks?.length || 0} tasks in your document using
                      ${useThinkingModel ? ' Gemini Thinking with enhanced reasoning' : ' Gemini standard analysis'}.`
               }
@@ -1844,7 +1854,7 @@ export function BulkAddTaskFromPDF({
               <span className={`inline-block h-2 w-2 rounded-full ${
                 error 
                   ? 'bg-red-500' 
-                  : parsedTasks?.length === 0
+                  : noTasksFound
                     ? 'bg-amber-500'
                     : useThinkingModel 
                       ? 'bg-purple-500' 
@@ -1852,7 +1862,7 @@ export function BulkAddTaskFromPDF({
               } mr-2`}></span>
               {error 
                 ? 'Error Details:' 
-                : parsedTasks?.length === 0
+                : noTasksFound
                   ? 'Details:'
                   : useThinkingModel 
                     ? 'Gemini Thinking output:' 
@@ -1864,7 +1874,7 @@ export function BulkAddTaskFromPDF({
               className={`bg-gray-50 dark:bg-gray-900 border-2 ${
                 error
                   ? 'border-red-200 dark:border-red-800'
-                  : parsedTasks?.length === 0
+                  : noTasksFound
                     ? 'border-amber-200 dark:border-amber-800'
                     : useThinkingModel 
                       ? 'border-purple-200 dark:border-purple-800' 
@@ -1875,7 +1885,7 @@ export function BulkAddTaskFromPDF({
                 <div key={i} className={`leading-relaxed ${
                   line.includes('ERROR:') 
                     ? 'text-red-600 dark:text-red-400 font-semibold' 
-                    : i === streamedOutput.split('\n').length - 1 && !error 
+                    : i === streamedOutput.split('\n').length - 1 && !error && !noTasksFound
                       ? `${useThinkingModel ? 'text-purple-600 dark:text-purple-400' : 'text-green-600 dark:text-green-400'} font-semibold animate-pulse` 
                       : ''
                 }`}>
@@ -1883,7 +1893,6 @@ export function BulkAddTaskFromPDF({
                 </div>
               ))}
             </div>
-            {/* Only show countdown for errors, not for "no tasks found" */}
             {error && (
               <div className="flex items-center justify-between mt-1">
                 <p className="text-xs text-gray-500 dark:text-gray-400 italic">
@@ -1908,7 +1917,7 @@ export function BulkAddTaskFromPDF({
             >
               Cancel
             </button>
-            {error || parsedTasks?.length === 0 ? (
+            {error ? (
               <button
                 type="button"
                 onClick={handleBackToInput}
@@ -1918,6 +1927,17 @@ export function BulkAddTaskFromPDF({
                   <path fillRule="evenodd" d="M9.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 1.414L7.414 9H15a1 1 0 110 2H7.414l2.293 2.293a1 1 0 010 1.414z" clipRule="evenodd" />
                 </svg>
                 Try Again
+              </button>
+            ) : noTasksFound ? (
+              <button
+                type="button"
+                onClick={handleBackToInput}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-sm shadow flex items-center"
+              >
+                <svg className="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M9.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 1.414L7.414 9H15a1 1 0 110 2H7.414l2.293 2.293a1 1 0 010 1.414z" clipRule="evenodd" />
+                </svg>
+                Go Back
               </button>
             ) : (
               <button
