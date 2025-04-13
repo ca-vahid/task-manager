@@ -206,6 +206,23 @@ const convertWordToPdf = async (wordFile: File): Promise<File> => {
   }
 };
 
+// Enhance the Word document handling
+const extractWordContent = async (wordFile: File): Promise<string> => {
+  try {
+    // Read the Word file as an ArrayBuffer
+    const wordBuffer = await wordFile.arrayBuffer();
+    
+    // Convert Word to HTML using mammoth
+    const result = await mammoth.extractRawText({ arrayBuffer: wordBuffer });
+    
+    // Return the raw text
+    return result.value;
+  } catch (error) {
+    console.error('Error extracting text from Word document:', error);
+    throw new Error('Failed to extract text from Word document');
+  }
+};
+
 export function BulkAddTaskFromPDF({
   technicians,
   groups,
@@ -306,7 +323,7 @@ export function BulkAddTaskFromPDF({
     e.stopPropagation();
   };
   
-  // Process the PDF with Gemini
+  // Update the handleAnalyzeDocument function to use direct text extraction for Word files
   const handleAnalyzeDocument = async () => {
     if (!selectedFile) {
       setError('Please select a PDF or Word file');
@@ -319,9 +336,6 @@ export function BulkAddTaskFromPDF({
     setUploadProgress(0);
     
     try {
-      // Check if we need to convert a Word document to PDF
-      let fileToProcess = selectedFile;
-      
       // Get file extension
       const fileExt = selectedFile.name.split('.').pop()?.toLowerCase();
       
@@ -332,32 +346,47 @@ export function BulkAddTaskFromPDF({
         selectedFile.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
         selectedFile.type === 'application/msword'
       ) {
-        // Show conversion message
-        setStreamedOutput('[System: Converting Word document to PDF format...]\n');
+        // Show extraction message
+        setStreamedOutput('[System: Extracting content from Word document...]\n');
         
         try {
-          // Convert the Word document to PDF
-          const convertedFile = await convertWordToPdf(selectedFile);
-          setConvertedPdfFile(convertedFile);
+          // Extract text from the Word document
+          const extractedText = await extractWordContent(selectedFile);
           
-          // Create blob URL for PDF preview
-          const blobUrl = URL.createObjectURL(convertedFile);
-          setConversionUrl(blobUrl);
+          // Create a preview text area
+          setConversionUrl(null); // Clear any existing preview URL
+          setStreamedOutput(prev => prev + '[System: Word document content extracted successfully.]\n\n');
           
-          // Show conversion confirmation dialog
+          // Show the Word preview confirmation dialog
           setShowConversionConfirmation(true);
           setIsProcessing(false);
-          setStreamedOutput('[System: Word document converted to PDF. Please verify the conversion before proceeding.]\n');
           
-          // Stop execution here - the user will need to confirm
+          // Store the extracted text
+          const textBlob = new Blob([extractedText], { type: 'text/plain' });
+          const textFile = new File([textBlob], `${selectedFile.name.split('.')[0]}.txt`, {
+            type: 'text/plain',
+            lastModified: new Date().getTime(),
+          });
+          
+          setConvertedPdfFile(textFile);
+          
+          // Create a data URL for preview
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            if (e.target?.result) {
+              setConversionUrl(e.target.result as string);
+            }
+          };
+          reader.readAsDataURL(textBlob);
+          
           return;
         } catch (conversionError) {
-          throw new Error(`Failed to convert Word document: ${conversionError instanceof Error ? conversionError.message : 'Unknown error'}`);
+          throw new Error(`Failed to extract content from Word document: ${conversionError instanceof Error ? conversionError.message : 'Unknown error'}`);
         }
       }
       
       // If we get here with a PDF file, process it directly
-      await processFile(fileToProcess);
+      await processFile(selectedFile);
       
     } catch (err: any) {
       if (progressIntervalRef.current) {
@@ -529,13 +558,25 @@ export function BulkAddTaskFromPDF({
     }
   };
   
-  // New helper function to download the converted PDF
-  const downloadConvertedPdf = () => {
-    if (!conversionUrl) return;
+  // Update the download function for extracted text
+  const downloadConvertedText = () => {
+    if (!convertedPdfFile) return;
     
     const a = document.createElement('a');
-    a.href = conversionUrl;
-    a.download = convertedPdfFile?.name || 'converted-document.pdf';
+    
+    // If we have a URL, use it. Otherwise create a new one.
+    if (conversionUrl && conversionUrl.startsWith('data:')) {
+      a.href = conversionUrl;
+    } else {
+      // Create a new URL from the file
+      const url = URL.createObjectURL(convertedPdfFile);
+      a.href = url;
+      
+      // Clean up after download
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+    }
+    
+    a.download = convertedPdfFile.name;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1357,34 +1398,33 @@ export function BulkAddTaskFromPDF({
               <svg className="h-6 w-6 text-amber-500 dark:text-amber-400 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
-              <h3 className="text-base font-medium text-amber-800 dark:text-amber-300">Word to PDF Conversion Complete</h3>
+              <h3 className="text-base font-medium text-amber-800 dark:text-amber-300">Word Document Content Extracted</h3>
             </div>
             <p className="text-sm text-amber-700 dark:text-amber-200 mb-4">
-              Your Word document has been converted to PDF. Please verify the conversion is correct before proceeding with task analysis.
+              Your Word document has been processed. Please verify the content is extracted correctly before proceeding with task analysis.
             </p>
             
-            {/* PDF Preview */}
-            <div className="bg-white dark:bg-gray-900 rounded-md border border-gray-300 dark:border-gray-700 mb-4 aspect-[8.5/11] max-h-96 overflow-hidden">
-              {conversionUrl && (
-                <iframe 
-                  src={conversionUrl}
-                  className="w-full h-full"
-                  title="PDF Preview"
-                  aria-label="Preview of converted PDF document"
-                />
+            {/* Text Content Preview */}
+            <div className="bg-white dark:bg-gray-900 rounded-md border border-gray-300 dark:border-gray-700 mb-4 p-4 max-h-96 overflow-auto">
+              {conversionUrl ? (
+                <pre className="text-sm whitespace-pre-wrap font-mono text-gray-800 dark:text-gray-200">
+                  {atob(conversionUrl.split(',')[1])}
+                </pre>
+              ) : (
+                <p className="text-gray-500 dark:text-gray-400 italic">Processing document content...</p>
               )}
             </div>
             
             <div className="flex flex-col sm:flex-row justify-between space-y-3 sm:space-y-0 sm:space-x-3">
               <div>
                 <button
-                  onClick={downloadConvertedPdf}
+                  onClick={downloadConvertedText}
                   className="w-full sm:w-auto px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors flex items-center"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
-                  Download PDF
+                  Download Text
                 </button>
               </div>
               <div className="flex space-x-3">
@@ -1392,7 +1432,7 @@ export function BulkAddTaskFromPDF({
                   onClick={cancelConversion}
                   className="w-full sm:w-auto px-4 py-2 border-2 border-red-300 dark:border-red-700 rounded-md text-sm font-medium text-red-700 dark:text-red-200 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                 >
-                  Conversion Failed, Go Back
+                  Extraction Failed, Go Back
                 </button>
                 <button
                   onClick={confirmConversionAndProceed}
