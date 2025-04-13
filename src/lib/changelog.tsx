@@ -1,7 +1,7 @@
 import React from 'react';
 
 // Application version
-export const APP_VERSION = "1.0.8";
+export const APP_VERSION = "1.0.9";
 
 // Version history for changelog
 export interface VersionInfo {
@@ -15,15 +15,14 @@ export interface VersionInfo {
 
 export const VERSION_HISTORY: VersionInfo[] = [
   {
-    version: "1.0.8",
+    version: "1.0.9",
     date: "April 12, 2024",
     changes: [
       {
         category: "Bug Fixes",
         items: [
-          "Fixed streaming output when using Gemini Thinking Model for task analysis",
-          "Added real-time progress indicators during long-running analysis operations",
-          "Improved error handling and debugging information for API responses"
+          "Fixed Gemini Thinking model task analysis not streaming output",
+          "Enabled real-time streaming for Thinking model by removing response schema constraints"
         ]
       }
     ]
