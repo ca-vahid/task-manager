@@ -1677,6 +1677,14 @@ export function BulkAddTaskFromPDF({
     }
   }, [currentProcessStage]);
   
+  // Also ensure progress is 100% when optimization is complete
+  useEffect(() => {
+    if (optimizationComplete) {
+      setCurrentProcessStage('complete');
+      setUploadProgress(100);
+    }
+  }, [optimizationComplete]);
+  
   // Use the incremented progress
   useProgressIncrementer(currentProcessStage, uploadProgress, undefined);
   
