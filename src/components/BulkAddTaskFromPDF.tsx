@@ -124,12 +124,91 @@ const HighlightedOutput: React.FC<{ text: string }> = ({ text }) => {
       return;
     }
     
-    // Default content
-    contentLines.push(
-      <div key={`content-${i}`} className="leading-relaxed">
-        {line || <br />}
-      </div>
-    );
+    // Transcript formatting - Meeting Title
+    if (line.startsWith('# MEETING TITLE:')) {
+      // Split the line around the colon
+      const [prefix, title] = line.split(':', 2);
+      
+      contentLines.push(
+        <div key={`content-${i}`} className="mt-4 mb-2">
+          <span className="text-purple-600 dark:text-purple-400 font-semibold">{`${prefix}:`}</span>
+          <span className="text-lg font-bold text-blue-700 dark:text-blue-300">{title}</span>
+        </div>
+      );
+      return;
+    }
+    
+    // Transcript formatting - Section Headers
+    if (line.startsWith('## ')) {
+      contentLines.push(
+        <div key={`content-${i}`} className="mt-3 mb-1 text-indigo-700 dark:text-indigo-300 font-bold border-b border-indigo-200 dark:border-indigo-800 pb-1">
+          {line.substring(3)}
+        </div>
+      );
+      return;
+    }
+    
+    // Transcript formatting - Bullet Points
+    if (line.startsWith('- ')) {
+      // Check for bold text with **
+      let bulletText = line.substring(2);
+      let formattedBulletText = null;
+      
+      if (bulletText.includes('**')) {
+        formattedBulletText = (
+          <span dangerouslySetInnerHTML={{ 
+            __html: bulletText.replace(/\*\*([^*]+)\*\*/g, '<span class="font-bold text-blue-600 dark:text-blue-400">$1</span>') 
+          }} />
+        );
+      }
+      
+      contentLines.push(
+        <div key={`content-${i}`} className="ml-4 flex items-start my-1 text-gray-800 dark:text-gray-200">
+          <span className="inline-block text-amber-500 dark:text-amber-400 mr-2">•</span>
+          <span>{formattedBulletText || bulletText}</span>
+        </div>
+      );
+      return;
+    }
+    
+    // Transcript formatting - Emphasized text for analysis
+    if (line.includes('Analyzing meeting transcript') || line.includes('Step 1:') || line.includes('Step 2:')) {
+      contentLines.push(
+        <div key={`content-${i}`} className="text-blue-600 dark:text-blue-400 font-medium flex items-center my-2">
+          {line.includes('Analyzing') && (
+            <span className="mr-2">📄</span>
+          )}
+          {line.includes('Step 1:') && (
+            <span className="mr-2">🔍</span>
+          )}
+          {line.includes('Step 2:') && (
+            <span className="mr-2">✅</span>
+          )}
+          <span>{line}</span>
+        </div>
+      );
+      return;
+    }
+    
+    // Default content with enhanced formatting for potential emphasized text with **
+    if (line.includes('**')) {
+      contentLines.push(
+        <div 
+          key={`content-${i}`} 
+          className="leading-relaxed"
+          dangerouslySetInnerHTML={{ 
+            __html: line.replace(/\*\*([^*]+)\*\*/g, '<span class="font-bold text-blue-600 dark:text-blue-400">$1</span>') 
+          }}
+        />
+      );
+    } else {
+      // Standard line
+      contentLines.push(
+        <div key={`content-${i}`} className="leading-relaxed">
+          {line || <br />}
+        </div>
+      );
+    }
   });
   
   // Return content lines first, then system messages at the end with enhanced styling
