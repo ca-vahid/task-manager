@@ -1,7 +1,7 @@
 import React from 'react';
 
 // Application version
-export const APP_VERSION = "1.0.7";
+export const APP_VERSION = "1.0.8";
 
 // Version history for changelog
 export interface VersionInfo {
@@ -14,6 +14,20 @@ export interface VersionInfo {
 }
 
 export const VERSION_HISTORY: VersionInfo[] = [
+  {
+    version: "1.0.8",
+    date: "April 12, 2024",
+    changes: [
+      {
+        category: "Bug Fixes",
+        items: [
+          "Fixed streaming output when using Gemini Thinking Model for task analysis",
+          "Added real-time progress indicators during long-running analysis operations",
+          "Improved error handling and debugging information for API responses"
+        ]
+      }
+    ]
+  },
   {
     version: "1.0.7",
     date: "April 12, 2024",
