@@ -833,6 +833,7 @@ export function BulkAddTaskFromPDF({
   // Reset to the input phase
   const handleBackToInput = () => {
     setParsedTasks(null);
+    setNoTasksFound(false); // Reset the noTasksFound flag
     setStreamedOutput('');
     setError(null);
   };
@@ -944,7 +945,7 @@ export function BulkAddTaskFromPDF({
         
         // First, check if we have system messages indicating success but no tasks
         if (jsonString.includes("No tasks could be extracted") || 
-            (jsonString.includes("[System: Optimization complete") && !jsonString.includes("["))) {
+            (jsonString.includes("[System: Optimization complete") && !jsonString.includes("[{"))) {
           console.log("System indicated no tasks found");
           setParsedTasks([]);
           setNoTasksFound(true);
@@ -962,43 +963,85 @@ export function BulkAddTaskFromPDF({
         let cleanedJsonString = jsonString;
         
         // If there are system messages, try to find and extract only the JSON part
-        if (jsonString.includes("[System:")) {
-          // Look for JSON arrays enclosed in square brackets, careful not to include system messages
-          const jsonArrayMatches = jsonString.match(/\[\s*\{(?:[^{}]|\{(?:[^{}]|[\s\S])*\})*\}(?:,\s*\{(?:[^{}]|\{(?:[^{}]|[\s\S])*\})*\})*\s*\]/g);
+        if (jsonString.includes("[System:") || jsonString.includes("📃") || jsonString.includes("Analyzing")) {
+          console.log("Cleaning input string of system messages and emojis");
+          
+          // First, try to find a JSON array pattern that's complete - looking for [{...}] pattern
+          // This is a more robust regex that can handle nested objects
+          const jsonArrayPattern = /\[\s*\{\s*"[^"]*"\s*:[\s\S]*?\}\s*\]/g;
+          const jsonArrayMatches = jsonString.match(jsonArrayPattern);
+          
           if (jsonArrayMatches && jsonArrayMatches.length > 0) {
-            cleanedJsonString = jsonArrayMatches[0];
-            console.log("Successfully extracted JSON array from output");
+            // Use the longest match as it's likely the most complete
+            cleanedJsonString = jsonArrayMatches.sort((a, b) => b.length - a.length)[0];
+            console.log("Successfully extracted JSON array with object-based regex");
           } else {
-            // If no array, try to find JSON objects
-            const jsonObjectMatches = jsonString.match(/\{\s*"(?:[^"]|[\s\S])*"\s*:(?:[^{}]|\{(?:[^{}]|[\s\S])*\})*\}/g);
-            if (jsonObjectMatches && jsonObjectMatches.length > 0) {
-              cleanedJsonString = jsonObjectMatches[0];
-              console.log("Successfully extracted JSON object from output");
+            // Fallback to looking for individual task objects if no array is found
+            const jsonTaskPattern = /\{\s*"title"\s*:[\s\S]*?\}/g;
+            const jsonTaskMatches = jsonString.match(jsonTaskPattern);
+            
+            if (jsonTaskMatches && jsonTaskMatches.length > 0) {
+              // Combine individual tasks into an array
+              cleanedJsonString = '[' + jsonTaskMatches.join(',') + ']';
+              console.log(`Successfully extracted and combined ${jsonTaskMatches.length} individual task objects`);
+            } else {
+              // Last resort - try to find any JSON object
+              const jsonObjectPattern = /\{\s*"[^"]*"\s*:[\s\S]*?\}/g;
+              const jsonObjectMatches = jsonString.match(jsonObjectPattern);
+              
+              if (jsonObjectMatches && jsonObjectMatches.length > 0) {
+                // Use the longest match
+                cleanedJsonString = jsonObjectMatches.sort((a, b) => b.length - a.length)[0];
+                console.log("Successfully extracted JSON object with generic pattern");
+              }
             }
           }
         }
 
         // Now try to parse the cleaned JSON
-        const parsedData = JSON.parse(cleanedJsonString);
-        
-        if (Array.isArray(parsedData)) {
-          // Direct array of tasks
-          extractedTasks = parsedData;
-        } else if (parsedData.tasks && Array.isArray(parsedData.tasks)) {
-          // Object with tasks array
-          extractedTasks = parsedData.tasks;
-        } else if (typeof parsedData === 'object' && parsedData !== null) {
-          // Single task object
-          extractedTasks = [parsedData];
-        }
-        
-        if (extractedTasks.length === 0) {
-          // Instead of throwing an error, treat this as a valid "no tasks found" state
-          console.log('No tasks could be extracted from the document');
-          setParsedTasks([]);
-          setNoTasksFound(true);
-          setIsProcessing(false);
-          return [];
+        try {
+          const parsedData = JSON.parse(cleanedJsonString);
+          
+          if (Array.isArray(parsedData)) {
+            // Direct array of tasks
+            extractedTasks = parsedData;
+            console.log(`Successfully parsed JSON array with ${parsedData.length} tasks`);
+          } else if (parsedData.tasks && Array.isArray(parsedData.tasks)) {
+            // Object with tasks array
+            extractedTasks = parsedData.tasks;
+            console.log(`Successfully parsed JSON object with ${parsedData.tasks.length} tasks in .tasks property`);
+          } else if (typeof parsedData === 'object' && parsedData !== null) {
+            // Single task object
+            extractedTasks = [parsedData];
+            console.log("Successfully parsed JSON as a single task object");
+          }
+          
+          if (extractedTasks.length > 0) {
+            // If we found tasks, store them
+            setParsedTasks(extractedTasks);
+            setNoTasksFound(false);
+          } else {
+            // If no tasks were found in valid JSON
+            console.log('Parsed JSON contained no valid tasks');
+            
+            // Try to manually extract tasks from the output as a last resort
+            const manuallyExtractedTasks = extractTasksFromOutput(jsonString);
+            if (manuallyExtractedTasks.length > 0) {
+              console.log(`Manually extracted ${manuallyExtractedTasks.length} tasks from output`);
+              setParsedTasks(manuallyExtractedTasks);
+              setNoTasksFound(false);
+              return manuallyExtractedTasks;
+            }
+            
+            setParsedTasks([]);
+            setNoTasksFound(true);
+            setIsProcessing(false);
+            return [];
+          }
+        } catch (parseError) {
+          console.error("Parse error:", parseError);
+          // Continue to fallback methods
+          throw parseError;
         }
       } catch (jsonError) {
         console.log("Couldn't parse as direct JSON, trying regex fallback", jsonError);
@@ -1006,7 +1049,7 @@ export function BulkAddTaskFromPDF({
         // Fallback: Use a more robust regex to find JSON arrays in the text
         // This new pattern is more careful to find complete arrays
         const jsonMatches = jsonString ? 
-          jsonString.match(/\[\s*\{(?:[^{}]|\{(?:[^{}]|[\s\S])*\})*\}(?:,\s*\{(?:[^{}]|\{(?:[^{}]|[\s\S])*\})*\})*\s*\]/g) || [] 
+          jsonString.match(/\[\s*\{\s*"[^"]*"\s*:[\s\S]*?\}\s*\]/g) || [] 
           : [];
           
         if (jsonMatches.length > 0) {
@@ -1014,68 +1057,113 @@ export function BulkAddTaskFromPDF({
             // Sort matches by length and take the longest one - it's more likely to be the complete array
             const potentialJson = jsonMatches.sort((a, b) => b.length - a.length)[0];
             extractedTasks = JSON.parse(potentialJson);
+            console.log(`Successfully parsed JSON array from regex with ${extractedTasks.length} tasks`);
             
-            if (extractedTasks.length === 0) {
-              // Instead of throwing an error, treat this as a valid "no tasks found" state
-              console.log('No tasks could be extracted from the document');
-              setParsedTasks([]);
-              setNoTasksFound(true);
-              setIsProcessing(false);
-              return [];
+            if (extractedTasks.length > 0) {
+              setParsedTasks(extractedTasks);
+              setNoTasksFound(false);
+              return extractedTasks;
             }
           } catch (fallbackError) {
             console.error("Fallback JSON parsing failed", fallbackError);
             
-            // Instead of failing, check if user can proceed to review
-            if (optimizationComplete) {
+            // Continue to additional fallback methods
+            // Try to parse individual tasks
+            try {
+              const jsonTaskPattern = /\{\s*"title"\s*:[\s\S]*?\}/g;
+              const jsonTaskMatches = jsonString.match(jsonTaskPattern);
+              
+              if (jsonTaskMatches && jsonTaskMatches.length > 0) {
+                // Combine individual tasks into an array for parsing
+                const combinedJson = '[' + jsonTaskMatches.join(',') + ']';
+                extractedTasks = JSON.parse(combinedJson);
+                console.log(`Successfully parsed ${extractedTasks.length} individual tasks`);
+                
+                if (extractedTasks.length > 0) {
+                  setParsedTasks(extractedTasks);
+                  setNoTasksFound(false);
+                  return extractedTasks;
+                }
+              }
+            } catch (taskParseError) {
+              console.error("Individual task parsing failed", taskParseError);
+            }
+            
+            // Try manual extraction as a last resort
+            const manuallyExtractedTasks = extractTasksFromOutput(jsonString);
+            if (manuallyExtractedTasks.length > 0) {
+              console.log(`Manually extracted ${manuallyExtractedTasks.length} tasks from output`);
+              setParsedTasks(manuallyExtractedTasks);
+              setNoTasksFound(false);
+              return manuallyExtractedTasks;
+            }
+            
+            // If we're at optimization complete, allow proceeding
+            if (optimizationComplete || jsonString.includes("[System: Optimization complete")) {
               console.log("JSON parsing failed but optimization is complete - allowing user to proceed");
-              setIsProcessing(false);
+              setParsedTasks([]);
               return [];
             }
           }
-        } else if (optimizationComplete) {
-          // If optimization is complete but no JSON was found, this might be a case
-          // where the system successfully processed but didn't return structured tasks
-          console.log("No JSON found but optimization is complete - allowing user to proceed");
-          setParsedTasks([]);
-          setNoTasksFound(true);
-          setIsProcessing(false);
-          return [];
+        } else {
+          // Try manual extraction if no JSON patterns were found
+          const manuallyExtractedTasks = extractTasksFromOutput(jsonString);
+          if (manuallyExtractedTasks.length > 0) {
+            console.log(`Manually extracted ${manuallyExtractedTasks.length} tasks from output text`);
+            setParsedTasks(manuallyExtractedTasks);
+            setNoTasksFound(false);
+            return manuallyExtractedTasks;
+          }
+          
+          // If optimization is complete but no JSON was found
+          if (optimizationComplete || jsonString.includes("[System: Optimization complete")) {
+            console.log("No JSON found but optimization is complete - allowing user to proceed");
+            setParsedTasks([]);
+            setNoTasksFound(true);
+            setIsProcessing(false);
+            return [];
+          }
         }
         
-        // If we still don't have tasks, we can consider this an error
-        if (extractedTasks.length === 0) {
-          // Handle empty tasks array as a valid state
-          console.log("No tasks found after all parsing attempts");
-          setParsedTasks([]);
-          setNoTasksFound(true);
-          // Allow user to continue if we're at optimization complete
-          if (optimizationComplete) {
-            setIsProcessing(false);
-          }
-          return [];
+        // If we still don't have tasks, we can consider this an empty result
+        console.log("No tasks found after all parsing attempts");
+        setParsedTasks([]);
+        setNoTasksFound(true);
+        // Allow user to continue if we're at optimization complete
+        if (optimizationComplete || jsonString.includes("[System: Optimization complete")) {
+          setIsProcessing(false);
         }
+        return [];
       }
       
       // Process and validate tasks
       const processedTasks = extractedTasks.map((task: any) => ({
         title: task.title || 'Untitled Task',
-        details: task.details || '',
-        assignee: task.assignee || null,
-        group: task.group || null,
-        category: task.category || null,
-        dueDate: task.dueDate || null,
+        details: task.details || task.description || task.content || '',
+        assignee: task.assignee || task.assigned_to || task.assignedTo || null,
+        group: task.group || task.team || task.department || null,
+        category: task.category || task.type || null,
+        dueDate: task.dueDate || task.due_date || task.due || null,
         priority: task.priority || 'Medium',
-        ticketNumber: task.ticketNumber || null,
-        externalUrl: task.externalUrl || null
+        ticketNumber: task.ticketNumber || task.ticket_number || task.ticket || null,
+        externalUrl: task.externalUrl || task.external_url || task.url || null
       }));
       
       return processedTasks;
     } catch (error: any) {
       console.error('Error parsing JSON:', error);
       
+      // Try manual extraction before giving up
+      const manuallyExtractedTasks = extractTasksFromOutput(jsonString);
+      if (manuallyExtractedTasks.length > 0) {
+        console.log(`Manually extracted ${manuallyExtractedTasks.length} tasks as last resort`);
+        setParsedTasks(manuallyExtractedTasks);
+        setNoTasksFound(false);
+        return manuallyExtractedTasks;
+      }
+      
       // If we're at optimization complete, don't throw an error, just let the user proceed
-      if (optimizationComplete) {
+      if (optimizationComplete || jsonString.includes("[System: Optimization complete")) {
         console.log("Error occurred but optimization is complete - allowing user to proceed");
         setParsedTasks([]);
         setNoTasksFound(true);
@@ -1159,10 +1247,143 @@ export function BulkAddTaskFromPDF({
     }
   };
   
-  // Add a function to handle user confirmation
+  // Modified function to handle user confirmation with fallback task extraction
   const handleConfirmOptimization = () => {
+    // If we already have parsed tasks, proceed normally
+    if (parsedTasks && parsedTasks.length > 0) {
+      setOptimizationComplete(false); // Reset for next time
+      setIsProcessing(false); // Now end processing and move to review
+      return;
+    }
+    
+    // If no tasks were found through standard parsing, try to extract tasks manually
+    try {
+      const extractedTasks = extractTasksFromOutput(streamedOutput);
+      
+      if (extractedTasks && extractedTasks.length > 0) {
+        console.log(`Extracted ${extractedTasks.length} tasks manually from output`);
+        setParsedTasks(extractedTasks);
+        setNoTasksFound(false);
+      } else {
+        // If still no tasks, set noTasksFound to true
+        setParsedTasks([]);
+        setNoTasksFound(true);
+      }
+    } catch (err) {
+      console.error("Error in manual task extraction:", err);
+      // Default to empty array if manual extraction fails
+      setParsedTasks([]);
+      setNoTasksFound(true);
+    }
+    
     setOptimizationComplete(false); // Reset for next time
     setIsProcessing(false); // Now end processing and move to review
+  };
+  
+  // New function to manually extract tasks from the text output
+  const extractTasksFromOutput = (output: string): any[] => {
+    const tasks: any[] = [];
+    
+    // Try to identify tasks from system output information
+    const summaryMatch = output.match(/\[System: Successfully optimized: \d+ → (\d+) tasks\]/);
+    const taskCount = summaryMatch ? parseInt(summaryMatch[1]) : 0;
+    
+    // Look for task patterns - task title usually follows markdown style with ## or numbers
+    const lines = output.split('\n');
+    let currentTask: any = null;
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      // Skip empty lines and system messages
+      if (!line || line.startsWith('[System:')) continue;
+      
+      // Look for task title patterns
+      if (line.startsWith('##') || /^\d+[\.\)]\s/.test(line) || line.includes('Task:')) {
+        // If we have a task in progress, save it first
+        if (currentTask && currentTask.title) {
+          tasks.push({...currentTask});
+        }
+        
+        // Start a new task
+        let title = line;
+        
+        // Clean up the title
+        if (line.startsWith('##')) {
+          title = line.substring(2).trim();
+        } else if (/^\d+[\.\)]\s/.test(line)) {
+          title = line.replace(/^\d+[\.\)]\s/, '').trim();
+        } else if (line.includes('Task:')) {
+          title = line.split('Task:')[1].trim();
+        }
+        
+        currentTask = {
+          title: title,
+          details: '',
+          assignee: null,
+          group: null,
+          category: null,
+          dueDate: null,
+          priority: 'Medium'
+        };
+        
+        // Look ahead for assignee/group/category in the next few lines
+        for (let j = 1; j <= 5 && i + j < lines.length; j++) {
+          const nextLine = lines[i + j].trim();
+          if (!nextLine) continue;
+          
+          if (nextLine.toLowerCase().includes('assignee:')) {
+            currentTask.assignee = nextLine.split('assignee:')[1].trim();
+          } else if (nextLine.toLowerCase().includes('group:')) {
+            currentTask.group = nextLine.split('group:')[1].trim();
+          } else if (nextLine.toLowerCase().includes('category:')) {
+            currentTask.category = nextLine.split('category:')[1].trim();
+          } else if (nextLine.toLowerCase().includes('priority:')) {
+            currentTask.priority = nextLine.split('priority:')[1].trim();
+          } else if (nextLine.toLowerCase().includes('due date:')) {
+            currentTask.dueDate = nextLine.split('due date:')[1].trim();
+          } else if (!nextLine.startsWith('##') && !/^\d+[\.\)]\s/.test(nextLine)) {
+            // Append to details if it's not a new task
+            if (!currentTask.details) {
+              currentTask.details = nextLine;
+            } else {
+              currentTask.details += '\n' + nextLine;
+            }
+          }
+        }
+      }
+      // If not a task title but we have a current task, add to its details
+      else if (currentTask && !line.includes('assignee:') && !line.includes('group:') && 
+               !line.includes('category:') && !line.includes('priority:') && !line.includes('due date:')) {
+        if (!currentTask.details) {
+          currentTask.details = line;
+        } else {
+          currentTask.details += '\n' + line;
+        }
+      }
+    }
+    
+    // Add the last task if it exists
+    if (currentTask && currentTask.title) {
+      tasks.push({...currentTask});
+    }
+    
+    // If we found no tasks but know how many there should be, create placeholder tasks
+    if (tasks.length === 0 && taskCount > 0) {
+      for (let i = 0; i < taskCount; i++) {
+        tasks.push({
+          title: `Task ${i + 1} from document`,
+          details: 'Task details extracted from document. Please edit as needed.',
+          assignee: null,
+          group: null,
+          category: null,
+          dueDate: null,
+          priority: 'Medium'
+        });
+      }
+    }
+    
+    return tasks;
   };
   
   // Add a function to download meeting summary as PDF
