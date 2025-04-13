@@ -1,7 +1,7 @@
 import React from 'react';
 
 // Application version
-export const APP_VERSION = "0.8.6";
+export const APP_VERSION = "0.9.0";
 
 // Version history for changelog
 export interface VersionInfo {
@@ -14,6 +14,29 @@ export interface VersionInfo {
 }
 
 export const VERSION_HISTORY: VersionInfo[] = [
+  {
+    version: "0.9.0",
+    date: "April 15, 2025",
+    changes: [
+      {
+        category: "New Features",
+        items: [
+          "Added task analysis feature for detecting duplicates and similar tasks",
+          "Implemented Gemini-based task analysis with thinking model support",
+          "Added task merging capabilities to consolidate related tasks",
+          "Added real-time analysis progress display with streaming Gemini output"
+        ]
+      },
+      {
+        category: "Performance Improvements",
+        items: [
+          "Removed drag and drop functionality for folders and tasks to reduce lag",
+          "Simplified group display for better performance",
+          "Enhanced task loading and rendering speed"
+        ]
+      }
+    ]
+  },
   {
     version: "0.8.6",
     date: "April 12, 2025",

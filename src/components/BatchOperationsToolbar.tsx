@@ -12,6 +12,7 @@ interface BatchOperationsToolbarProps {
   onClearSelection: () => void;
   selectedCount: number;
   onDeleteTasks?: (taskIds: string[]) => Promise<void>;
+  onAnalyzeTasks?: () => void;
 }
 
 export function BatchOperationsToolbar({
@@ -21,7 +22,8 @@ export function BatchOperationsToolbar({
   onBatchOperation,
   onClearSelection,
   selectedCount,
-  onDeleteTasks
+  onDeleteTasks,
+  onAnalyzeTasks
 }: BatchOperationsToolbarProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -332,6 +334,20 @@ export function BatchOperationsToolbar({
           )}
         </div>
         
+        {/* Analyze Tasks button */}
+        {onAnalyzeTasks && (
+          <button
+            onClick={onAnalyzeTasks}
+            disabled={isSubmitting}
+            className="px-2 py-1 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-800/50 rounded text-xs font-medium hover:bg-indigo-200 dark:hover:bg-indigo-800/30 disabled:opacity-50 flex items-center"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
+            </svg>
+            Analyze Tasks
+          </button>
+        )}
+        
         {/* Delete button */}
         {onDeleteTasks && (
           <button
@@ -387,7 +403,7 @@ export function BatchOperationsToolbar({
               </p>
             </div>
             
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-end space-x-3">
               <button
                 onClick={() => setShowDeleteConfirm(false)}
                 className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"

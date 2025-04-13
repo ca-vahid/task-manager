@@ -19,6 +19,7 @@ import { useUndo, UndoableActionType } from '@/lib/contexts/UndoContext';
 import { useTheme } from '@/lib/contexts/ThemeContext';
 import { CompactView } from './CompactView';
 import { APP_VERSION, ChangelogModal } from '@/lib/changelog';
+import { TaskAnalyzer } from './TaskAnalyzer';
 
 interface TaskListProps {
   initialTasks?: Task[];
@@ -36,6 +37,7 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showBulkAddForm, setShowBulkAddForm] = useState(false);
   const [showBulkAddPDFForm, setShowBulkAddPDFForm] = useState(false);
+  const [showTaskAnalyzer, setShowTaskAnalyzer] = useState(false);
   const [groupBy, setGroupBy] = useState<'status' | 'assignee' | 'group' | 'none'>('status');
   const [viewMode, setViewMode] = useState<ViewMode>('kanban');
   const [viewDensity, setViewDensity] = useState<ViewDensity>('full');
@@ -647,6 +649,129 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
     }
   }, [tasks]);
 
+  // Handler for analyzing tasks
+  const handleAnalyzeTasks = useCallback(() => {
+    if (selectedTaskIds.length >= 2) {
+      // Open the task analyzer
+      setShowTaskAnalyzer(true);
+    }
+  }, [selectedTaskIds]);
+
+  // Handler for merging tasks
+  const handleMergeTasks = useCallback(async (
+    tasksToMerge: {
+      taskIds: string[];
+      mergedTask: Partial<Task>;
+    }[]
+  ) => {
+    if (tasksToMerge.length === 0) return;
+    
+    setError(null);
+    setIsSaving(true);
+    
+    try {
+      // Process each merge operation
+      const updatedTasks = [...tasks];
+      
+      for (const merge of tasksToMerge) {
+        const { taskIds, mergedTask } = merge;
+        
+        if (taskIds.length < 2) continue;
+        
+        // Find the master task (first one)
+        const masterTaskId = taskIds[0];
+        const masterTaskIndex = updatedTasks.findIndex(t => t.id === masterTaskId);
+        
+        if (masterTaskIndex === -1) continue;
+        
+        // Update the master task with the merged data
+        updatedTasks[masterTaskIndex] = {
+          ...updatedTasks[masterTaskIndex],
+          ...mergedTask
+        };
+        
+        // Get ticket information from all tasks
+        const tasksWithTickets = taskIds.map(id => tasks.find(t => t.id === id))
+          .filter(t => t && t.ticketNumber) as Task[];
+        
+        // If the master task doesn't have a ticket but other tasks do, 
+        // add the first ticket to the master task
+        if (!updatedTasks[masterTaskIndex].ticketNumber && tasksWithTickets.length > 0) {
+          updatedTasks[masterTaskIndex].ticketNumber = tasksWithTickets[0].ticketNumber;
+          updatedTasks[masterTaskIndex].ticketUrl = tasksWithTickets[0].ticketUrl;
+        }
+        
+        // Remove the other tasks (excluding the master task)
+        const tasksToDelete = taskIds.slice(1);
+        
+        // First update the UI by removing the deleted tasks
+        for (const taskId of tasksToDelete) {
+          const index = updatedTasks.findIndex(t => t.id === taskId);
+          if (index !== -1) {
+            // If this task has a ticket and it's different from the master task's ticket,
+            // delete the ticket from FreshService
+            const taskToDelete = updatedTasks[index];
+            if (taskToDelete.ticketNumber && 
+                taskToDelete.ticketNumber !== updatedTasks[masterTaskIndex].ticketNumber) {
+              try {
+                // Delete the ticket from FreshService
+                await fetch(`/api/tickets?controlId=${taskToDelete.id}`, {
+                  method: 'DELETE',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    deleteRemoteTicket: true
+                  }),
+                });
+              } catch (err) {
+                console.error('Failed to delete ticket:', err);
+                // Continue with the merge even if ticket deletion fails
+              }
+            }
+            
+            // Remove the task from the array
+            updatedTasks.splice(index, 1);
+          }
+        }
+        
+        // Update the master task in the database
+        await fetch(`/api/tasks/${masterTaskId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updatedTasks[masterTaskIndex]),
+        });
+        
+        // Delete the other tasks from the database
+        for (const taskId of tasksToDelete) {
+          await fetch(`/api/tasks/${taskId}`, {
+            method: 'DELETE',
+          });
+        }
+      }
+      
+      // Update the local state
+      setTasks(updatedTasks);
+      setSelectedTaskIds([]);
+      
+      // Show success message
+      setSuccessMessage(`Successfully merged tasks. Total tasks remaining: ${updatedTasks.length}`);
+      
+      // Clear the success message after 5 seconds
+      setTimeout(() => {
+        setSuccessMessage(null);
+      }, 5000);
+      
+    } catch (err: any) {
+      console.error('Failed to merge tasks:', err);
+      setError(err.message || 'Failed to merge tasks');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [tasks]);
+
   // Render loading state
   if (loading) {
     return (
@@ -784,6 +909,7 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
                 fetchData();
               }
             }}
+            onAnalyzeTasks={selectedTaskIds.length >= 2 ? handleAnalyzeTasks : undefined}
           />
         )}
         
@@ -919,6 +1045,25 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
             onAddTasks={handleBulkAddTasks}
             onCancel={() => setShowBulkAddPDFForm(false)}
             onCreateGroup={handleCreateGroup}
+          />
+        </Modal>
+      )}
+
+      {/* Modal for task analyzer */}
+      {showTaskAnalyzer && (
+        <Modal 
+          onClose={() => setShowTaskAnalyzer(false)} 
+          title="Analyze Tasks" 
+          size="lg"
+          preventOutsideClose={true} 
+        >
+          <TaskAnalyzer
+            tasks={tasks.filter(task => selectedTaskIds.includes(task.id))}
+            technicians={technicians}
+            groups={groups}
+            categories={categories}
+            onMergeTasks={handleMergeTasks}
+            onCancel={() => setShowTaskAnalyzer(false)}
           />
         </Modal>
       )}
