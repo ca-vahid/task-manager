@@ -967,23 +967,68 @@ export function BulkAddTaskFromPDF({
       } catch (jsonError) {
         console.log("Couldn't parse as direct JSON, trying regex fallback", jsonError);
         
-        // Fallback: try to find JSON in the text with regex
-        const jsonMatches = jsonString ? jsonString.match(/\[.*\]/g) || [] : [];
-        if (jsonMatches.length > 0) {
+        // Step 1: Try to extract JSON array with title field (most specific)
+        const taskArrayPattern = /\[\s*\{\s*"title"[\s\S]*?\}\s*\]/;
+        const taskArrayMatch = jsonString.match(taskArrayPattern);
+        
+        if (taskArrayMatch) {
           try {
-            const potentialJson = jsonMatches[0];
-            extractedTasks = JSON.parse(potentialJson);
+            extractedTasks = JSON.parse(taskArrayMatch[0]);
+            console.log("Extracted tasks using title pattern:", extractedTasks.length);
+          } catch (error) {
+            console.error("Failed to parse task array pattern match");
+          }
+        }
+        
+        // Step 2: If that failed, try to find the JSON array between the last system message
+        // and end of content
+        if (extractedTasks.length === 0) {
+          // Find the last system message
+          const systemMessageMatches = jsonString.match(/\[System:.*?\]/g);
+          
+          if (systemMessageMatches && systemMessageMatches.length > 0) {
+            // Get position of the last system message
+            const lastMessage = systemMessageMatches[systemMessageMatches.length - 1];
+            const lastMessagePos = jsonString.lastIndexOf(lastMessage);
             
-            if (extractedTasks.length === 0) {
-              // Instead of throwing an error, treat this as a valid "no tasks found" state
-              console.log('No tasks could be extracted from the document');
-              setParsedTasks([]);
-              setNoTasksFound(true);
-              setIsProcessing(false);
-              return [];
+            if (lastMessagePos !== -1) {
+              // Extract everything before the last system message
+              const contentBeforeLastMessage = jsonString.substring(0, lastMessagePos);
+              
+              // Look for JSON array pattern in that section
+              const arrayMatch = contentBeforeLastMessage.match(/(\[\s*\{[\s\S]*?\}\s*\])/);
+              
+              if (arrayMatch) {
+                try {
+                  extractedTasks = JSON.parse(arrayMatch[0]);
+                  console.log("Extracted tasks from content before last system message:", extractedTasks.length);
+                } catch (error) {
+                  console.error("Failed to parse array before system message");
+                }
+              }
             }
-          } catch (fallbackError) {
-            console.error("Fallback JSON parsing failed", fallbackError);
+          }
+        }
+        
+        // Step 3: Last attempt - try to find any array pattern
+        if (extractedTasks.length === 0) {
+          const generalArrayMatches = jsonString.match(/\[\s*\{[\s\S]*?\}\s*\]/g);
+          
+          if (generalArrayMatches && generalArrayMatches.length > 0) {
+            // Try each match until we find valid JSON
+            for (const match of generalArrayMatches) {
+              try {
+                const possibleTasks = JSON.parse(match);
+                if (Array.isArray(possibleTasks) && possibleTasks.length > 0 && 
+                    possibleTasks[0].title && typeof possibleTasks[0].title === 'string') {
+                  extractedTasks = possibleTasks;
+                  console.log("Extracted tasks from general array pattern:", extractedTasks.length);
+                  break;
+                }
+              } catch (error) {
+                // Continue to next match
+              }
+            }
           }
         }
         
@@ -1010,6 +1055,7 @@ export function BulkAddTaskFromPDF({
         externalUrl: task.externalUrl || null
       }));
       
+      setParsedTasks(processedTasks);
       return processedTasks;
     } catch (error: any) {
       console.error('Error parsing JSON:', error);
