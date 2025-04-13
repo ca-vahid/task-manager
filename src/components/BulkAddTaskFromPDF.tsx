@@ -583,6 +583,12 @@ export function BulkAddTaskFromPDF({
         
         // Create a function to read and process chunks
         const processStream = async () => {
+          // Flags to prevent redundant stage updates
+          let hasCreatingBegun = false;
+          let hasReadingBegun = false;
+          let hasExtractingBegun = false;
+          let hasOptimizingBegun = false;
+          
           try {
             while (true) {
               const { done, value } = await reader.read();
@@ -591,30 +597,36 @@ export function BulkAddTaskFromPDF({
               const chunk = new TextDecoder().decode(value);
               receivedText += chunk;
             
-              // Update progress based on detected markers in the stream
+              // Update progress based on detected markers in the stream - ONLY ONCE PER STAGE
               if (isMeetingTranscript) {
                 // Check for meeting transcript stages
-                if (chunk.includes('Step 1: Creating meeting summary') || chunk.includes('Creating meeting summary from transcript')) {
+                if (!hasCreatingBegun && (chunk.includes('Step 1: Creating meeting summary') || chunk.includes('Creating meeting summary from transcript'))) {
+                  hasCreatingBegun = true;
                   setCurrentProcessStage('creating');
-                } else if (chunk.includes('Meeting summary generation complete') || chunk.includes('Step 2: Extracting tasks') || chunk.includes('Extracting tasks from')) {
+                } else if (!hasExtractingBegun && (chunk.includes('Meeting summary generation complete') || chunk.includes('Step 2: Extracting tasks') || chunk.includes('Extracting tasks from'))) {
+                  hasExtractingBegun = true;
                   setCurrentProcessStage('extracting');
-                } else if (chunk.includes('Optimizing...') || chunk.includes('Optimizing and consolidating tasks') || chunk.includes('Optimizing extracted tasks')) {
+                } else if (!hasOptimizingBegun && (chunk.includes('Optimizing...') || chunk.includes('Optimizing and consolidating tasks') || chunk.includes('Optimizing extracted tasks'))) {
+                  hasOptimizingBegun = true;
                   setCurrentProcessStage('optimizing');
                 } else if (chunk.includes('Optimization complete') || chunk.includes('Successfully optimized')) {
+                  // Complete stage might be set multiple times, but it's less critical
                   setCurrentProcessStage('complete');
                 }
               } else {
                 // Check for regular document stages
-                if (chunk.includes('Analyzing') && receivedText.length < 1000) {
-                  setCurrentProcessStage('initializing');
-                } else if (chunk.includes('Reading document content')) {
-                  setCurrentProcessStage('reading');
-                } else if (chunk.includes('Extracting tasks from') || chunk.includes('JSON')) {
-                  setCurrentProcessStage('extracting');
-                } else if (chunk.includes('Optimizing') || chunk.includes('Optimizing and consolidating tasks')) {
-                  setCurrentProcessStage('optimizing');
+                // Initializing is set before the stream starts
+                if (!hasReadingBegun && chunk.includes('Reading document content')) {
+                   hasReadingBegun = true;
+                   setCurrentProcessStage('reading');
+                } else if (!hasExtractingBegun && (chunk.includes('Extracting tasks from') || chunk.includes('JSON'))) {
+                   hasExtractingBegun = true;
+                   setCurrentProcessStage('extracting');
+                } else if (!hasOptimizingBegun && (chunk.includes('Optimizing') || chunk.includes('Optimizing and consolidating tasks'))) {
+                   hasOptimizingBegun = true;
+                   setCurrentProcessStage('optimizing');
                 } else if (chunk.includes('Optimization complete') || chunk.includes('Successfully optimized')) {
-                  setCurrentProcessStage('complete');
+                   setCurrentProcessStage('complete');
                 }
               }
               
