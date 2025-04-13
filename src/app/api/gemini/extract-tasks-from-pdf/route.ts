@@ -153,26 +153,30 @@ async function optimizeTasks(tasks: any[], streamController?: ReadableStreamDefa
           message: prompt
         });
         
-        streamController.enqueue(new TextEncoder().encode("\n[System: Receiving optimization results (streaming)...]\n"));
+        streamController.enqueue(new TextEncoder().encode("\n[System: Receiving optimization results in real-time...]\n"));
         
         let outputText = '';
         for await (const chunk of responseStream) {
           if (chunk && chunk.text) {
             outputText += chunk.text;
             
-            // Send a small chunk to show progress
-            streamController.enqueue(new TextEncoder().encode("."));
-            
-            // Every 5 chunks, send a newline for formatting
-            if (outputText.length % 500 === 0) {
-              streamController.enqueue(new TextEncoder().encode("\n"));
-            }
+            // Send the actual text content to show streaming progress
+            streamController.enqueue(new TextEncoder().encode(chunk.text));
           }
         }
         
+        streamController.enqueue(new TextEncoder().encode("\n[System: Optimization complete, finalizing results...]\n"));
+        
         // Extract the JSON array from the streamed response
         try {
-          // Find a JSON array in the response
+          // Try to parse the entire accumulated response
+          const optimizedTasks = JSON.parse(outputText);
+          
+          streamController.enqueue(new TextEncoder().encode(`\n[System: Successfully optimized: ${tasks.length} → ${optimizedTasks.length} tasks]\n`));
+          
+          return optimizedTasks;
+        } catch (parseError) {
+          // If that fails, try to find a JSON array in the response
           const arrayMatch = outputText.match(/\[[\s\S]*\]/);
           if (arrayMatch) {
             const optimizedTasks = JSON.parse(arrayMatch[0]);
@@ -182,27 +186,22 @@ async function optimizeTasks(tasks: any[], streamController?: ReadableStreamDefa
             return optimizedTasks;
           }
           
-          // If no array found, try to parse the entire response as JSON
+          // Handle case where model returns {tasks: [...]}
           try {
             const parsedJson = JSON.parse(outputText);
             if (Array.isArray(parsedJson)) {
               streamController.enqueue(new TextEncoder().encode(`\n[System: Successfully optimized: ${tasks.length} → ${parsedJson.length} tasks]\n`));
               return parsedJson;
             } else if (parsedJson.tasks && Array.isArray(parsedJson.tasks)) {
-              // Handle case where model returns {tasks: [...]}
               streamController.enqueue(new TextEncoder().encode(`\n[System: Successfully optimized: ${tasks.length} → ${parsedJson.tasks.length} tasks]\n`));
               return parsedJson.tasks;
             }
-          } catch (parseError) {
-            streamController.enqueue(new TextEncoder().encode("\n[System: Warning - Failed to parse streaming response as JSON, falling back to original tasks]\n"));
+          } catch (nestedError) {
+            // Already in error handling, just continue to fallback
           }
           
-          // Fallback to original tasks if we couldn't parse the response
-          streamController.enqueue(new TextEncoder().encode("\n[System: Warning - Could not extract task array from model response, returning original tasks]\n"));
-          return tasks;
-        } catch (error) {
-          streamController.enqueue(new TextEncoder().encode(`\n[System: Error parsing optimized tasks: ${error instanceof Error ? error.message : 'Unknown error'}]\n`));
-          // Return original tasks if optimization fails
+          // Fallback to original tasks
+          streamController.enqueue(new TextEncoder().encode("\n[System: Could not parse optimization result, using original tasks]\n"));
           return tasks;
         }
       } catch (streamError) {
@@ -711,6 +710,8 @@ async function handleStreamingRequest(
             2. Key decisions made
             3. Any identified problems or challenges
             4. Important action items or tasks mentioned
+
+            Please include as much details about these as possible. Do not be breief, this summary will be used to create detailed tasks for these employees so your extraction should not omit any information, infac the opposite you should try and collect as much information as possible throughtout the entire transcript text
             
             Format your response as a well-structured meeting summary with clear sections and bullet points where appropriate.
             Use this format:
@@ -735,13 +736,11 @@ async function handleStreamingRequest(
             - [Problem 2]
             ...
             
-            ## Action Items & Tasks
+            ## Detailed Action Items & Tasks
             - [Task 1]
             - [Task 2]
             ...
             
-            ## Follow-up
-            [Any scheduled follow-up meetings or deadlines mentioned]
             
             When you've completed the summary, state "MEETING SUMMARY COMPLETE".
           `;
