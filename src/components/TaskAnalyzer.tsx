@@ -227,29 +227,50 @@ export function TaskAnalyzer({
   // Extract JSON from text that may contain other content
   const extractJsonFromText = (text: string): any | null => {
     try {
-      // Try to parse the entire text as JSON first
-      return JSON.parse(text);
-    } catch (e) {
-      // If that fails, try to find JSON objects in the text
+      // First, try to find a JSON object potentially surrounded by other text/markdown
+      const jsonStart = text.indexOf('{');
+      const jsonEnd = text.lastIndexOf('}');
+      
+      if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+        const potentialJson = text.substring(jsonStart, jsonEnd + 1);
+        try {
+          const parsed = JSON.parse(potentialJson);
+          // Basic validation: check if it has the expected 'analysis' structure
+          if (parsed && typeof parsed === 'object' && parsed.analysis) {
+            console.log("Successfully extracted JSON using substring method.");
+            return parsed;
+          } else {
+            console.warn("Parsed JSON from substring, but missing 'analysis' key.");
+          }
+        } catch (substringParseError) {
+          console.warn("Failed to parse JSON from substring:", substringParseError);
+          // Fall through to try regex method if substring parsing fails
+        }
+      }
+
+      // Fallback: try regex to find JSON objects (might be less reliable with nested structures in surrounding text)
+      console.log("Falling back to regex JSON extraction.");
       const jsonRegex = /\{(?:[^{}]|(\{(?:[^{}]|(\{(?:[^{}]|(\{[^{}]*\}))*\}))*\}))*\}/g;
       const matches = text.match(jsonRegex);
       
       if (matches && matches.length > 0) {
-        // Try parsing each match
         for (const match of matches) {
           try {
             const parsed = JSON.parse(match);
-            // Look for the expected structure
-            if (parsed.analysis && 
-                (parsed.analysis.duplicates || parsed.analysis.similar)) {
+            if (parsed.analysis && (parsed.analysis.duplicates || parsed.analysis.similar)) {
+              console.log("Successfully extracted JSON using regex method.");
               return parsed;
             }
-          } catch (e) {
-            // Ignore parse errors for individual matches
+          } catch (regexParseError) {
+             console.warn("Regex match parsing failed:", regexParseError);
           }
         }
       }
       
+      console.error("Failed to extract valid JSON from text:", text);
+      return null;
+    } catch (error) {
+      console.error("Unexpected error in extractJsonFromText:", error);
       return null;
     }
   };
