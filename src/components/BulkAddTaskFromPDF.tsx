@@ -1633,21 +1633,33 @@ export function BulkAddTaskFromPDF({
         // Start from current progress or previous stage's percentage
         const startPercent = currentProgress > previousStageInfo.percent ? currentProgress : previousStageInfo.percent;
         
-        // Calculate small increment steps (0.2-0.5% per interval)
-        const totalIncrements = Math.max(10, (currentTarget - startPercent) * 2); // At least 10 steps
+        // Determine increment timing based on the stage
+        // Reading/Creating step should be slower because it takes longer
+        const isSlowStage = currentStage === 'reading' || currentStage === 'creating';
+        
+        // Calculate small increment steps (0.1-0.3% per interval for slow stages, 0.2-0.5% for others)
+        const incrementFactor = isSlowStage ? 3 : 2; // Higher factor = smaller increments
+        const totalIncrements = Math.max(isSlowStage ? 20 : 10, (currentTarget - startPercent) * incrementFactor);
         const incrementSize = (currentTarget - startPercent) / totalIncrements;
-        const incrementTime = 300; // 300ms between increments
+        
+        // Slower intervals for reading/creating stage (500ms vs 300ms for others)
+        const incrementTime = isSlowStage ? 500 : 300;
         
         setUploadProgress(startPercent);
         
         incrementInterval = setInterval(() => {
           setUploadProgress(prev => {
+            // Slow down even more as we approach the target for slow stages
+            const dynamicIncrementSize = isSlowStage && (prev > (startPercent + (currentTarget - startPercent) * 0.7))
+              ? incrementSize * 0.5 // Even smaller increments in the last 30% of the stage
+              : incrementSize;
+              
             // Stop just short of target to avoid overshooting
-            if (prev >= currentTarget - incrementSize) {
+            if (prev >= currentTarget - dynamicIncrementSize) {
               if (incrementInterval) clearInterval(incrementInterval);
               return prev;
             }
-            return Math.min(prev + incrementSize, currentTarget);
+            return Math.min(prev + dynamicIncrementSize, currentTarget);
           });
         }, incrementTime);
       }
