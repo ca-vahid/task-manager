@@ -1,7 +1,7 @@
 import React from 'react';
 
 // Application version
-export const APP_VERSION = "1.0.2";
+export const APP_VERSION = "1.0.3";
 
 // Version history for changelog
 export interface VersionInfo {
@@ -15,8 +15,29 @@ export interface VersionInfo {
 
 export const VERSION_HISTORY: VersionInfo[] = [
   {
+    version: "1.0.3",
+    date: "April 12, 2024",
+    changes: [
+      {
+        category: "UI Improvements",
+        items: [
+          "Enhanced progress bar with continuous animation for better user experience",
+          "Redesigned processing stages with more accurate percentage allocation",
+          "Added real-time stage detection for document processing workflow"
+        ]
+      },
+      {
+        category: "Documentation",
+        items: [
+          "Added detailed documentation about progress bar architecture",
+          "Updated architecture documentation with implementation details"
+        ]
+      }
+    ]
+  },
+  {
     version: "1.0.2",
-    date: "April 20, 2025",
+    date: "April 10, 2024",
     changes: [
       {
         category: "UI Improvements",
@@ -38,7 +59,7 @@ export const VERSION_HISTORY: VersionInfo[] = [
   },
   {
     version: "1.0.1",
-    date: "April 12, 2025",
+    date: "April 5, 2024",
     changes: [
       {
         category: "UI Improvements",
@@ -52,7 +73,7 @@ export const VERSION_HISTORY: VersionInfo[] = [
   },
   {
     version: "1.0.0",
-    date: "April 12, 2025",
+    date: "April 1, 2024",
     changes: [
       {
         category: "Major Release",
@@ -75,7 +96,7 @@ export const VERSION_HISTORY: VersionInfo[] = [
   },
   {
     version: "0.9.0",
-    date: "April 12, 2025",
+    date: "March 25, 2024",
     changes: [
       {
         category: "New Features",
@@ -98,7 +119,7 @@ export const VERSION_HISTORY: VersionInfo[] = [
   },
   {
     version: "0.8.6",
-    date: "April 12, 2025",
+    date: "March 15, 2024",
     changes: [
       {
         category: "Added Features",
@@ -147,7 +168,7 @@ export const VERSION_HISTORY: VersionInfo[] = [
   },
   {
     version: "0.8.5",
-    date: "April 11, 2025",
+    date: "March 10, 2024",
     changes: [
       {
         category: "Task Management Improvements",
@@ -177,7 +198,7 @@ export const VERSION_HISTORY: VersionInfo[] = [
   },
   {
     version: "0.8.0",
-    date: "April 11, 2025",
+    date: "March 1, 2024",
     changes: [
       {
         category: "Major Features",

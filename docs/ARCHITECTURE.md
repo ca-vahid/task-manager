@@ -13,7 +13,7 @@ This document provides a comprehensive overview of the Task Manager application 
 - **Patch**: Bug fixes and minor improvements
 
 ### Version Management
-- The current application version is stored in `src/lib/changelog.tsx` as `APP_VERSION`
+- The current application version is stored in `changelog.tsx` as `APP_VERSION`
 - Version history is maintained in `VERSION_HISTORY` array in the same file
 - Each version entry includes:
   - Version number
@@ -32,6 +32,86 @@ This document provides a comprehensive overview of the Task Manager application 
 - **Authentication**: Firebase Authentication
 - **AI Integration**: Gemini, OpenAI, Anthropic models
 - **Media Processing**: PDF analysis
+
+## Progress Bar Architecture
+The application implements a sophisticated progress tracking system in the document processing components, particularly in `BulkAddTaskFromPDF.tsx`.
+
+### Progress Bar Components
+1. **Stage-Based Progress Tracking**
+   - Uses a state variable `currentProcessStage` to track specific processing stages
+   - Defines distinct stages: uploading, initializing, creating/reading, extracting, optimizing, complete
+   - Each stage is assigned a percentage value representing overall progress
+
+2. **Continuous Progress Animation**
+   - Implements a custom React hook `useProgressIncrementer` that provides smooth progress transitions
+   - Calculates small increments (0.2-0.5%) and applies them at regular intervals (300ms)
+   - Prevents "stuck" progress bars by continuously moving toward target percentage
+   - Ensures the progress bar is always advancing, even during long-running operations
+
+3. **Dynamic Stage Detection**
+   - Analyzes streaming API responses for specific markers indicating stage transitions
+   - Updates current stage and progress percentage based on detected patterns
+   - Handles different processing flows for meeting transcripts vs regular documents
+
+4. **Configurable Stage Percentages**
+   - Stages are configured with specific percentages:
+     ```javascript
+     [
+       { stage: 'Uploading Document', percent: 1 },
+       { stage: 'Initializing Analysis', percent: 15 },
+       { stage: isMeetingTranscript ? 'Creating Meeting Summary' : 'Reading Document', 
+         percent: isMeetingTranscript ? 30 : 20 },
+       { stage: 'Extracting Tasks', percent: 70 },
+       { stage: 'Optimizing Results', percent: 95 },
+       { stage: 'Complete', percent: 100 }
+     ]
+     ```
+   - Recalculates percentages when the document type changes (meeting transcript vs regular)
+
+5. **Fallback Progress Handling**
+   - Ensures consistent progress updates even when streaming fails
+   - Maintains UI responsiveness during direct API calls
+   - Provides visual feedback during all processing phases
+
+### Implementation Details
+1. **React State Management**
+   ```typescript
+   const [currentProcessStage, setCurrentProcessStage] = useState<'uploading' | 'initializing' | 'creating' | 'reading' | 'extracting' | 'optimizing' | 'complete'>('uploading');
+   const [uploadProgress, setUploadProgress] = useState<number>(0);
+   const [processingStages, setProcessingStages] = useState<{stage: string, percent: number}[]>([...]);
+   ```
+
+2. **Progress Incrementer Hook**
+   ```typescript
+   const useProgressIncrementer = (currentStage: string, currentProgress: number, targetPercent?: number) => {
+     useEffect(() => {
+       // Calculate target percentage based on current stage
+       // Set up interval for incremental updates
+       // Clean up interval on unmount or stage change
+     }, [currentStage, currentProgress, targetPercent, processingStages]);
+   };
+   ```
+
+3. **Stream Processing**
+   ```typescript
+   const processStream = async () => {
+     // Read chunks from the response stream
+     // Detect stage transitions from text markers
+     // Update progress state based on detected stages
+   };
+   ```
+
+4. **UI Representation**
+   - Progress bar with percentage display
+   - Current stage label
+   - Smooth transition animations
+   - Color coding based on processing state
+
+### Benefits
+- Provides accurate visual feedback during long-running AI operations
+- Creates perception of continuous progress, improving user experience
+- Adapts to different document types with appropriate timing expectations
+- Maintains state consistency across different processing paths
 
 ## Component Structure
 
