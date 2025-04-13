@@ -798,9 +798,11 @@ export function BulkAddTaskFromPDF({
       window.addEventListener('mousemove', handleUserInteraction);
       
       return () => {
+        // Ensure timer is cleared on cleanup AND reset state
         if (autoProgressTimer) {
           clearInterval(autoProgressTimer);
         }
+        setAutoProgressTimer(null); // Reset timer state on cleanup
         window.removeEventListener('click', handleUserInteraction);
         window.removeEventListener('keydown', handleUserInteraction);
         window.removeEventListener('mousemove', handleUserInteraction);
@@ -814,7 +816,8 @@ export function BulkAddTaskFromPDF({
         setAutoProgressTimer(null);
       }
     }
-  }, [showConversionConfirmation, userInteracted, autoProgressTimer, convertedPdfFile, memoizedConfirmProceed]);
+    // Removed autoProgressTimer from dependency array to prevent infinite loop
+  }, [showConversionConfirmation, userInteracted, convertedPdfFile, memoizedConfirmProceed]);
   
   // New function to cancel conversion and go back
   const cancelConversion = () => {
