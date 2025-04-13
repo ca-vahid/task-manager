@@ -775,15 +775,26 @@ async function handleStreamingRequest(
           for await (const chunk of summaryStream) {
             if (chunk && chunk.text) {
               meetingSummary += chunk.text;
-              controller.enqueue(new TextEncoder().encode(chunk.text));
+              // Don't display the full meeting summary to the user - just collect it silently
+              // Only output progress indicators instead
+              if (chunk.text.includes('MEETING SUMMARY COMPLETE')) {
+                controller.enqueue(new TextEncoder().encode("\n[System: Meeting summary generation complete]\n"));
+              } else if (meetingSummary.length % 1000 === 0) {
+                // Show occasional progress indicator
+                controller.enqueue(new TextEncoder().encode("."));
+              }
             }
           }
+          
+          // Show a completion message instead of the full summary
+          controller.enqueue(new TextEncoder().encode("\n[System: Meeting summary generated successfully. You can download it after processing is complete.]\n"));
           
           // After collecting the meeting summary, extract the meeting title for later use
           let meetingTitle = "Meeting Summary";
           const titleMatch = meetingSummary.match(/# MEETING TITLE: ([^\n]+)/);
           if (titleMatch && titleMatch[1]) {
             meetingTitle = titleMatch[1].trim();
+            controller.enqueue(new TextEncoder().encode(`\n[System: Meeting Title: "${meetingTitle}"]\n`));
           }
           
           // Add the title to the meeting summary data markers for the client to extract
@@ -802,7 +813,12 @@ async function handleStreamingRequest(
             for await (const chunk of completionStream) {
               if (chunk && chunk.text) {
                 meetingSummary += chunk.text;
-                controller.enqueue(new TextEncoder().encode(chunk.text));
+                // Don't show the content, just progress indicators
+                if (chunk.text.includes('MEETING SUMMARY COMPLETE')) {
+                  controller.enqueue(new TextEncoder().encode("\n[System: Meeting summary completion finished]\n"));
+                } else if (meetingSummary.length % 1000 === 0) {
+                  controller.enqueue(new TextEncoder().encode("."));
+                }
               }
             }
           }
