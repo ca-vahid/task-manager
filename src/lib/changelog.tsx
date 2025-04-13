@@ -1,7 +1,7 @@
 import React from 'react';
 
 // Application version
-export const APP_VERSION = "0.9.0";
+export const APP_VERSION = "1.0.0";
 
 // Version history for changelog
 export interface VersionInfo {
@@ -14,6 +14,29 @@ export interface VersionInfo {
 }
 
 export const VERSION_HISTORY: VersionInfo[] = [
+  {
+    version: "1.0.0",
+    date: "April 18, 2025",
+    changes: [
+      {
+        category: "Major Release",
+        items: [
+          "First stable release with complete feature set",
+          "Comprehensive documentation added for future reference",
+          "Enhanced task analyzer with human-readable task identifiers",
+          "Improved error handling in API routes with proper streaming support"
+        ]
+      },
+      {
+        category: "UI Improvements",
+        items: [
+          "Added clear 'Finish' button for scenarios with no merge suggestions",
+          "Enhanced display of task references in analysis results",
+          "Improved human-readable task identification with ticket numbers"
+        ]
+      }
+    ]
+  },
   {
     version: "0.9.0",
     date: "April 15, 2025",

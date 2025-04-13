@@ -1,8 +1,29 @@
 # Task Manager Application Architecture
-**Version: 1.0.1** (Based on APP_VERSION constant)
+**Version: 1.0.0** (Based on APP_VERSION constant)
 
 ## Overview
 This document provides a comprehensive overview of the Task Manager application architecture, including components, APIs, AI models, and data flow. It serves as a reference for developers working on the application.
+
+## Version Control Rules
+
+### Version Numbering
+- **Major.Minor.Patch** format (e.g., 1.0.0)
+- **Major**: Significant changes, new architectures, or breaking changes
+- **Minor**: New features and substantial improvements
+- **Patch**: Bug fixes and minor improvements
+
+### Version Management
+- The current application version is stored in `src/lib/changelog.tsx` as `APP_VERSION`
+- Version history is maintained in `VERSION_HISTORY` array in the same file
+- Each version entry includes:
+  - Version number
+  - Release date
+  - Categorized list of changes
+
+### Changelog Display
+- Accessible via version number in the app header
+- Displays complete version history in a modal
+- Groups changes by category for each version
 
 ## Core Technologies
 - **Frontend**: React.js with Next.js 14 App Router
