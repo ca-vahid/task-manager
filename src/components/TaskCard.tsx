@@ -15,6 +15,7 @@ import {
 } from '@heroicons/react/24/outline';
 import DOMPurify from 'dompurify';
 import { createPortal } from 'react-dom';
+import { QuillEditor } from '@/components/AddTaskForm';
 
 interface TaskCardProps {
   task: Task;
@@ -1307,13 +1308,13 @@ export function TaskCard({
                 <label htmlFor="task-description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Description
                 </label>
-                <textarea
-                  id="task-description"
-                  value={editedDescription}
-                  onChange={(e) => setEditedDescription(e.target.value)}
-                  rows={8}
-                  className="block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm focus:border-blue-500 dark:focus:border-blue-400"
-                />
+                <div className="min-h-[300px]">
+                  <QuillEditor
+                    value={editedDescription}
+                    onChange={setEditedDescription}
+                    placeholder="Enter task description and details..."
+                  />
+                </div>
               </div>
             </div>
             
