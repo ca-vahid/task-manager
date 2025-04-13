@@ -755,7 +755,7 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
             </span>
             <div className="flex flex-col">
               <span>BGC IT Task Manager</span>
-              <span className="text-xs text-gray-500 dark:text-gray-400">v0.8.5</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">v0.8.6</span>
             </div>
           </h1>
 

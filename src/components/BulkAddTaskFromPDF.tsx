@@ -932,7 +932,7 @@ export function BulkAddTaskFromPDF({
     // Removed popup notifications as requested
   };
   
-  // Function to handle the parsing and extraction of tasks from JSON text
+  // Function to extract tasks from the response
   const parseAndExtractTasks = (inputText: string) => {
     try {
       // Added improved JSON extraction for streaming case
@@ -990,6 +990,7 @@ export function BulkAddTaskFromPDF({
             console.log(`Successfully processed ${processedTasks.length} optimized tasks`);
             setParsedTasks(processedTasks);
             setOptimizationComplete(true); // Mark optimization as complete
+            setProcessingComplete(true);
             return processedTasks;
           }
         } catch (e) {
@@ -1781,13 +1782,19 @@ export function BulkAddTaskFromPDF({
           <div className={`w-20 h-20 ${
             error 
               ? 'bg-red-100 dark:bg-red-900/30' 
-              : useThinkingModel 
-                ? 'bg-purple-100 dark:bg-purple-900/30' 
-                : 'bg-green-100 dark:bg-green-900/30'
+              : parsedTasks?.length === 0 
+                ? 'bg-amber-100 dark:bg-amber-900/30' 
+                : useThinkingModel 
+                  ? 'bg-purple-100 dark:bg-purple-900/30' 
+                  : 'bg-green-100 dark:bg-green-900/30'
           } rounded-full flex items-center justify-center`}>
             {error ? (
               <svg className="w-10 h-10 text-red-600 dark:text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            ) : parsedTasks?.length === 0 ? (
+              <svg className="w-10 h-10 text-amber-600 dark:text-amber-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
               </svg>
             ) : useThinkingModel ? (
               <svg className="w-10 h-10 text-purple-600 dark:text-purple-400" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1805,22 +1812,28 @@ export function BulkAddTaskFromPDF({
             <h3 className={`text-lg font-medium ${
               error 
                 ? 'text-red-600 dark:text-red-400' 
-                : useThinkingModel 
-                  ? 'text-purple-600 dark:text-purple-400' 
-                  : 'text-green-600 dark:text-green-400'
+                : parsedTasks?.length === 0
+                  ? 'text-amber-600 dark:text-amber-400'
+                  : useThinkingModel 
+                    ? 'text-purple-600 dark:text-purple-400' 
+                    : 'text-green-600 dark:text-green-400'
             }`}>
               {error 
                 ? 'Error Processing Document' 
-                : useThinkingModel 
-                  ? 'Thinking Analysis Complete!' 
-                  : 'Document Analysis Complete!'
+                : parsedTasks?.length === 0
+                  ? 'No Tasks Found in Document'
+                  : useThinkingModel 
+                    ? 'Thinking Analysis Complete!' 
+                    : 'Document Analysis Complete!'
               }
             </h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               {error 
                 ? error 
-                : `We found ${parsedTasks?.length || 0} tasks in your document using
-                   ${useThinkingModel ? ' Gemini Thinking with enhanced reasoning' : ' Gemini standard analysis'}.`
+                : parsedTasks?.length === 0
+                  ? 'The document was processed successfully, but no tasks were identified. You may want to try a different document.'
+                  : `We found ${parsedTasks?.length || 0} tasks in your document using
+                     ${useThinkingModel ? ' Gemini Thinking with enhanced reasoning' : ' Gemini standard analysis'}.`
               }
             </p>
           </div>
@@ -1831,15 +1844,19 @@ export function BulkAddTaskFromPDF({
               <span className={`inline-block h-2 w-2 rounded-full ${
                 error 
                   ? 'bg-red-500' 
-                  : useThinkingModel 
-                    ? 'bg-purple-500' 
-                    : 'bg-green-500'
+                  : parsedTasks?.length === 0
+                    ? 'bg-amber-500'
+                    : useThinkingModel 
+                      ? 'bg-purple-500' 
+                      : 'bg-green-500'
               } mr-2`}></span>
               {error 
                 ? 'Error Details:' 
-                : useThinkingModel 
-                  ? 'Gemini Thinking output:' 
-                  : 'Analysis output:'
+                : parsedTasks?.length === 0
+                  ? 'Details:'
+                  : useThinkingModel 
+                    ? 'Gemini Thinking output:' 
+                    : 'Analysis output:'
               }
             </h3>
             <div 
@@ -1847,9 +1864,11 @@ export function BulkAddTaskFromPDF({
               className={`bg-gray-50 dark:bg-gray-900 border-2 ${
                 error
                   ? 'border-red-200 dark:border-red-800'
-                  : useThinkingModel 
-                    ? 'border-purple-200 dark:border-purple-800' 
-                    : 'border-gray-200 dark:border-gray-800'
+                  : parsedTasks?.length === 0
+                    ? 'border-amber-200 dark:border-amber-800'
+                    : useThinkingModel 
+                      ? 'border-purple-200 dark:border-purple-800' 
+                      : 'border-gray-200 dark:border-gray-800'
               } rounded-lg p-4 h-64 overflow-auto font-mono text-xs relative`}
             >
               {streamedOutput.split('\n').map((line, i) => (
@@ -1864,6 +1883,7 @@ export function BulkAddTaskFromPDF({
                 </div>
               ))}
             </div>
+            {/* Only show countdown for errors, not for "no tasks found" */}
             {error && (
               <div className="flex items-center justify-between mt-1">
                 <p className="text-xs text-gray-500 dark:text-gray-400 italic">
@@ -1888,7 +1908,7 @@ export function BulkAddTaskFromPDF({
             >
               Cancel
             </button>
-            {error ? (
+            {error || parsedTasks?.length === 0 ? (
               <button
                 type="button"
                 onClick={handleBackToInput}
