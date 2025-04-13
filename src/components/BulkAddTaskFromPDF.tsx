@@ -555,8 +555,7 @@ export function BulkAddTaskFromPDF({
       // Always use streaming mode for both models
       formData.append('streamOutput', 'true');
       
-      // Set initial progress - upload stage
-      setUploadProgress(processingStages[0].percent);
+      // Only set stage without setting exact progress - let the incrementer handle it
       setCurrentProcessStage('initializing');
       
       // Send the file or text to the API for streaming analysis
@@ -565,10 +564,7 @@ export function BulkAddTaskFromPDF({
           body: formData,
         });
         
-      // After sending the request, move to initializing stage
-      setUploadProgress(processingStages[1].percent);
-        
-        if (!response.ok) {
+      if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.message || 'Failed to analyze document');
         }
@@ -660,7 +656,7 @@ export function BulkAddTaskFromPDF({
                   meetingTitleRef.current = titleContent || "Meeting Summary";
                 }
               }
-                
+              
               // Update the UI with each received chunk
               setStreamedOutput(prevText => prevText + chunk);
               
@@ -1018,58 +1014,230 @@ export function BulkAddTaskFromPDF({
     // Removed popup notifications as requested
   };
   
-  // Function to parse the JSON from the streamed output
-  const parseAndExtractTasks = (text: string): any[] => {
-    console.log('Attempting to extract tasks from text...');
-    
+  // Function to handle the parsing and extraction of tasks from JSON text
+  const parseAndExtractTasks = (inputJson: string) => {
+    console.log("🔍 DEBUG - parseAndExtractTasks called");
     try {
-      const taskMatch = text.match(/\[TASKS-JSON-START\]([\s\S]*?)\[TASKS-JSON-END\]/);
-      console.log('Task match found:', !!taskMatch);
+      console.log("🔍 DEBUG - Attempting to parse JSON string");
+      console.log("🔍 DEBUG - First 100 characters of input:");
+      console.log(inputJson.substring(0, 100));
       
-      if (taskMatch && taskMatch[1]) {
-        const taskJson = taskMatch[1].trim();
-        
-        try {
-          // Try to parse the JSON
-          const extractedTasks = JSON.parse(taskJson);
-          console.log('Successfully parsed task JSON, tasks count:', extractedTasks.length);
+      // Log the full string for debugging (but truncate if extremely long)
+      console.log("🔍 DEBUG - FULL INPUT STRING (truncated if >10000 chars):");
+      console.log(inputJson.length > 10000 ? inputJson.substring(0, 10000) + "..." : inputJson);
+      
+      // NEW: Try to extract JSON from markdown code blocks first
+      const codeBlockPattern = /```json\s*([\s\S]*?)```/g;
+      const codeBlocks = [...inputJson.matchAll(codeBlockPattern)];
+      
+      console.log(`🔍 DEBUG - Found ${codeBlocks.length} JSON code blocks`);
+      
+      let extractedTasks: any[] = [];
+      
+      // Try each code block until we find valid JSON with tasks
+      if (codeBlocks.length > 0) {
+        for (let i = 0; i < codeBlocks.length; i++) {
+          const jsonContent = codeBlocks[i][1].trim();
+          console.log(`🔍 DEBUG - Trying code block ${i+1}:`);
+          console.log(jsonContent.substring(0, 100) + (jsonContent.length > 100 ? "..." : ""));
           
-          if (extractedTasks && Array.isArray(extractedTasks) && extractedTasks.length > 0) {
-            // Process and validate tasks
-            const processedTasks = extractedTasks.map((task: any) => ({
-              title: task.title || 'Untitled Task',
-              details: task.details || '',
-              assignee: task.assignee || null,
-              group: task.group || null,
-              category: task.category || null, 
-              dueDate: task.dueDate || null,
-              priority: task.priority || 'Medium',
-              ticketNumber: task.ticketNumber || null,
-              externalUrl: task.externalUrl || null
-            }));
+          try {
+            const parsed = JSON.parse(jsonContent);
+            console.log(`✅ Successfully parsed code block ${i+1}`);
             
-            setParsedTasks(processedTasks);
-            setOptimizationComplete(true);
-            setProcessingComplete(true);
-            setCurrentProcessStage('complete');
-            setUploadProgress(100);
-            
-            return processedTasks;
-          } else {
-            console.log('Extracted tasks array is empty or invalid');
-            throw new Error('No valid tasks found in the extracted JSON');
+            // Check if it's an array or has a tasks property
+            if (Array.isArray(parsed)) {
+              extractedTasks = parsed;
+              console.log(`Found ${extractedTasks.length} tasks in code block array`);
+              break;
+            } else if (parsed.tasks && Array.isArray(parsed.tasks)) {
+              extractedTasks = parsed.tasks;
+              console.log(`Found ${extractedTasks.length} tasks in code block object.tasks`);
+              break;
+            }
+          } catch (e: any) {
+            console.log(`❌ Failed to parse code block ${i+1}: ${e.message}`);
           }
-        } catch (jsonError) {
-          console.error('Error parsing JSON:', jsonError);
-          throw new Error(`Failed to parse task JSON: ${jsonError instanceof Error ? jsonError.message : 'Unknown error'}`);
         }
-      } else {
-        console.log('No task match pattern found in the text');
-        throw new Error('No task JSON pattern found in the response');
       }
-    } catch (error) {
-      console.error('Error in parseAndExtractTasks:', error);
-      throw error;
+      
+      // If we found tasks from code blocks, use them
+      if (extractedTasks.length > 0) {
+        console.log("🎯 Successfully extracted tasks from JSON code blocks");
+      } else {
+        // Fall back to the original method of trying to parse the whole string
+        try {
+          const parsedJson = JSON.parse(inputJson);
+          
+          // Add debug output with distinct markers
+          console.log("🔍🔍🔍 DEBUG - SUCCESSFULLY PARSED FULL STRING 🔍🔍🔍");
+          console.log(parsedJson);
+          
+          // Check if it's an array or has a tasks property
+          if (Array.isArray(parsedJson)) {
+            extractedTasks = parsedJson;
+          } else if (parsedJson.tasks && Array.isArray(parsedJson.tasks)) {
+            extractedTasks = parsedJson.tasks;
+          } else if (typeof parsedJson === 'object' && parsedJson !== null) {
+            extractedTasks = [parsedJson];
+          }
+        } catch (jsonError: any) {
+          console.log("Couldn't parse as direct JSON, trying regex fallback", jsonError.message);
+          
+          // Log the first part of the string to see what's causing the issue
+          console.log("🔎🔎🔎 FIRST 200 CHARACTERS OF STRING: 🔎🔎🔎");
+          console.log(inputJson.substring(0, 200));
+          console.log("🔎🔎🔎 END OF PREVIEW 🔎🔎🔎");
+          
+          // NEW: More robust pattern matching for JSON arrays and objects
+          // Step 1: Try to find a JSON object with a tasks array
+          const tasksObjectPattern = /\{\s*"tasks"\s*:\s*\[\s*\{[\s\S]*?\}\s*\]\s*\}/g;
+          const tasksObjectMatches = [...inputJson.matchAll(tasksObjectPattern)];
+          
+          console.log(`Found ${tasksObjectMatches.length} potential tasks objects`);
+          
+          if (tasksObjectMatches.length > 0) {
+            for (let i = 0; i < tasksObjectMatches.length; i++) {
+              const potentialJson = tasksObjectMatches[i][0];
+              console.log(`Trying tasks object match ${i+1}:`, potentialJson.substring(0, 100));
+              
+              try {
+                const parsed = JSON.parse(potentialJson);
+                if (parsed.tasks && Array.isArray(parsed.tasks)) {
+                  extractedTasks = parsed.tasks;
+                  console.log(`✅ Successfully extracted ${extractedTasks.length} tasks from tasks object`);
+          break;
+                }
+              } catch (e: any) {
+                console.log(`❌ Failed to parse tasks object ${i+1}: ${e.message}`);
+              }
+            }
+          }
+          
+          // Step 2: Try to extract JSON array with title field (most specific)
+          if (extractedTasks.length === 0) {
+            const taskArrayPattern = /\[\s*\{\s*"title"[\s\S]*?\}\s*\]/;
+            const taskArrayMatch = inputJson.match(taskArrayPattern);
+            
+            if (taskArrayMatch) {
+              console.log("⭐⭐⭐ FOUND TASK ARRAY MATCH: ⭐⭐⭐");
+              console.log(taskArrayMatch[0]);
+              console.log("⭐⭐⭐ END OF MATCH ⭐⭐⭐");
+              
+              try {
+                extractedTasks = JSON.parse(taskArrayMatch[0]);
+                console.log("Extracted tasks using title pattern:", extractedTasks.length);
+              } catch (error: any) {
+                console.error("Failed to parse task array pattern match", error.message);
+                console.log("📌📌📌 PROBLEMATIC MATCH: 📌📌📌");
+                console.log(taskArrayMatch[0]);
+                console.log("📌📌📌 END OF PROBLEMATIC MATCH 📌📌📌");
+              }
+            }
+          }
+          
+          // Step 3: If that failed, try to find the JSON array between the last system message
+      if (extractedTasks.length === 0) {
+            // Find the last system message
+            const systemMessageMatches = inputJson.match(/\[System:.*?\]/g);
+            
+            if (systemMessageMatches && systemMessageMatches.length > 0) {
+              // Get position of the last system message
+              const lastMessage = systemMessageMatches[systemMessageMatches.length - 1];
+              const lastMessagePos = inputJson.lastIndexOf(lastMessage);
+              
+              if (lastMessagePos !== -1) {
+                // Extract everything before the last system message
+                const contentBeforeLastMessage = inputJson.substring(0, lastMessagePos);
+                
+                console.log("🔶🔶🔶 CONTENT BEFORE LAST SYSTEM MESSAGE: 🔶🔶🔶");
+                console.log(contentBeforeLastMessage.slice(-200)); // Just the last 200 chars
+                console.log("🔶🔶🔶 END OF CONTENT 🔶🔶🔶");
+                
+                // Look for JSON array pattern in that section
+                const arrayMatch = contentBeforeLastMessage.match(/(\[\s*\{[\s\S]*?\}\s*\])/);
+                
+                if (arrayMatch) {
+                  console.log("🔷🔷🔷 FOUND ARRAY MATCH BEFORE SYSTEM MESSAGE: 🔷🔷🔷");
+                  console.log(arrayMatch[0]);
+                  console.log("🔷🔷🔷 END OF MATCH 🔷🔷🔷");
+                  
+                  try {
+                    extractedTasks = JSON.parse(arrayMatch[0]);
+                    console.log("Extracted tasks from content before last system message:", extractedTasks.length);
+                  } catch (error: any) {
+                    console.error("Failed to parse array before system message", error.message);
+                  }
+                }
+              }
+            }
+          }
+          
+          // Step 4: Last attempt - try to find any array pattern
+          if (extractedTasks.length === 0) {
+            const generalArrayMatches = inputJson.match(/\[\s*\{[\s\S]*?\}\s*\]/g);
+            
+            if (generalArrayMatches && generalArrayMatches.length > 0) {
+              console.log("🔸🔸🔸 FOUND GENERAL ARRAY MATCHES:", generalArrayMatches.length, "🔸🔸🔸");
+              
+              // Try each match until we find valid JSON
+              for (let i = 0; i < generalArrayMatches.length; i++) {
+                const match = generalArrayMatches[i];
+                console.log(`🔹 Match ${i+1}/${generalArrayMatches.length} (first 100 chars): ${match.substring(0, 100)}...`);
+                
+                try {
+                  const possibleTasks = JSON.parse(match);
+                  if (Array.isArray(possibleTasks) && possibleTasks.length > 0 && 
+                      possibleTasks[0].title && typeof possibleTasks[0].title === 'string') {
+                    extractedTasks = possibleTasks;
+                    console.log("Extracted tasks from general array pattern:", extractedTasks.length);
+                    console.log("✅✅✅ SUCCESSFUL MATCH: ✅✅✅");
+                    console.log(match);
+                    console.log("✅✅✅ END OF SUCCESSFUL MATCH ✅✅✅");
+                    break;
+                  }
+                } catch (error: any) {
+                  // Continue to next match
+                  console.log(`❌ Match ${i+1} failed to parse: ${error.message}`);
+                }
+              }
+            }
+          }
+          
+          // If we still don't have tasks, we can consider this an error or empty state
+        if (extractedTasks.length === 0) {
+            // Handle empty tasks array as a valid state
+            console.log("No tasks found after all parsing attempts");
+            setParsedTasks([]);
+            setNoTasksFound(true);
+            return [];
+          }
+        }
+        }
+        
+        // Process and validate tasks
+        const processedTasks = extractedTasks.map((task: any) => ({
+          title: task.title || 'Untitled Task',
+          details: task.details || '',
+          assignee: task.assignee || null,
+          group: task.group || null,
+          category: task.category || null,
+          dueDate: task.dueDate || null,
+          priority: task.priority || 'Medium',
+          ticketNumber: task.ticketNumber || null,
+          externalUrl: task.externalUrl || null
+        }));
+        
+      // Make sure to set the state with processed tasks
+        setParsedTasks(processedTasks);
+      
+      // Set optimization complete to show the confirmation button
+      setOptimizationComplete(true);
+      
+      return processedTasks;
+    } catch (error: any) {
+      console.error('Error parsing JSON:', error);
+      throw new Error(`Failed to extract tasks: ${error.message}`);
     }
   };
   
@@ -1081,38 +1249,20 @@ export function BulkAddTaskFromPDF({
         throw new Error('No file selected for processing');
       }
       
-      // Update progress
+      // Update stage only, not progress
       setCurrentProcessStage('uploading');
-      setUploadProgress(processingStages[0].percent);
       
       // Create new FormData without streaming flag
       const formDataDirect = new FormData();
-      
-      // Check if we're processing a text file extracted from Word
-      const isExtractedText = convertedPdfFile && 
-                             convertedPdfFile.type === "text/plain" && 
-                             convertedPdfFile.name.endsWith(".txt");
-      
-      if (isExtractedText && convertedPdfFile) {
-        // For Word documents, send the actual text content instead of the file
-        const textContent = await convertedPdfFile.text();
-        formDataDirect.append('textContent', textContent);
-        formDataDirect.append('isExtractedText', 'true'); // Flag to indicate this is extracted text
-        formDataDirect.append('originalFileName', selectedFile.name || ''); // Original filename for context
-      } else {
-        // For PDF files, send the file as usual
-        formDataDirect.append('file', selectedFile);
-      }
-      
+      formDataDirect.append('file', selectedFile);
       formDataDirect.append('technicians', JSON.stringify(technicians.map(tech => ({ id: tech.id, name: tech.name }))));
       formDataDirect.append('groups', JSON.stringify(groups.map(group => ({ id: group.id, name: group.name }))));
       formDataDirect.append('categories', JSON.stringify(categories.map(cat => ({ id: cat.id, value: cat.value }))));
       formDataDirect.append('useThinkingModel', useThinkingModel.toString());
       formDataDirect.append('isMeetingTranscript', isMeetingTranscript.toString());
       
-      // Indicate we're making the request
+      // Indicate we're making the request, update stage without setting exact progress
       setCurrentProcessStage('initializing');
-      setUploadProgress(processingStages[1].percent);
       setStreamedOutput(prev => prev + "\n\n[System: Making direct API request for task extraction...]\n");
       
       // Make direct request
@@ -1121,9 +1271,8 @@ export function BulkAddTaskFromPDF({
         body: formDataDirect,
       });
       
-      // Processing response
+      // Move to extracting stage - let incrementer handle progress
       setCurrentProcessStage('extracting');
-      setUploadProgress(processingStages[3].percent);
       
       if (!directResponse.ok) {
         const errorData = await directResponse.json();
@@ -1140,13 +1289,11 @@ export function BulkAddTaskFromPDF({
         setOptimizationComplete(true);
         setNoTasksFound(true);
         setCurrentProcessStage('complete');
-        setUploadProgress(processingStages[5].percent);
         return;
       }
       
       // Successfully got tasks, update progress
       setCurrentProcessStage('complete');
-      setUploadProgress(processingStages[5].percent);
       setStreamedOutput(prev => prev + `\n\n[System: Successfully extracted ${extractedTasks.length} tasks directly]\n`);
       
       // Process and validate tasks
@@ -1183,12 +1330,7 @@ export function BulkAddTaskFromPDF({
   
   // Add a function to handle user confirmation
   const handleConfirmOptimization = () => {
-    // Ensure progress bar is at 100% before ending processing
-    setCurrentProcessStage('complete');
-    setUploadProgress(100);
-    
-    // Then reset states for next time
-    setOptimizationComplete(false); 
+    setOptimizationComplete(false); // Reset for next time
     setIsProcessing(false); // Now end processing and move to review
   };
   
@@ -1516,40 +1658,15 @@ export function BulkAddTaskFromPDF({
     }, [currentStage, currentProgress, targetPercent, processingStages]);
   };
   
+  // Set progress to 100% when processing is complete
+  useEffect(() => {
+    if (currentProcessStage === 'complete') {
+      setUploadProgress(100);
+    }
+  }, [currentProcessStage]);
+  
   // Use the incremented progress
   useProgressIncrementer(currentProcessStage, uploadProgress, undefined);
-  
-  // Function to ensure progress bar always reaches 100% when process is complete
-  const ensureFullProgress = () => {
-    if (processingComplete || optimizationComplete) {
-      setCurrentProcessStage('complete');
-      setUploadProgress(100);
-    }
-  };
-
-  // Call this function whenever processing or optimization state changes
-  useEffect(() => {
-    ensureFullProgress();
-  }, [processingComplete, optimizationComplete]);
-
-  // Also ensure progress is complete when the Review Tasks button should be shown
-  useEffect(() => {
-    const shouldShowReviewButton = !isProcessing && optimizationComplete && parsedTasks && parsedTasks.length > 0;
-    if (shouldShowReviewButton) {
-      setCurrentProcessStage('complete');
-      setUploadProgress(100);
-    }
-  }, [isProcessing, optimizationComplete, parsedTasks]);
-  
-  // Ensure progress bar is complete when we exit processing view
-  useEffect(() => {
-    const showProcessingView = isProcessing && !noTasksFound;
-    if (!showProcessingView && processingComplete) {
-      // If we're exiting the processing view, ensure progress is at 100%
-      setCurrentProcessStage('complete');
-      setUploadProgress(100);
-    }
-  }, [isProcessing, noTasksFound, processingComplete]);
   
   return (
     <div className="space-y-4 bg-white dark:bg-gray-800 rounded-md">
@@ -1825,7 +1942,7 @@ export function BulkAddTaskFromPDF({
               <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-blue-500 dark:bg-blue-400 transition-all duration-500 ease-out rounded-full"
-                  style={{ width: `${uploadProgress}%` }}
+                  style={{ width: `${uploadProgress}%` }} 
                 ></div>
               </div>
             </div>
