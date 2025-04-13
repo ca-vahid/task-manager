@@ -44,7 +44,10 @@ const JsonHighlight: React.FC<{ line: string }> = ({ line }) => {
 
 // Improved HighlightedOutput component with enhanced JSON detection and system messages at the end
 const HighlightedOutput: React.FC<{ text: string }> = ({ text }) => {
-  const lines = text.split('\n');
+  // Filter out meeting summary data before processing
+  const filteredText = text.replace(/(?:<!-- NON-DISPLAY DATA BEGIN - FOR CLIENT PROCESSING ONLY -->)?\s*\[MEETING-SUMMARY-DATA-START\][\s\S]*?\[MEETING-SUMMARY-DATA-END\]\s*(?:<!-- NON-DISPLAY DATA END -->)?/g, '');
+  
+  const lines = filteredText.split('\n');
   let jsonMode = false;
   const systemMessages: JSX.Element[] = [];
   const contentLines: JSX.Element[] = [];
@@ -111,14 +114,28 @@ const HighlightedOutput: React.FC<{ text: string }> = ({ text }) => {
           />
         );
       } else {
-        // Regular system message
+        // Enhance regular system messages with more vibrant colors
+        let enhancedLine = line;
+        
+        // Apply special colors based on message content
+        if (line.includes('Creating meeting summary')) {
+          enhancedLine = `<span class="text-purple-600 dark:text-purple-400">🧠</span> ${line}`;
+        } else if (line.includes('Meeting summary generation complete')) {
+          enhancedLine = `<span class="text-green-600 dark:text-green-400">✅</span> ${line}`;
+        } else if (line.includes('Optimizing and consolidating tasks')) {
+          enhancedLine = `<span class="text-amber-600 dark:text-amber-400">⚙️</span> ${line}`;
+        } else if (line.includes('Found')) {
+          enhancedLine = `<span class="text-blue-600 dark:text-blue-400">🔍</span> ${line}`;
+        } else if (line.includes('Failed') || line.includes('Error') || line.includes('Could not')) {
+          enhancedLine = `<span class="text-red-600 dark:text-red-400">❌</span> ${line}`;
+        }
+        
         systemMessages.push(
           <div 
             key={`system-${i}`} 
             className="leading-relaxed text-emerald-600 dark:text-emerald-400 italic mt-2 mb-1"
-          >
-            {line || <br />}
-          </div>
+            dangerouslySetInnerHTML={{ __html: enhancedLine }}
+          />
         );
       }
       return;
@@ -172,10 +189,10 @@ const HighlightedOutput: React.FC<{ text: string }> = ({ text }) => {
     }
     
     // Transcript formatting - Emphasized text for analysis
-    if (line.includes('Analyzing meeting transcript') || line.includes('Step 1:') || line.includes('Step 2:')) {
+    if (line.includes('Analyzing meeting transcript') || line.includes('Step 1:') || line.includes('Step 2:') || line.includes('Analyzing PDF document') || line.includes('Analyzing Word document')) {
       contentLines.push(
         <div key={`content-${i}`} className="text-blue-600 dark:text-blue-400 font-medium flex items-center my-2">
-          {line.includes('Analyzing') && (
+          {(line.includes('Analyzing') || line.includes('Processing')) && (
             <span className="mr-2">📄</span>
           )}
           {line.includes('Step 1:') && (
@@ -185,6 +202,16 @@ const HighlightedOutput: React.FC<{ text: string }> = ({ text }) => {
             <span className="mr-2">✅</span>
           )}
           <span>{line}</span>
+        </div>
+      );
+      return;
+    }
+    
+    // Enhanced highlighting for model type indication
+    if (line.includes('Using Gemini')) {
+      contentLines.push(
+        <div key={`content-${i}`} className="text-indigo-600 dark:text-indigo-400 font-medium my-1">
+          {line}
         </div>
       );
       return;
@@ -316,7 +343,7 @@ export function BulkAddTaskFromPDF({
   const [error, setError] = useState<string | null>(null);
   const [streamedOutput, setStreamedOutput] = useState<string>('');
   const [parsedTasks, setParsedTasks] = useState<any[] | null>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [useThinkingModel, setUseThinkingModel] = useState(false);
   const [processingComplete, setProcessingComplete] = useState(false);
   const [countdown, setCountdown] = useState(5);
@@ -337,6 +364,17 @@ export function BulkAddTaskFromPDF({
   // Add state for no tasks found case
   const [noTasksFound, setNoTasksFound] = useState(false);
   
+  // Add new state variables to track processing stages
+  const [currentProcessStage, setCurrentProcessStage] = useState<'uploading' | 'initializing' | 'creating' | 'reading' | 'extracting' | 'optimizing' | 'complete'>('uploading');
+  const [processingStages, setProcessingStages] = useState<{stage: string, percent: number}[]>([
+    { stage: 'Uploading Document', percent: 1 },
+    { stage: 'Initializing Analysis', percent: 15 },
+    { stage: isMeetingTranscript ? 'Creating Meeting Summary' : 'Reading Document', percent: isMeetingTranscript ? 30 : 20 },
+    { stage: 'Extracting Tasks', percent: 70 },
+    { stage: 'Optimizing Results', percent: 95 },
+    { stage: 'Complete', percent: 100 },
+  ]);
+  
   // Function to handle file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -348,9 +386,9 @@ export function BulkAddTaskFromPDF({
       // Validate file type - now accept PDF and Word documents
       if (file.type === 'application/pdf') {
         // Reset state for PDF files
-        setSelectedFile(file);
-        setStreamedOutput('');
-        setError(null);
+      setSelectedFile(file);
+      setStreamedOutput('');
+      setError(null);
       } else if (
         fileExt === 'docx' || 
         fileExt === 'doc' || 
@@ -381,9 +419,9 @@ export function BulkAddTaskFromPDF({
       // Validate file type - now accept PDF and Word documents
       if (file.type === 'application/pdf') {
         // Reset state for PDF files
-        setSelectedFile(file);
-        setStreamedOutput('');
-        setError(null);
+      setSelectedFile(file);
+      setStreamedOutput('');
+      setError(null);
       } else if (
         fileExt === 'docx' || 
         fileExt === 'doc' || 
@@ -485,6 +523,7 @@ export function BulkAddTaskFromPDF({
   // New function to continue processing after confirmation
   const processFile = async (fileToProcess: File) => {
     setIsProcessing(true);
+    setCurrentProcessStage('uploading');
     
     try {
       // Create a FormData object to send the file and context
@@ -516,148 +555,167 @@ export function BulkAddTaskFromPDF({
       // Always use streaming mode for both models
       formData.append('streamOutput', 'true');
       
-      // Simulate upload progress
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => {
-          if (prev < 90) {
-            return prev + 10;
-          }
-          return prev;
-        });
-      }, 300);
-      
-      // Store the interval reference for cleanup
-      progressIntervalRef.current = progressInterval;
+      // Set initial progress - upload stage
+      setUploadProgress(processingStages[0].percent);
+      setCurrentProcessStage('initializing');
       
       // Send the file or text to the API for streaming analysis
-      const response = await fetch('/api/gemini/extract-tasks-from-pdf', {
-        method: 'POST',
-        body: formData,
-      });
-      
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-        progressIntervalRef.current = null;
-      }
-      setUploadProgress(100);
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to analyze document');
-      }
-      
-      // Handle streaming response
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('Failed to get response stream');
-      }
-      
-      // Read the stream
-      let receivedText = '';
-      
-      // Create a function to read and process chunks
-      const processStream = async () => {
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            
-            const chunk = new TextDecoder().decode(value);
-            receivedText += chunk;
-            
-            // Check if this chunk contains meeting summary data
-            if (isMeetingTranscript && chunk.includes('[MEETING-SUMMARY-DATA-START]')) {
-              const startMarker = '[MEETING-SUMMARY-DATA-START]';
-              const endMarker = '[MEETING-SUMMARY-DATA-END]';
-              
-              // If we have the complete summary in this chunk
-              if (chunk.includes(startMarker) && chunk.includes(endMarker)) {
-                const startIndex = chunk.indexOf(startMarker) + startMarker.length;
-                const endIndex = chunk.indexOf(endMarker);
-                const summaryContent = chunk.substring(startIndex, endIndex).trim();
-                meetingSummaryRef.current = summaryContent;
-              } 
-              // Otherwise, start collecting the summary across chunks
-              else if (chunk.includes(startMarker)) {
-                const startIndex = chunk.indexOf(startMarker) + startMarker.length;
-                meetingSummaryRef.current = chunk.substring(startIndex).trim();
-              }
-            } 
-            // Continue collecting summary if we're in the middle of it
-            else if (isMeetingTranscript && meetingSummaryRef.current !== null && chunk.includes('[MEETING-SUMMARY-DATA-END]')) {
-              const endIndex = chunk.indexOf('[MEETING-SUMMARY-DATA-END]');
-              meetingSummaryRef.current += chunk.substring(0, endIndex).trim();
-            }
-            // Add to the summary if we're collecting it
-            else if (isMeetingTranscript && meetingSummaryRef.current !== null && !chunk.includes('[MEETING-SUMMARY-DATA-END]')) {
-              meetingSummaryRef.current += chunk;
-            }
-            
-            // Check if this chunk contains meeting title data
-            if (isMeetingTranscript && chunk.includes('[MEETING-TITLE-DATA]')) {
-              const startMarker = '[MEETING-TITLE-DATA]';
-              const endMarker = '[/MEETING-TITLE-DATA]';
-              
-              // If we have the complete title in this chunk
-              if (chunk.includes(startMarker) && chunk.includes(endMarker)) {
-                const startIndex = chunk.indexOf(startMarker) + startMarker.length;
-                const endIndex = chunk.indexOf(endMarker);
-                const titleContent = chunk.substring(startIndex, endIndex).trim();
-                meetingTitleRef.current = titleContent || "Meeting Summary";
-              }
-            }
-            
-            // Update the UI with each received chunk
-            setStreamedOutput(prevText => prevText + chunk);
-            
-            // Force a small delay to ensure React updates the UI
-            await new Promise(resolve => setTimeout(resolve, 10));
-          }
-          return receivedText;
-        } catch (error) {
-          console.error('Error reading stream:', error);
-          throw error;
-        }
-      };
-      
-      const completeText = await processStream();
-      
-      // After streaming completes, try to parse the accumulated JSON
-      try {
-        // Check if we have reached the completion markers in the streamed output
-        if (hasStreamingCompleted(completeText)) {
-          console.log("Streaming has completed based on output patterns");
-          
-          // Force extraction of tasks
-          try {
-            parseAndExtractTasks(completeText);
-          } catch (parseError) {
-            console.error('Failed to parse streaming output as JSON, making direct request', parseError);
-            await makeFallbackRequest();
-          }
-        } else {
-          // Regular JSON extraction attempt
-          try {
-            parseAndExtractTasks(completeText);
-          } catch (parseError) {
-            console.error('Failed to parse streaming output as JSON, making direct request', parseError);
-            await makeFallbackRequest();
-          }
-        }
-      } catch (error) {
-        console.error('Error in streaming process:', error);
-        setError(error instanceof Error ? error.message : 'An error occurred while analyzing the document');
-        setIsProcessing(false);
+        const response = await fetch('/api/gemini/extract-tasks-from-pdf', {
+          method: 'POST',
+          body: formData,
+        });
         
-        // Show a more user-friendly error that stays on screen
-        setStreamedOutput(prevOutput => 
-          prevOutput + 
-          "\n\n❌ ERROR: Failed to extract tasks from the document. Please try again or use a different file."
-        );
-        // Keep in processing complete state but with error
-        setProcessingComplete(true); 
-        setCountdown(10); // Give more time to see the error
-      }
+      // After sending the request, move to initializing stage
+      setUploadProgress(processingStages[1].percent);
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to analyze document');
+        }
+        
+        // Handle streaming response
+        const reader = response.body?.getReader();
+        if (!reader) {
+          throw new Error('Failed to get response stream');
+        }
+        
+        // Read the stream
+        let receivedText = '';
+        
+        // Create a function to read and process chunks
+        const processStream = async () => {
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              
+              const chunk = new TextDecoder().decode(value);
+              receivedText += chunk;
+            
+              // Update progress based on detected markers in the stream
+              if (isMeetingTranscript) {
+                // Check for meeting transcript stages
+                if (chunk.includes('Step 1: Creating meeting summary') || chunk.includes('Creating meeting summary from transcript')) {
+                  setCurrentProcessStage('creating');
+                } else if (chunk.includes('Meeting summary generation complete') || chunk.includes('Step 2: Extracting tasks') || chunk.includes('Extracting tasks from')) {
+                  setCurrentProcessStage('extracting');
+                } else if (chunk.includes('Optimizing...') || chunk.includes('Optimizing and consolidating tasks') || chunk.includes('Optimizing extracted tasks')) {
+                  setCurrentProcessStage('optimizing');
+                } else if (chunk.includes('Optimization complete') || chunk.includes('Successfully optimized')) {
+                  setCurrentProcessStage('complete');
+                }
+              } else {
+                // Check for regular document stages
+                if (chunk.includes('Analyzing') && receivedText.length < 1000) {
+                  setCurrentProcessStage('initializing');
+                } else if (chunk.includes('Reading document content')) {
+                  setCurrentProcessStage('reading');
+                } else if (chunk.includes('Extracting tasks from') || chunk.includes('JSON')) {
+                  setCurrentProcessStage('extracting');
+                } else if (chunk.includes('Optimizing') || chunk.includes('Optimizing and consolidating tasks')) {
+                  setCurrentProcessStage('optimizing');
+                } else if (chunk.includes('Optimization complete') || chunk.includes('Successfully optimized')) {
+                  setCurrentProcessStage('complete');
+                }
+              }
+              
+              // Check if this chunk contains meeting summary data
+              if (isMeetingTranscript && chunk.includes('[MEETING-SUMMARY-DATA-START]')) {
+                const startMarker = '[MEETING-SUMMARY-DATA-START]';
+                const endMarker = '[MEETING-SUMMARY-DATA-END]';
+                
+                // If we have the complete summary in this chunk
+                if (chunk.includes(startMarker) && chunk.includes(endMarker)) {
+                  const startIndex = chunk.indexOf(startMarker) + startMarker.length;
+                  const endIndex = chunk.indexOf(endMarker);
+                  const summaryContent = chunk.substring(startIndex, endIndex).trim();
+                  meetingSummaryRef.current = summaryContent;
+                } 
+                // Otherwise, start collecting the summary across chunks
+                else if (chunk.includes(startMarker)) {
+                  const startIndex = chunk.indexOf(startMarker) + startMarker.length;
+                  meetingSummaryRef.current = chunk.substring(startIndex).trim();
+                }
+              } 
+              // Continue collecting summary if we're in the middle of it
+              else if (isMeetingTranscript && meetingSummaryRef.current !== null && chunk.includes('[MEETING-SUMMARY-DATA-END]')) {
+                const endIndex = chunk.indexOf('[MEETING-SUMMARY-DATA-END]');
+                meetingSummaryRef.current += chunk.substring(0, endIndex).trim();
+              }
+              // Add to the summary if we're collecting it
+              else if (isMeetingTranscript && meetingSummaryRef.current !== null && !chunk.includes('[MEETING-SUMMARY-DATA-END]')) {
+                meetingSummaryRef.current += chunk;
+              }
+              
+              // Check if this chunk contains meeting title data
+              if (isMeetingTranscript && chunk.includes('[MEETING-TITLE-DATA]')) {
+                const startMarker = '[MEETING-TITLE-DATA]';
+                const endMarker = '[/MEETING-TITLE-DATA]';
+                
+                // If we have the complete title in this chunk
+                if (chunk.includes(startMarker) && chunk.includes(endMarker)) {
+                  const startIndex = chunk.indexOf(startMarker) + startMarker.length;
+                  const endIndex = chunk.indexOf(endMarker);
+                  const titleContent = chunk.substring(startIndex, endIndex).trim();
+                  meetingTitleRef.current = titleContent || "Meeting Summary";
+                }
+              }
+                
+              // Update the UI with each received chunk
+              setStreamedOutput(prevText => prevText + chunk);
+              
+              // Force a small delay to ensure React updates the UI
+              await new Promise(resolve => setTimeout(resolve, 10));
+            }
+            return receivedText;
+          } catch (error) {
+            console.error('Error reading stream:', error);
+            throw error;
+          }
+        };
+        
+        const completeText = await processStream();
+        
+        // After streaming completes, try to parse the accumulated JSON
+        try {
+          // Check if we have reached the completion markers in the streamed output
+          if (hasStreamingCompleted(completeText)) {
+            console.log("Streaming has completed based on output patterns");
+            
+            // Force extraction of tasks
+            try {
+          const tasks = parseAndExtractTasks(completeText);
+          console.log("Tasks extracted successfully:", tasks.length);
+          console.log("optimizationComplete state:", optimizationComplete);
+            } catch (parseError) {
+              console.error('Failed to parse streaming output as JSON, making direct request', parseError);
+              await makeFallbackRequest();
+            }
+          } else {
+        // Regular JSON extraction attempt
+            try {
+          const tasks = parseAndExtractTasks(completeText);
+          console.log("Tasks extracted successfully:", tasks.length);
+          console.log("optimizationComplete state:", optimizationComplete);
+            } catch (parseError) {
+              console.error('Failed to parse streaming output as JSON, making direct request', parseError);
+              await makeFallbackRequest();
+            }
+          }
+        } catch (error) {
+          console.error('Error in streaming process:', error);
+          setError(error instanceof Error ? error.message : 'An error occurred while analyzing the document');
+          setIsProcessing(false);
+          
+          // Show a more user-friendly error that stays on screen
+          setStreamedOutput(prevOutput => 
+            prevOutput + 
+            "\n\n❌ ERROR: Failed to extract tasks from the document. Please try again or use a different file."
+          );
+          // Keep in processing complete state but with error
+          setProcessingComplete(true); 
+          setCountdown(10); // Give more time to see the error
+        }
     } catch (err: any) {
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
@@ -715,7 +773,7 @@ export function BulkAddTaskFromPDF({
     setConvertedPdfFile(null);
     setConversionUrl(null);
     setShowConversionConfirmation(false);
-    setIsProcessing(false);
+          setIsProcessing(false);
     setStreamedOutput('');
   };
   
@@ -884,6 +942,18 @@ export function BulkAddTaskFromPDF({
     }
   }, [streamedOutput]);
   
+  // Add an effect to automatically transition to review when optimization is complete
+  useEffect(() => {
+    if (optimizationComplete && parsedTasks && parsedTasks.length > 0 && isProcessing) {
+      // Give a delay to show the completion message
+      const timer = setTimeout(() => {
+        setIsProcessing(false); // This will trigger showing the review screen
+      }, 180000); // Changed from 1500 to 180000 (180 seconds)
+      
+      return () => clearTimeout(timer);
+    }
+  }, [optimizationComplete, parsedTasks, isProcessing]);
+  
   // Countdown effect after processing completes - only for error cases
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -913,6 +983,19 @@ export function BulkAddTaskFromPDF({
   const showProcessingCompleteView = processingComplete && error !== null;
   const showReviewView = !isProcessing && !processingComplete && parsedTasks !== null;
   
+  // Debug output for component state
+  console.log("Component State Debug:", {
+    isProcessing,
+    optimizationComplete,
+    processingComplete,
+    parsedTasks: parsedTasks ? `${parsedTasks.length} tasks` : null,
+    error,
+    showInputView,
+    showProcessingView,
+    showProcessingCompleteView,
+    showReviewView
+  });
+  
   // Function to toggle the thinking model
   const toggleThinkingModel = () => {
     const newValue = !useThinkingModel;
@@ -935,131 +1018,58 @@ export function BulkAddTaskFromPDF({
     // Removed popup notifications as requested
   };
   
-  // Function to handle the parsing and extraction of tasks from JSON text
-  const parseAndExtractTasks = (jsonString: string) => {
+  // Function to parse the JSON from the streamed output
+  const parseAndExtractTasks = (text: string): any[] => {
+    console.log('Attempting to extract tasks from text...');
+    
     try {
-      // This is the optimized case where we get back valid JSON
-      // In this case, we check if there's a 'tasks' array field or assume the whole response is the tasks array
-      let extractedTasks: any[] = [];
+      const taskMatch = text.match(/\[TASKS-JSON-START\]([\s\S]*?)\[TASKS-JSON-END\]/);
+      console.log('Task match found:', !!taskMatch);
       
-      try {
-        const parsedData = JSON.parse(jsonString);
+      if (taskMatch && taskMatch[1]) {
+        const taskJson = taskMatch[1].trim();
         
-        if (Array.isArray(parsedData)) {
-          // Direct array of tasks
-          extractedTasks = parsedData;
-        } else if (parsedData.tasks && Array.isArray(parsedData.tasks)) {
-          // Object with tasks array
-          extractedTasks = parsedData.tasks;
-        } else if (typeof parsedData === 'object' && parsedData !== null) {
-          // Single task object
-          extractedTasks = [parsedData];
-        }
-        
-        if (extractedTasks.length === 0) {
-          // Instead of throwing an error, treat this as a valid "no tasks found" state
-          console.log('No tasks could be extracted from the document');
-          setParsedTasks([]);
-          setNoTasksFound(true);
-          setIsProcessing(false);
-          return [];
-        }
-      } catch (jsonError) {
-        console.log("Couldn't parse as direct JSON, trying regex fallback", jsonError);
-        
-        // Step 1: Try to extract JSON array with title field (most specific)
-        const taskArrayPattern = /\[\s*\{\s*"title"[\s\S]*?\}\s*\]/;
-        const taskArrayMatch = jsonString.match(taskArrayPattern);
-        
-        if (taskArrayMatch) {
-          try {
-            extractedTasks = JSON.parse(taskArrayMatch[0]);
-            console.log("Extracted tasks using title pattern:", extractedTasks.length);
-          } catch (error) {
-            console.error("Failed to parse task array pattern match");
-          }
-        }
-        
-        // Step 2: If that failed, try to find the JSON array between the last system message
-        // and end of content
-        if (extractedTasks.length === 0) {
-          // Find the last system message
-          const systemMessageMatches = jsonString.match(/\[System:.*?\]/g);
+        try {
+          // Try to parse the JSON
+          const extractedTasks = JSON.parse(taskJson);
+          console.log('Successfully parsed task JSON, tasks count:', extractedTasks.length);
           
-          if (systemMessageMatches && systemMessageMatches.length > 0) {
-            // Get position of the last system message
-            const lastMessage = systemMessageMatches[systemMessageMatches.length - 1];
-            const lastMessagePos = jsonString.lastIndexOf(lastMessage);
+          if (extractedTasks && Array.isArray(extractedTasks) && extractedTasks.length > 0) {
+            // Process and validate tasks
+            const processedTasks = extractedTasks.map((task: any) => ({
+              title: task.title || 'Untitled Task',
+              details: task.details || '',
+              assignee: task.assignee || null,
+              group: task.group || null,
+              category: task.category || null, 
+              dueDate: task.dueDate || null,
+              priority: task.priority || 'Medium',
+              ticketNumber: task.ticketNumber || null,
+              externalUrl: task.externalUrl || null
+            }));
             
-            if (lastMessagePos !== -1) {
-              // Extract everything before the last system message
-              const contentBeforeLastMessage = jsonString.substring(0, lastMessagePos);
-              
-              // Look for JSON array pattern in that section
-              const arrayMatch = contentBeforeLastMessage.match(/(\[\s*\{[\s\S]*?\}\s*\])/);
-              
-              if (arrayMatch) {
-                try {
-                  extractedTasks = JSON.parse(arrayMatch[0]);
-                  console.log("Extracted tasks from content before last system message:", extractedTasks.length);
-                } catch (error) {
-                  console.error("Failed to parse array before system message");
-                }
-              }
-            }
+            setParsedTasks(processedTasks);
+            setOptimizationComplete(true);
+            setProcessingComplete(true);
+            setCurrentProcessStage('complete');
+            setUploadProgress(100);
+            
+            return processedTasks;
+          } else {
+            console.log('Extracted tasks array is empty or invalid');
+            throw new Error('No valid tasks found in the extracted JSON');
           }
+        } catch (jsonError) {
+          console.error('Error parsing JSON:', jsonError);
+          throw new Error(`Failed to parse task JSON: ${jsonError instanceof Error ? jsonError.message : 'Unknown error'}`);
         }
-        
-        // Step 3: Last attempt - try to find any array pattern
-        if (extractedTasks.length === 0) {
-          const generalArrayMatches = jsonString.match(/\[\s*\{[\s\S]*?\}\s*\]/g);
-          
-          if (generalArrayMatches && generalArrayMatches.length > 0) {
-            // Try each match until we find valid JSON
-            for (const match of generalArrayMatches) {
-              try {
-                const possibleTasks = JSON.parse(match);
-                if (Array.isArray(possibleTasks) && possibleTasks.length > 0 && 
-                    possibleTasks[0].title && typeof possibleTasks[0].title === 'string') {
-                  extractedTasks = possibleTasks;
-                  console.log("Extracted tasks from general array pattern:", extractedTasks.length);
-                  break;
-                }
-              } catch (error) {
-                // Continue to next match
-              }
-            }
-          }
-        }
-        
-        // If we still don't have tasks, we can consider this an error
-        if (extractedTasks.length === 0) {
-          // Handle empty tasks array as a valid state
-          console.log("No tasks found after all parsing attempts");
-          setParsedTasks([]);
-          setNoTasksFound(true);
-          return [];
-        }
+      } else {
+        console.log('No task match pattern found in the text');
+        throw new Error('No task JSON pattern found in the response');
       }
-      
-      // Process and validate tasks
-      const processedTasks = extractedTasks.map((task: any) => ({
-        title: task.title || 'Untitled Task',
-        details: task.details || '',
-        assignee: task.assignee || null,
-        group: task.group || null,
-        category: task.category || null,
-        dueDate: task.dueDate || null,
-        priority: task.priority || 'Medium',
-        ticketNumber: task.ticketNumber || null,
-        externalUrl: task.externalUrl || null
-      }));
-      
-      setParsedTasks(processedTasks);
-      return processedTasks;
-    } catch (error: any) {
-      console.error('Error parsing JSON:', error);
-      throw new Error(`Failed to extract tasks: ${error.message}`);
+    } catch (error) {
+      console.error('Error in parseAndExtractTasks:', error);
+      throw error;
     }
   };
   
@@ -1071,20 +1081,49 @@ export function BulkAddTaskFromPDF({
         throw new Error('No file selected for processing');
       }
       
+      // Update progress
+      setCurrentProcessStage('uploading');
+      setUploadProgress(processingStages[0].percent);
+      
       // Create new FormData without streaming flag
       const formDataDirect = new FormData();
-      formDataDirect.append('file', selectedFile);
+      
+      // Check if we're processing a text file extracted from Word
+      const isExtractedText = convertedPdfFile && 
+                             convertedPdfFile.type === "text/plain" && 
+                             convertedPdfFile.name.endsWith(".txt");
+      
+      if (isExtractedText && convertedPdfFile) {
+        // For Word documents, send the actual text content instead of the file
+        const textContent = await convertedPdfFile.text();
+        formDataDirect.append('textContent', textContent);
+        formDataDirect.append('isExtractedText', 'true'); // Flag to indicate this is extracted text
+        formDataDirect.append('originalFileName', selectedFile.name || ''); // Original filename for context
+      } else {
+        // For PDF files, send the file as usual
+        formDataDirect.append('file', selectedFile);
+      }
+      
       formDataDirect.append('technicians', JSON.stringify(technicians.map(tech => ({ id: tech.id, name: tech.name }))));
       formDataDirect.append('groups', JSON.stringify(groups.map(group => ({ id: group.id, name: group.name }))));
       formDataDirect.append('categories', JSON.stringify(categories.map(cat => ({ id: cat.id, value: cat.value }))));
       formDataDirect.append('useThinkingModel', useThinkingModel.toString());
       formDataDirect.append('isMeetingTranscript', isMeetingTranscript.toString());
       
+      // Indicate we're making the request
+      setCurrentProcessStage('initializing');
+      setUploadProgress(processingStages[1].percent);
+      setStreamedOutput(prev => prev + "\n\n[System: Making direct API request for task extraction...]\n");
+      
       // Make direct request
       const directResponse = await fetch('/api/gemini/extract-tasks-from-pdf', {
         method: 'POST',
         body: formDataDirect,
       });
+      
+      // Processing response
+      setCurrentProcessStage('extracting');
+      setUploadProgress(processingStages[3].percent);
       
       if (!directResponse.ok) {
         const errorData = await directResponse.json();
@@ -1100,8 +1139,15 @@ export function BulkAddTaskFromPDF({
         setProcessingComplete(true);
         setOptimizationComplete(true);
         setNoTasksFound(true);
+        setCurrentProcessStage('complete');
+        setUploadProgress(processingStages[5].percent);
         return;
       }
+      
+      // Successfully got tasks, update progress
+      setCurrentProcessStage('complete');
+      setUploadProgress(processingStages[5].percent);
+      setStreamedOutput(prev => prev + `\n\n[System: Successfully extracted ${extractedTasks.length} tasks directly]\n`);
       
       // Process and validate tasks
       const processedTasks = extractedTasks.map((task: any) => ({
@@ -1137,7 +1183,12 @@ export function BulkAddTaskFromPDF({
   
   // Add a function to handle user confirmation
   const handleConfirmOptimization = () => {
-    setOptimizationComplete(false); // Reset for next time
+    // Ensure progress bar is at 100% before ending processing
+    setCurrentProcessStage('complete');
+    setUploadProgress(100);
+    
+    // Then reset states for next time
+    setOptimizationComplete(false); 
     setIsProcessing(false); // Now end processing and move to review
   };
   
@@ -1413,6 +1464,93 @@ export function BulkAddTaskFromPDF({
     }
   };
   
+  // Update processing stages when meeting transcript mode changes
+  useEffect(() => {
+    setProcessingStages([
+      { stage: 'Uploading Document', percent: 1 },
+      { stage: 'Initializing Analysis', percent: 15 },
+      { stage: isMeetingTranscript ? 'Creating Meeting Summary' : 'Reading Document', percent: isMeetingTranscript ? 30 : 20 },
+      { stage: 'Extracting Tasks', percent: 70 },
+      { stage: 'Optimizing Results', percent: 95 },
+      { stage: 'Complete', percent: 100 },
+    ]);
+  }, [isMeetingTranscript]);
+  
+  // Function to make progress bar continuously increase during long operations
+  const useProgressIncrementer = (currentStage: string, currentProgress: number, targetPercent?: number) => {
+    useEffect(() => {
+      let incrementInterval: NodeJS.Timeout | undefined;
+      const currentStageInfo = processingStages.find(stage => stage.stage.toLowerCase().includes(currentStage));
+      const currentTarget = targetPercent || (currentStageInfo?.percent || 0);
+      const previousStageInfo = processingStages.findIndex(stage => stage.stage.toLowerCase().includes(currentStage)) > 0 
+        ? processingStages[processingStages.findIndex(stage => stage.stage.toLowerCase().includes(currentStage)) - 1] 
+        : { percent: 0 };
+      
+      // Only increment if we're in an active stage and not at target
+      if (currentStage !== 'complete' && currentStage !== '' && currentProgress < currentTarget) {
+        // Start from current progress or previous stage's percentage
+        const startPercent = currentProgress > previousStageInfo.percent ? currentProgress : previousStageInfo.percent;
+        
+        // Calculate small increment steps (0.2-0.5% per interval)
+        const totalIncrements = Math.max(10, (currentTarget - startPercent) * 2); // At least 10 steps
+        const incrementSize = (currentTarget - startPercent) / totalIncrements;
+        const incrementTime = 300; // 300ms between increments
+        
+        setUploadProgress(startPercent);
+        
+        incrementInterval = setInterval(() => {
+          setUploadProgress(prev => {
+            // Stop just short of target to avoid overshooting
+            if (prev >= currentTarget - incrementSize) {
+              if (incrementInterval) clearInterval(incrementInterval);
+              return prev;
+            }
+            return Math.min(prev + incrementSize, currentTarget);
+          });
+        }, incrementTime);
+      }
+      
+      return () => {
+        if (incrementInterval) clearInterval(incrementInterval);
+      };
+    }, [currentStage, currentProgress, targetPercent, processingStages]);
+  };
+  
+  // Use the incremented progress
+  useProgressIncrementer(currentProcessStage, uploadProgress, undefined);
+  
+  // Function to ensure progress bar always reaches 100% when process is complete
+  const ensureFullProgress = () => {
+    if (processingComplete || optimizationComplete) {
+      setCurrentProcessStage('complete');
+      setUploadProgress(100);
+    }
+  };
+
+  // Call this function whenever processing or optimization state changes
+  useEffect(() => {
+    ensureFullProgress();
+  }, [processingComplete, optimizationComplete]);
+
+  // Also ensure progress is complete when the Review Tasks button should be shown
+  useEffect(() => {
+    const shouldShowReviewButton = !isProcessing && optimizationComplete && parsedTasks && parsedTasks.length > 0;
+    if (shouldShowReviewButton) {
+      setCurrentProcessStage('complete');
+      setUploadProgress(100);
+    }
+  }, [isProcessing, optimizationComplete, parsedTasks]);
+  
+  // Ensure progress bar is complete when we exit processing view
+  useEffect(() => {
+    const showProcessingView = isProcessing && !noTasksFound;
+    if (!showProcessingView && processingComplete) {
+      // If we're exiting the processing view, ensure progress is at 100%
+      setCurrentProcessStage('complete');
+      setUploadProgress(100);
+    }
+  }, [isProcessing, noTasksFound, processingComplete]);
+  
   return (
     <div className="space-y-4 bg-white dark:bg-gray-800 rounded-md">
       {error && (
@@ -1536,40 +1674,40 @@ export function BulkAddTaskFromPDF({
           
           {/* Thinking model and transcript toggles */}
           <div className="space-y-3">
-            {/* Thinking model toggle */}
-            <div className="flex items-center">
-              <label htmlFor="thinking-model-toggle" className="flex items-center cursor-pointer">
-                <div className="relative inline-flex items-center">
-                  <input 
-                    type="checkbox" 
-                    id="thinking-model-toggle" 
-                    className="sr-only"
-                    checked={useThinkingModel}
-                    onChange={toggleThinkingModel} 
+          {/* Thinking model toggle */}
+          <div className="flex items-center">
+            <label htmlFor="thinking-model-toggle" className="flex items-center cursor-pointer">
+              <div className="relative inline-flex items-center">
+                <input 
+                  type="checkbox" 
+                  id="thinking-model-toggle" 
+                  className="sr-only"
+                  checked={useThinkingModel}
+                  onChange={toggleThinkingModel} 
                     disabled={isMeetingTranscript} // Disable if transcript mode is on as it requires thinking model
-                  />
-                  <div className={`w-11 h-6 rounded-full transition-colors ${useThinkingModel ? 'bg-purple-600' : 'bg-gray-200 dark:bg-gray-700'}`}>
-                    <div className={`transform transition-transform duration-200 ease-in-out h-5 w-5 rounded-full bg-white border border-gray-300 inline-block ${useThinkingModel ? 'translate-x-6' : 'translate-x-1'}`} style={{marginTop: '2px'}}></div>
-                  </div>
-                  <span className="ml-3 text-sm font-medium text-gray-900 dark:text-gray-300">
-                    Use Gemini Thinking Model
-                  </span>
+                />
+                <div className={`w-11 h-6 rounded-full transition-colors ${useThinkingModel ? 'bg-purple-600' : 'bg-gray-200 dark:bg-gray-700'}`}>
+                  <div className={`transform transition-transform duration-200 ease-in-out h-5 w-5 rounded-full bg-white border border-gray-300 inline-block ${useThinkingModel ? 'translate-x-6' : 'translate-x-1'}`} style={{marginTop: '2px'}}></div>
                 </div>
-              </label>
-              <div className="relative ml-2 group">
-                <button
-                  type="button"
-                  className="text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400"
-                  aria-label="More information about thinking model"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-                  </svg>
-                </button>
-                <div className="absolute hidden group-hover:block bg-black text-white text-xs rounded py-1 px-2 z-10 bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-60">
-                  Uses Gemini 2.5 Pro&apos;s enhanced reasoning capabilities for better task extraction. May improve accuracy for complex documents.
-                  <div className="absolute left-1/2 transform -translate-x-1/2 top-full">
-                    <div className="w-2 h-2 bg-black rotate-45"></div>
+                <span className="ml-3 text-sm font-medium text-gray-900 dark:text-gray-300">
+                  Use Gemini Thinking Model
+                </span>
+              </div>
+            </label>
+            <div className="relative ml-2 group">
+              <button
+                type="button"
+                className="text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400"
+                aria-label="More information about thinking model"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                </svg>
+              </button>
+              <div className="absolute hidden group-hover:block bg-black text-white text-xs rounded py-1 px-2 z-10 bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-60">
+                Uses Gemini 2.5 Pro&apos;s enhanced reasoning capabilities for better task extraction. May improve accuracy for complex documents.
+                <div className="absolute left-1/2 transform -translate-x-1/2 top-full">
+                  <div className="w-2 h-2 bg-black rotate-45"></div>
                   </div>
                 </div>
               </div>
@@ -1667,53 +1805,69 @@ export function BulkAddTaskFromPDF({
             </h3>
           </div>
           
-          {/* Progress bar */}
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-4">
-            <div 
-              className={`h-2 rounded-full ${
-                useThinkingModel ? 'bg-purple-500 dark:bg-purple-400' : 'bg-blue-500 dark:bg-blue-400'
-              }`}
-              style={{ width: `${uploadProgress}%` }}
-            ></div>
+          {/* Progress bar with stage label */}
+          <div className="w-full space-y-1 mb-4">
+            <div className="mb-4">
+              <div className="mb-1 flex justify-between items-center">
+                <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {currentProcessStage === 'uploading' && 'Uploading Document'}
+                  {currentProcessStage === 'initializing' && 'Initializing Analysis'}
+                  {currentProcessStage === 'creating' && 'Creating Meeting Summary'}
+                  {currentProcessStage === 'reading' && 'Reading Document Content'}
+                  {currentProcessStage === 'extracting' && 'Extracting Tasks'}
+                  {currentProcessStage === 'optimizing' && 'Optimizing Results'}
+                  {currentProcessStage === 'complete' && 'Processing Complete'}
+                </div>
+                <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                  {Math.round(uploadProgress)}%
+                </span>
+              </div>
+              <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-blue-500 dark:bg-blue-400 transition-all duration-500 ease-out rounded-full"
+                  style={{ width: `${uploadProgress}%` }}
+                ></div>
+              </div>
+            </div>
           </div>
           
           {/* Output display */}
           <div>
-            <div
-              ref={streamOutputRef}
+              <div 
+                ref={streamOutputRef}
               className={`font-mono text-sm overflow-auto max-h-96 p-4 border ${
-                useThinkingModel 
-                  ? 'border-purple-200 dark:border-purple-800' 
-                  : 'border-gray-200 dark:border-gray-800'
+                  useThinkingModel 
+                    ? 'border-purple-200 dark:border-purple-800' 
+                    : 'border-gray-200 dark:border-gray-800'
               } rounded-lg bg-white dark:bg-gray-900 whitespace-pre-wrap`}
             >
               <HighlightedOutput text={streamedOutput} />
               <div className="h-4"></div>
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">
               {optimizationComplete 
                 ? 'Optimization complete. Review the output above before continuing.'
                 : `Gemini ${useThinkingModel ? 'Thinking' : 'AI'} is analyzing your document and extracting tasks in real-time`}
-            </p>
-          </div>
+              </p>
+            </div>
           
           {/* Buttons with better layout */}
           {optimizationComplete && (
             <div className="flex justify-between mt-4">
-              <button
-                type="button"
-                onClick={onCancel}
+          <button
+            type="button"
+            onClick={onCancel}
                 className="px-4 py-2 border-2 border-gray-300 dark:border-gray-700 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              >
-                Cancel
-              </button>
+          >
+            Cancel
+          </button>
               
               <button
                 onClick={handleConfirmOptimization}
                 className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
               >
                 Review Tasks
-              </button>
+          </button>
             </div>
           )}
           
@@ -1742,9 +1896,9 @@ export function BulkAddTaskFromPDF({
               ? 'bg-red-100 dark:bg-red-900/30' 
               : noTasksFound
                 ? 'bg-amber-100 dark:bg-amber-900/30'
-                : useThinkingModel 
-                  ? 'bg-purple-100 dark:bg-purple-900/30' 
-                  : 'bg-green-100 dark:bg-green-900/30'
+              : useThinkingModel 
+                ? 'bg-purple-100 dark:bg-purple-900/30' 
+                : 'bg-green-100 dark:bg-green-900/30'
           } rounded-full flex items-center justify-center`}>
             {error ? (
               <svg className="w-10 h-10 text-red-600 dark:text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -1772,17 +1926,17 @@ export function BulkAddTaskFromPDF({
                 ? 'text-red-600 dark:text-red-400' 
                 : noTasksFound
                   ? 'text-amber-600 dark:text-amber-400'
-                  : useThinkingModel 
-                    ? 'text-purple-600 dark:text-purple-400' 
-                    : 'text-green-600 dark:text-green-400'
+                : useThinkingModel 
+                  ? 'text-purple-600 dark:text-purple-400' 
+                  : 'text-green-600 dark:text-green-400'
             }`}>
               {error 
                 ? 'Error Processing Document' 
                 : noTasksFound
                   ? 'No Tasks Found'
-                  : useThinkingModel 
-                    ? 'Thinking Analysis Complete!' 
-                    : 'Document Analysis Complete!'
+                : useThinkingModel 
+                  ? 'Thinking Analysis Complete!' 
+                  : 'Document Analysis Complete!'
               }
             </h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -1790,8 +1944,8 @@ export function BulkAddTaskFromPDF({
                 ? error 
                 : noTasksFound
                   ? 'No tasks could be extracted from this document. The document may not contain any task descriptions or action items.'
-                  : `We found ${parsedTasks?.length || 0} tasks in your document using
-                     ${useThinkingModel ? ' Gemini Thinking with enhanced reasoning' : ' Gemini standard analysis'}.`
+                : `We found ${parsedTasks?.length || 0} tasks in your document using
+                   ${useThinkingModel ? ' Gemini Thinking with enhanced reasoning' : ' Gemini standard analysis'}.`
               }
             </p>
           </div>
@@ -1804,17 +1958,17 @@ export function BulkAddTaskFromPDF({
                   ? 'bg-red-500' 
                   : noTasksFound
                     ? 'bg-amber-500'
-                    : useThinkingModel 
-                      ? 'bg-purple-500' 
-                      : 'bg-green-500'
+                  : useThinkingModel 
+                    ? 'bg-purple-500' 
+                    : 'bg-green-500'
               } mr-2`}></span>
               {error 
                 ? 'Error Details:' 
                 : noTasksFound
                   ? 'Details:'
-                  : useThinkingModel 
-                    ? 'Gemini Thinking output:' 
-                    : 'Analysis output:'
+                : useThinkingModel 
+                  ? 'Gemini Thinking output:' 
+                  : 'Analysis output:'
               }
             </h3>
             <div 
@@ -1824,9 +1978,9 @@ export function BulkAddTaskFromPDF({
                   ? 'border-red-200 dark:border-red-800'
                   : noTasksFound
                     ? 'border-amber-200 dark:border-amber-800'
-                    : useThinkingModel 
-                      ? 'border-purple-200 dark:border-purple-800' 
-                      : 'border-gray-200 dark:border-gray-800'
+                  : useThinkingModel 
+                    ? 'border-purple-200 dark:border-purple-800' 
+                    : 'border-gray-200 dark:border-gray-800'
               } rounded-lg p-4 h-64 overflow-auto font-mono text-xs relative`}
             >
               {streamedOutput.split('\n').map((line, i) => (
