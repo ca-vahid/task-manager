@@ -579,21 +579,33 @@ export async function POST(req: Request) {
   try {
     const formData = await req.formData();
     
-    // Get the PDF file from the request
-    const file = formData.get('file') as File;
-    if (!file) {
-      return NextResponse.json({ error: "No file was provided" }, { status: 400 });
-    }
+    // Check if this is extracted text content from a Word document
+    const isExtractedText = formData.get('isExtractedText') === 'true';
+    const textContent = formData.get('textContent') as string;
+    const originalFileName = formData.get('originalFileName') as string;
     
-    // Validate file - we only need to check if it's a PDF since Word documents 
-    // are converted to PDF on the client side before being sent
-    if (file.type !== 'application/pdf') {
-      return NextResponse.json({ error: "Only PDF files are supported. Word documents should be converted to PDF before uploading." }, { status: 400 });
-    }
+    let base64File = '';
     
-    // Get the file content as base64
-    const fileBuffer = await file.arrayBuffer();
-    const base64File = Buffer.from(fileBuffer).toString('base64');
+    if (isExtractedText && textContent) {
+      // For extracted text content, we'll encode it as base64
+      console.log('Processing extracted text from Word document:', originalFileName);
+      base64File = Buffer.from(textContent).toString('base64');
+    } else {
+      // Get the PDF file from the request
+      const file = formData.get('file') as File;
+      if (!file) {
+        return NextResponse.json({ error: "No file or text content was provided" }, { status: 400 });
+      }
+      
+      // Validate file type for PDFs
+      if (!isExtractedText && file.type !== 'application/pdf') {
+        return NextResponse.json({ error: "Only PDF files are supported. Word documents should be converted to text before uploading." }, { status: 400 });
+      }
+      
+      // Get the file content as base64
+      const fileBuffer = await file.arrayBuffer();
+      base64File = Buffer.from(fileBuffer).toString('base64');
+    }
     
     // Get context data from the request
     const techniciansJson = formData.get('technicians') as string;
@@ -616,7 +628,8 @@ export async function POST(req: Request) {
       groups,
       categories,
       useThinkingModel,
-      isMeetingTranscript
+      isMeetingTranscript,
+      isExtractedText
     );
     
   } catch (error: any) {
@@ -639,7 +652,8 @@ async function handleStreamingRequest(
   groups: any[],
   categories: any[],
   useThinkingModel: boolean,
-  isMeetingTranscript = false // Add this parameter with default value
+  isMeetingTranscript = false, // Add this parameter with default value
+  isExtractedText = false // Add this parameter to indicate text content
 ) {
   // Transcript processing requires thinking model
   if (isMeetingTranscript) {
@@ -674,7 +688,8 @@ async function handleStreamingRequest(
     async start(controller) {
       try {
         // Add initial processing update
-        controller.enqueue(new TextEncoder().encode(`📃 Analyzing ${isMeetingTranscript ? 'meeting transcript' : 'document'}\n${modelTypeMsg}\n\n`));
+        const documentType = isExtractedText ? 'Word document' : 'PDF document';
+        controller.enqueue(new TextEncoder().encode(`📃 Analyzing ${isMeetingTranscript ? 'meeting transcript' : documentType}\n${modelTypeMsg}\n\n`));
         
         // For meeting transcripts, we first summarize the meeting
         let meetingSummary = '';
@@ -726,16 +741,21 @@ async function handleStreamingRequest(
             When you've completed the summary, state "MEETING SUMMARY COMPLETE".
           `;
           
-          // Create the initial PDF content as attachment
-          const summaryMessageContent = [
-            { text: summaryPrompt },
-            { 
-              inlineData: {
-                mimeType: 'application/pdf',
-                data: base64File
-              }
-            }
-          ];
+          // Create the initial content as attachment
+          const summaryMessageContent = isExtractedText
+            ? [
+                { text: summaryPrompt },
+                { text: Buffer.from(base64File, 'base64').toString() }
+              ]
+            : [
+                { text: summaryPrompt },
+                { 
+                  inlineData: {
+                    mimeType: 'application/pdf',
+                    data: base64File
+                  }
+                }
+              ];
           
           // Create a chat instance for meeting summary
           const summaryChat = genAI.chats.create({
@@ -826,13 +846,13 @@ async function handleStreamingRequest(
           // Regular document processing
           // Generate the initial prompt for Gemini
           initialPrompt = `
-            You are a task extraction assistant that analyzes PDFs to identify tasks.
+            You are a task extraction assistant that analyzes ${isExtractedText ? 'document text' : 'PDFs'} to identify tasks.
             
             ${technicianContext}
             ${groupContext}
             ${categoryContext}
             
-            Please analyze the attached PDF document and extract tasks that need to be done.
+            Please analyze the ${isExtractedText ? 'text content' : 'attached PDF document'} and extract tasks that need to be done.
             
             For each task, extract:
             
@@ -846,9 +866,9 @@ async function handleStreamingRequest(
             8. Ticket number - If mentioned in the document
             9. External URL - If mentioned in the document
             
-            Extract as many tasks as you can find in the document. If information isn't available for certain fields, set them to null.
+            Extract as many tasks as you can find in the ${isExtractedText ? 'text' : 'document'}. If information isn't available for certain fields, set them to null.
             
-            ${useThinkingModel ? 'As you analyze the document, please provide your thoughts and reasoning throughout the process so I can see your work.' : ''}
+            ${useThinkingModel ? 'As you analyze the content, please provide your thoughts and reasoning throughout the process so I can see your work.' : ''}
 
             Format your response as valid JSON in this structure:
             {
@@ -868,16 +888,25 @@ async function handleStreamingRequest(
             }
           `;
 
-          // Initial PDF content as attachment
-          initialMessageContent = [
-            { text: initialPrompt },
-            { 
-              inlineData: {
-                mimeType: 'application/pdf',
-                data: base64File
+          // Set up initialMessageContent based on content type
+          if (isExtractedText) {
+            // For extracted text, send as plain text
+            initialMessageContent = [
+              { text: initialPrompt },
+              { text: Buffer.from(base64File, 'base64').toString() }
+            ];
+          } else {
+            // For PDF, send as attachment
+            initialMessageContent = [
+              { text: initialPrompt },
+              { 
+                inlineData: {
+                  mimeType: 'application/pdf',
+                  data: base64File
+                }
               }
-            }
-          ];
+            ];
+          }
         }
 
         // For the thinking model, set up the generation config

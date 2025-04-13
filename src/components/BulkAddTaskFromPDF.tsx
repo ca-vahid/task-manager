@@ -406,7 +406,24 @@ export function BulkAddTaskFromPDF({
     try {
       // Create a FormData object to send the file and context
       const formData = new FormData();
-      formData.append('file', fileToProcess);
+      
+      // Check if this is a text file extracted from Word
+      const isExtractedText = fileToProcess.type === "text/plain" && 
+                              fileToProcess.name.endsWith(".txt") && 
+                              convertedPdfFile === fileToProcess;
+      
+      if (isExtractedText) {
+        // For word documents, send the actual text content instead of the file
+        const textContent = await fileToProcess.text();
+        formData.append('textContent', textContent);
+        formData.append('isExtractedText', 'true'); // Flag to indicate this is extracted text
+        formData.append('originalFileName', selectedFile?.name || ''); // Original filename for context
+      } else {
+        // For PDF files, send the file as usual
+        formData.append('file', fileToProcess);
+      }
+      
+      // Add common form data
       formData.append('technicians', JSON.stringify(technicians.map(tech => ({ id: tech.id, name: tech.name }))));
       formData.append('groups', JSON.stringify(groups.map(group => ({ id: group.id, name: group.name }))));
       formData.append('categories', JSON.stringify(categories.map(cat => ({ id: cat.id, value: cat.value }))));
@@ -429,10 +446,7 @@ export function BulkAddTaskFromPDF({
       // Store the interval reference for cleanup
       progressIntervalRef.current = progressInterval;
       
-      // ------------------------------------
-      // Streaming approach for all models
-      // ------------------------------------
-      // Send the file to the API for streaming analysis
+      // Send the file or text to the API for streaming analysis
       const response = await fetch('/api/gemini/extract-tasks-from-pdf', {
         method: 'POST',
         body: formData,
