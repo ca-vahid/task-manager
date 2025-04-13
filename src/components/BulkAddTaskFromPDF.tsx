@@ -250,6 +250,7 @@ export function BulkAddTaskFromPDF({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const streamOutputRef = useRef<HTMLDivElement>(null);
   const meetingSummaryRef = useRef<string | null>(null);
+  const meetingTitleRef = useRef<string>("Meeting Summary");
   
   // Add a ref for the progress interval:
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -508,6 +509,20 @@ export function BulkAddTaskFromPDF({
             // Add to the summary if we're collecting it
             else if (isMeetingTranscript && meetingSummaryRef.current !== null && !chunk.includes('[MEETING-SUMMARY-DATA-END]')) {
               meetingSummaryRef.current += chunk;
+            }
+            
+            // Check if this chunk contains meeting title data
+            if (isMeetingTranscript && chunk.includes('[MEETING-TITLE-DATA]')) {
+              const startMarker = '[MEETING-TITLE-DATA]';
+              const endMarker = '[/MEETING-TITLE-DATA]';
+              
+              // If we have the complete title in this chunk
+              if (chunk.includes(startMarker) && chunk.includes(endMarker)) {
+                const startIndex = chunk.indexOf(startMarker) + startMarker.length;
+                const endIndex = chunk.indexOf(endMarker);
+                const titleContent = chunk.substring(startIndex, endIndex).trim();
+                meetingTitleRef.current = titleContent || "Meeting Summary";
+              }
             }
             
             // Update the UI with each received chunk
@@ -1158,7 +1173,7 @@ export function BulkAddTaskFromPDF({
       let currentPage = page;
       
       // Add title
-      currentPage.drawText('Meeting Summary', {
+      currentPage.drawText(meetingTitleRef.current, {
         x: margin,
         y,
         size: titleSize,
@@ -1375,12 +1390,20 @@ export function BulkAddTaskFromPDF({
       // Save the PDF
       const pdfBytes = await pdfDoc.save();
       
+      // Create a download link with a unique filename based on meeting title and date
+      const sanitizedTitle = meetingTitleRef.current
+        .replace(/[^a-z0-9\s-]/gi, '') // Remove special characters
+        .replace(/\s+/g, '_'); // Replace spaces with underscores
+      
+      const dateStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      const filename = `${sanitizedTitle}_${dateStr}.pdf`;
+      
       // Create a download link
       const blob = new Blob([pdfBytes], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'meeting-summary.pdf';
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       

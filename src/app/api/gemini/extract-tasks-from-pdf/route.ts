@@ -701,7 +701,7 @@ async function handleStreamingRequest(
           // Step 1: Create a meeting summary first
           controller.enqueue(new TextEncoder().encode("🔍 Step 1: Creating meeting summary from transcript...\n\n"));
           
-          // Generate the meeting summary prompt
+          // Modify the meeting summary prompt to include a request for a meeting title
           const summaryPrompt = `
             You're analyzing a transcript of a meeting with multiple participants. 
             
@@ -715,7 +715,7 @@ async function handleStreamingRequest(
             Format your response as a well-structured meeting summary with clear sections and bullet points where appropriate.
             Use this format:
             
-            # MEETING SUMMARY
+            # MEETING TITLE: [Create a short, descriptive title for this meeting based on its content]
             
             ## Overview
             [Provide a brief overview of the meeting purpose and participants]
@@ -728,6 +728,11 @@ async function handleStreamingRequest(
             ## Key Decisions
             - [Decision 1]
             - [Decision 2]
+            ...
+            
+            ## Problems & Challenges Identified
+            - [Problem 1]
+            - [Problem 2]
             ...
             
             ## Action Items & Tasks
@@ -774,6 +779,16 @@ async function handleStreamingRequest(
               controller.enqueue(new TextEncoder().encode(chunk.text));
             }
           }
+          
+          // After collecting the meeting summary, extract the meeting title for later use
+          let meetingTitle = "Meeting Summary";
+          const titleMatch = meetingSummary.match(/# MEETING TITLE: ([^\n]+)/);
+          if (titleMatch && titleMatch[1]) {
+            meetingTitle = titleMatch[1].trim();
+          }
+          
+          // Add the title to the meeting summary data markers for the client to extract
+          controller.enqueue(new TextEncoder().encode("\n\n[MEETING-TITLE-DATA]" + meetingTitle + "[/MEETING-TITLE-DATA]\n\n"));
           
           // Check if meeting summary is complete
           if (!meetingSummary.includes("MEETING SUMMARY COMPLETE")) {
