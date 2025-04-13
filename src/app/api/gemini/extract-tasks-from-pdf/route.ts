@@ -600,12 +600,14 @@ export async function POST(req: Request) {
     const groupsJson = formData.get('groups') as string;
     const categoriesJson = formData.get('categories') as string;
     const useThinkingModelStr = formData.get('useThinkingModel') as string;
+    const isMeetingTranscriptStr = formData.get('isMeetingTranscript') as string;
     
     // Parse JSON strings into objects
     const technicians = techniciansJson ? JSON.parse(techniciansJson) : [];
     const groups = groupsJson ? JSON.parse(groupsJson) : [];
     const categories = categoriesJson ? JSON.parse(categoriesJson) : [];
     const useThinkingModel = useThinkingModelStr === 'true';
+    const isMeetingTranscript = isMeetingTranscriptStr === 'true';
     
     // Always use streaming for better UX
     return await handleStreamingRequest(
@@ -613,7 +615,8 @@ export async function POST(req: Request) {
       technicians,
       groups,
       categories,
-      useThinkingModel
+      useThinkingModel,
+      isMeetingTranscript
     );
     
   } catch (error: any) {
@@ -628,19 +631,30 @@ export async function POST(req: Request) {
   }
 }
 
-// Original streaming implementation (used when streamOutput=true)
+// Add meeting transcript processing to handleStreamingRequest function
+
 async function handleStreamingRequest(
   base64File: string,
   technicians: any[],
   groups: any[],
   categories: any[],
-  useThinkingModel: boolean
+  useThinkingModel: boolean,
+  isMeetingTranscript = false // Add this parameter with default value
 ) {
+  // Transcript processing requires thinking model
+  if (isMeetingTranscript) {
+    useThinkingModel = true;
+  }
+
   // Select the appropriate model based on user preference
   const MODEL = useThinkingModel ? THINKING_MODEL : STANDARD_MODEL;
   
   // Start with a progress update for better UX
-  const modelTypeMsg = useThinkingModel ? "Using Gemini Thinking model..." : "Using Gemini standard model...";
+  const modelTypeMsg = useThinkingModel 
+    ? isMeetingTranscript 
+      ? "Using Gemini Thinking model for transcript processing..." 
+      : "Using Gemini Thinking model..."
+    : "Using Gemini standard model...";
   
   // Create context strings for technicians, groups, and categories
   const technicianContext = technicians.length > 0 
@@ -655,91 +669,237 @@ async function handleStreamingRequest(
     ? `Available categories: ${categories.map((cat: any) => cat.value).join(', ')}.`
     : 'No categories specified.';
   
-  // Generate the initial prompt for Gemini
-  const initialPrompt = `
-    You are a task extraction assistant that analyzes PDFs to identify tasks.
-    
-    ${technicianContext}
-    ${groupContext}
-    ${categoryContext}
-    
-    Please analyze the attached PDF document and extract tasks that need to be done.
-    
-    For each task, extract:
-    
-    1. Title - A clear, concise title that summarizes the task
-    2. Details - A detailed explanation of what the task involves, formatted as HTML with proper paragraphs, lists, and basic formatting
-    3. Assignee - The person assigned to the task (from the available technicians if mentioned)
-    4. Group - The group responsible for the task (from the available groups if mentioned)
-    5. Category - The most appropriate category for the task (from the available categories)
-    6. Due date - Preferred in YYYY-MM-DD format if mentioned, otherwise null
-    7. Priority - Low, Medium, High, or Critical based on urgency mentioned
-    8. Ticket number - If mentioned in the document
-    9. External URL - If mentioned in the document
-    
-    Extract as many tasks as you can find in the document. If information isn't available for certain fields, set them to null.
-    
-    ${useThinkingModel ? 'As you analyze the document, please provide your thoughts and reasoning throughout the process so I can see your work.' : ''}
-
-    Format your response as valid JSON in this structure:
-    {
-      "tasks": [
-        {
-          "title": "Task title",
-          "details": "<p>Task details as HTML</p>",
-          "assignee": "Name of assignee or null",
-          "group": "Group name or null",
-          "category": "Category value or null",
-          "dueDate": "YYYY-MM-DD or null",
-          "priority": "Low|Medium|High|Critical",
-          "ticketNumber": "Ticket number or null",
-          "externalUrl": "URL or null"
-        }
-      ]
-    }
-  `;
-
-  // For the thinking model, set up the generation config
-  const generationConfig = useThinkingModel ? {
-    responseStructure: { schema: TASK_SCHEMA }
-  } : {};
-
-  // Initial PDF content as attachment
-  const initialMessageContent = [
-    { text: initialPrompt },
-    { 
-      inlineData: {
-        mimeType: 'application/pdf',
-        data: base64File
-      }
-    }
-  ];
-
-  // Create a chat instance to maintain conversation context
-  const chat = genAI.chats.create({
-    model: MODEL,
-    ...(useThinkingModel ? { generationConfig } : {})
-  });
-
-  // Start streaming with the initial PDF content
-  let streamResponseText = '';
-  
   // Create a text-decoder stream for the Gemini response
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        // Add processing update
-        controller.enqueue(new TextEncoder().encode(`📃 Analyzing PDF document\n${modelTypeMsg}\n\n`));
+        // Add initial processing update
+        controller.enqueue(new TextEncoder().encode(`📃 Analyzing ${isMeetingTranscript ? 'meeting transcript' : 'document'}\n${modelTypeMsg}\n\n`));
         
-        // Send the initial message with PDF
+        // For meeting transcripts, we first summarize the meeting
+        let meetingSummary = '';
+        let initialPrompt = '';
+        let initialMessageContent = [];
+        let streamResponseText = '';
+        
+        if (isMeetingTranscript) {
+          // Step 1: Create a meeting summary first
+          controller.enqueue(new TextEncoder().encode("🔍 Step 1: Creating meeting summary from transcript...\n\n"));
+          
+          // Generate the meeting summary prompt
+          const summaryPrompt = `
+            You're analyzing a transcript of a meeting with multiple participants. 
+            
+            First, create a detailed summary of the meeting that addresses:
+            
+            1. Main topics discussed
+            2. Key decisions made
+            3. Any identified problems or challenges
+            4. Important action items or tasks mentioned
+            
+            Format your response as a well-structured meeting summary with clear sections and bullet points where appropriate.
+            Use this format:
+            
+            # MEETING SUMMARY
+            
+            ## Overview
+            [Provide a brief overview of the meeting purpose and participants]
+            
+            ## Main Topics Discussed
+            - [Topic 1]
+            - [Topic 2]
+            ...
+            
+            ## Key Decisions
+            - [Decision 1]
+            - [Decision 2]
+            ...
+            
+            ## Action Items & Tasks
+            - [Task 1]
+            - [Task 2]
+            ...
+            
+            ## Follow-up
+            [Any scheduled follow-up meetings or deadlines mentioned]
+            
+            When you've completed the summary, state "MEETING SUMMARY COMPLETE".
+          `;
+          
+          // Create the initial PDF content as attachment
+          const summaryMessageContent = [
+            { text: summaryPrompt },
+            { 
+              inlineData: {
+                mimeType: 'application/pdf',
+                data: base64File
+              }
+            }
+          ];
+          
+          // Create a chat instance for meeting summary
+          const summaryChat = genAI.chats.create({
+            model: THINKING_MODEL // Always use thinking model for summaries
+          });
+          
+          // Start streaming the summary process
+          const summaryStream = await summaryChat.sendMessageStream({
+            message: summaryMessageContent
+          });
+          
+          // Process the summary stream
+          for await (const chunk of summaryStream) {
+            if (chunk && chunk.text) {
+              meetingSummary += chunk.text;
+              controller.enqueue(new TextEncoder().encode(chunk.text));
+            }
+          }
+          
+          // Check if meeting summary is complete
+          if (!meetingSummary.includes("MEETING SUMMARY COMPLETE")) {
+            // Ask for completion
+            controller.enqueue(new TextEncoder().encode("\n\n[System: Summary seems incomplete. Requesting completion...]\n\n"));
+            
+            const completionStream = await summaryChat.sendMessageStream({
+              message: "Please complete the meeting summary. When finished, state 'MEETING SUMMARY COMPLETE'."
+            });
+            
+            // Process the completion stream
+            for await (const chunk of completionStream) {
+              if (chunk && chunk.text) {
+                meetingSummary += chunk.text;
+                controller.enqueue(new TextEncoder().encode(chunk.text));
+              }
+            }
+          }
+          
+          // Now prepare for task extraction using the meeting summary
+          controller.enqueue(new TextEncoder().encode("\n\n🔍 Step 2: Extracting tasks from meeting summary...\n\n"));
+          
+          // Generate the task extraction prompt
+          initialPrompt = `
+            Using the meeting summary I just provided, please identify and extract all tasks and action items mentioned.
+            
+            ${technicianContext}
+            ${groupContext}
+            ${categoryContext}
+            
+            For each task, extract:
+            
+            1. Title - A clear, concise title that summarizes the task
+            2. Details - A detailed explanation of what the task involves, formatted as HTML with proper paragraphs, lists, and basic formatting
+            3. Assignee - The person assigned to the task (from the available technicians if mentioned)
+            4. Group - The group responsible for the task (from the available groups if mentioned)
+            5. Category - The most appropriate category for the task (from the available categories)
+            6. Due date - Preferred in YYYY-MM-DD format if mentioned, otherwise null
+            7. Priority - Low, Medium, High, or Critical based on urgency mentioned
+            8. Ticket number - If mentioned in the document
+            9. External URL - If mentioned in the document
+            
+            Extract as many tasks as you can find in the meeting summary. If information isn't available for certain fields, set them to null.
+            
+            Format your response as valid JSON in this structure:
+            {
+              "tasks": [
+                {
+                  "title": "Task title",
+                  "details": "<p>Task details as HTML</p>",
+                  "assignee": "Name of assignee or null",
+                  "group": "Group name or null",
+                  "category": "Category value or null",
+                  "dueDate": "YYYY-MM-DD or null",
+                  "priority": "Low|Medium|High|Critical",
+                  "ticketNumber": "Ticket number or null",
+                  "externalUrl": "URL or null"
+                }
+              ]
+            }
+          `;
+          
+          // Set up the message content with the meeting summary
+          initialMessageContent = [
+            { text: initialPrompt },
+            { text: meetingSummary }
+          ];
+          
+        } else {
+          // Regular document processing
+          // Generate the initial prompt for Gemini
+          initialPrompt = `
+            You are a task extraction assistant that analyzes PDFs to identify tasks.
+            
+            ${technicianContext}
+            ${groupContext}
+            ${categoryContext}
+            
+            Please analyze the attached PDF document and extract tasks that need to be done.
+            
+            For each task, extract:
+            
+            1. Title - A clear, concise title that summarizes the task
+            2. Details - A detailed explanation of what the task involves, formatted as HTML with proper paragraphs, lists, and basic formatting
+            3. Assignee - The person assigned to the task (from the available technicians if mentioned)
+            4. Group - The group responsible for the task (from the available groups if mentioned)
+            5. Category - The most appropriate category for the task (from the available categories)
+            6. Due date - Preferred in YYYY-MM-DD format if mentioned, otherwise null
+            7. Priority - Low, Medium, High, or Critical based on urgency mentioned
+            8. Ticket number - If mentioned in the document
+            9. External URL - If mentioned in the document
+            
+            Extract as many tasks as you can find in the document. If information isn't available for certain fields, set them to null.
+            
+            ${useThinkingModel ? 'As you analyze the document, please provide your thoughts and reasoning throughout the process so I can see your work.' : ''}
+
+            Format your response as valid JSON in this structure:
+            {
+              "tasks": [
+                {
+                  "title": "Task title",
+                  "details": "<p>Task details as HTML</p>",
+                  "assignee": "Name of assignee or null",
+                  "group": "Group name or null",
+                  "category": "Category value or null",
+                  "dueDate": "YYYY-MM-DD or null",
+                  "priority": "Low|Medium|High|Critical",
+                  "ticketNumber": "Ticket number or null",
+                  "externalUrl": "URL or null"
+                }
+              ]
+            }
+          `;
+
+          // Initial PDF content as attachment
+          initialMessageContent = [
+            { text: initialPrompt },
+            { 
+              inlineData: {
+                mimeType: 'application/pdf',
+                data: base64File
+              }
+            }
+          ];
+        }
+
+        // For the thinking model, set up the generation config
+        const generationConfig = useThinkingModel ? {
+          responseStructure: { schema: TASK_SCHEMA }
+        } : {};
+
+        // Create a chat instance to maintain conversation context
+        const chat = genAI.chats.create({
+          model: MODEL,
+          ...(useThinkingModel ? { generationConfig } : {})
+        });
+
+        // Add a progress indicator
+        if (useThinkingModel && !isMeetingTranscript) {
+          controller.enqueue(new TextEncoder().encode("🧠 Thinking model is analyzing your document. You'll see real-time progress as it works...\n\n"));
+        }
+        
+        // Send the initial message
         const chatStream = await chat.sendMessageStream({
           message: initialMessageContent
         });
-        
-        // Add a progress indicator
-        if (useThinkingModel) {
-          controller.enqueue(new TextEncoder().encode("🧠 Thinking model is analyzing your document. You'll see real-time progress as it works...\n\n"));
-        }
         
         // Process the initial stream
         for await (const chunk of chatStream) {
@@ -793,7 +953,7 @@ async function handleStreamingRequest(
           
           if (extractedTasks.length > 0) {
             // Show task count
-            controller.enqueue(new TextEncoder().encode(`[System: Found ${extractedTasks.length} tasks in the document. Optimizing...]\n\n`));
+            controller.enqueue(new TextEncoder().encode(`[System: Found ${extractedTasks.length} tasks in the ${isMeetingTranscript ? 'meeting summary' : 'document'}. Optimizing...]\n\n`));
             
             // Optimize tasks - pass the controller for streaming updates
             const optimizedTasks = await optimizeTasks(extractedTasks, controller);
@@ -809,8 +969,14 @@ async function handleStreamingRequest(
             // Always include both counts for better visibility
             controller.enqueue(new TextEncoder().encode(
               `[System: Successfully optimized: ${originalCount} → ${finalCount} tasks]\n` +
-              `[System: Optimization complete. Final result: ${finalCount} tasks]`
+              `[System: Optimization complete. Final result: ${finalCount} tasks]` +
+              (isMeetingTranscript ? `\n[System: Meeting summary available for download]` : '')
             ));
+            
+            // If it's a meeting transcript, add a marker that can be detected by the client
+            if (isMeetingTranscript) {
+              controller.enqueue(new TextEncoder().encode(`\n\n[MEETING-SUMMARY-DATA-START]\n${meetingSummary}\n[MEETING-SUMMARY-DATA-END]\n\n`));
+            }
           } else {
             controller.enqueue(new TextEncoder().encode("\n\n[System: Could not extract tasks for optimization. Original extraction will be used.]\n\n"));
           }

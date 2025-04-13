@@ -226,8 +226,10 @@ export function BulkAddTaskFromPDF({
   const [countdown, setCountdown] = useState(5);
   const [isPaused, setIsPaused] = useState(false);
   const [optimizationComplete, setOptimizationComplete] = useState(false);
+  const [isMeetingTranscript, setIsMeetingTranscript] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const streamOutputRef = useRef<HTMLDivElement>(null);
+  const meetingSummaryRef = useRef<string | null>(null);
   
   // Add a ref for the progress interval:
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -346,6 +348,7 @@ export function BulkAddTaskFromPDF({
       formData.append('groups', JSON.stringify(groups.map(group => ({ id: group.id, name: group.name }))));
       formData.append('categories', JSON.stringify(categories.map(cat => ({ id: cat.id, value: cat.value }))));
       formData.append('useThinkingModel', useThinkingModel.toString());
+      formData.append('isMeetingTranscript', isMeetingTranscript.toString());
       
       // Always use streaming mode for both models
       formData.append('streamOutput', 'true');
@@ -401,6 +404,34 @@ export function BulkAddTaskFromPDF({
             
             const chunk = new TextDecoder().decode(value);
             receivedText += chunk;
+            
+            // Check if this chunk contains meeting summary data
+            if (isMeetingTranscript && chunk.includes('[MEETING-SUMMARY-DATA-START]')) {
+              const startMarker = '[MEETING-SUMMARY-DATA-START]';
+              const endMarker = '[MEETING-SUMMARY-DATA-END]';
+              
+              // If we have the complete summary in this chunk
+              if (chunk.includes(startMarker) && chunk.includes(endMarker)) {
+                const startIndex = chunk.indexOf(startMarker) + startMarker.length;
+                const endIndex = chunk.indexOf(endMarker);
+                const summaryContent = chunk.substring(startIndex, endIndex).trim();
+                meetingSummaryRef.current = summaryContent;
+              } 
+              // Otherwise, start collecting the summary across chunks
+              else if (chunk.includes(startMarker)) {
+                const startIndex = chunk.indexOf(startMarker) + startMarker.length;
+                meetingSummaryRef.current = chunk.substring(startIndex).trim();
+              }
+            } 
+            // Continue collecting summary if we're in the middle of it
+            else if (isMeetingTranscript && meetingSummaryRef.current !== null && chunk.includes('[MEETING-SUMMARY-DATA-END]')) {
+              const endIndex = chunk.indexOf('[MEETING-SUMMARY-DATA-END]');
+              meetingSummaryRef.current += chunk.substring(0, endIndex).trim();
+            }
+            // Add to the summary if we're collecting it
+            else if (isMeetingTranscript && meetingSummaryRef.current !== null && !chunk.includes('[MEETING-SUMMARY-DATA-END]')) {
+              meetingSummaryRef.current += chunk;
+            }
             
             // Update the UI with each received chunk
             setStreamedOutput(prevText => prevText + chunk);
@@ -655,17 +686,32 @@ export function BulkAddTaskFromPDF({
     const newValue = !useThinkingModel;
     setUseThinkingModel(newValue);
     
-    // Show a confirmation message
-    const message = document.createElement('div');
-    message.className = `fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm transition-opacity ${newValue ? 'bg-purple-600' : 'bg-blue-600'}`;
-    message.textContent = newValue ? '✓ Gemini Thinking Model enabled' : '✓ Standard model selected';
-    document.body.appendChild(message);
+    // If enabled, ensure thinking model is also enabled as it's required
+    if (newValue && !isMeetingTranscript) {
+      setIsMeetingTranscript(true);
+      
+      // Show a confirmation message for thinking model being auto-enabled
+      const message = document.createElement('div');
+      message.className = 'fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm transition-opacity bg-purple-600';
+      message.textContent = '✓ Thinking Model automatically enabled for transcript processing';
+      document.body.appendChild(message);
+      setTimeout(() => {
+        message.style.opacity = '0';
+        setTimeout(() => document.body.removeChild(message), 300);
+      }, 3000);
+    }
     
-    // Remove the message after a delay
+    // Show a confirmation message for transcript mode
+    const message = document.createElement('div');
+    message.className = `fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm transition-opacity ${
+      newValue ? 'bg-amber-600' : 'bg-blue-600'
+    }`;
+    message.textContent = newValue ? '✓ Transcript processing mode enabled' : '✓ Standard document mode selected';
+    document.body.appendChild(message);
     setTimeout(() => {
       message.style.opacity = '0';
-      setTimeout(() => document.body.removeChild(message), 500);
-    }, 1500);
+      setTimeout(() => document.body.removeChild(message), 300);
+    }, 3000);
   };
   
   // Function to handle the parsing and extraction of tasks from JSON text
@@ -861,6 +907,7 @@ export function BulkAddTaskFromPDF({
       formDataDirect.append('groups', JSON.stringify(groups.map(group => ({ id: group.id, name: group.name }))));
       formDataDirect.append('categories', JSON.stringify(categories.map(cat => ({ id: cat.id, value: cat.value }))));
       formDataDirect.append('useThinkingModel', useThinkingModel.toString());
+      formDataDirect.append('isMeetingTranscript', isMeetingTranscript.toString());
       
       // Make direct request
       const directResponse = await fetch('/api/gemini/extract-tasks-from-pdf', {
@@ -915,6 +962,122 @@ export function BulkAddTaskFromPDF({
   const handleConfirmOptimization = () => {
     setOptimizationComplete(false); // Reset for next time
     setIsProcessing(false); // Now end processing and move to review
+  };
+  
+  // Add a function to toggle the meeting transcript option
+  const toggleMeetingTranscript = () => {
+    const newValue = !isMeetingTranscript;
+    setIsMeetingTranscript(newValue);
+    
+    // If enabled, ensure thinking model is also enabled as it's required
+    if (newValue && !useThinkingModel) {
+      setUseThinkingModel(true);
+      
+      // Show a confirmation message for thinking model being auto-enabled
+      const message = document.createElement('div');
+      message.className = 'fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm transition-opacity bg-purple-600';
+      message.textContent = '✓ Thinking Model automatically enabled for transcript processing';
+      document.body.appendChild(message);
+      setTimeout(() => {
+        message.style.opacity = '0';
+        setTimeout(() => document.body.removeChild(message), 300);
+      }, 3000);
+    }
+    
+    // Show a confirmation message for transcript mode
+    const message = document.createElement('div');
+    message.className = `fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm transition-opacity ${
+      newValue ? 'bg-amber-600' : 'bg-blue-600'
+    }`;
+    message.textContent = newValue ? '✓ Transcript processing mode enabled' : '✓ Standard document mode selected';
+    document.body.appendChild(message);
+    setTimeout(() => {
+      message.style.opacity = '0';
+      setTimeout(() => document.body.removeChild(message), 300);
+    }, 3000);
+  };
+  
+  // Add a function to download meeting summary as PDF
+  const downloadMeetingSummary = async () => {
+    if (!meetingSummaryRef.current) return;
+    
+    try {
+      // Create a new PDF document
+      const pdfDoc = await PDFDocument.create();
+      const page = pdfDoc.addPage([612, 792]); // US Letter size
+      
+      // Add title
+      const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+      const normalFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      const fontSize = 12;
+      const titleSize = 16;
+      const lineHeight = fontSize * 1.2;
+      
+      // Add title
+      page.drawText('Meeting Summary', {
+        x: 50,
+        y: page.getHeight() - 50,
+        size: titleSize,
+        font: font,
+        color: rgb(0, 0, 0),
+      });
+      
+      // Add date
+      const currentDate = new Date().toLocaleDateString();
+      page.drawText(`Generated on ${currentDate}`, {
+        x: 50,
+        y: page.getHeight() - 50 - titleSize - 10,
+        size: fontSize,
+        font: normalFont,
+        color: rgb(0.4, 0.4, 0.4),
+      });
+      
+      // Add content - strip HTML tags for simplicity
+      const plainText = meetingSummaryRef.current.replace(/<[^>]*>/g, '');
+      const lines = plainText.split('\n');
+      let y = page.getHeight() - 50 - titleSize - 10 - fontSize - 20; // Start below the title and date
+      
+      for (const line of lines) {
+        if (y < 50) { // Add a new page if we reach the bottom margin
+          const newPage = pdfDoc.addPage([612, 792]);
+          y = newPage.getHeight() - 50;
+        }
+        
+        if (line.trim()) { // Only draw non-empty lines
+          page.drawText(line, {
+            x: 50,
+            y,
+            size: fontSize,
+            font: normalFont,
+            color: rgb(0, 0, 0),
+          });
+        }
+        
+        y -= lineHeight;
+      }
+      
+      // Save the PDF
+      const pdfBytes = await pdfDoc.save();
+      
+      // Create a download link
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'meeting-summary.pdf';
+      document.body.appendChild(a);
+      a.click();
+      
+      // Clean up
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }, 100);
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF summary. Please try again.');
+    }
   };
   
   return (
@@ -982,39 +1145,81 @@ export function BulkAddTaskFromPDF({
             </p>
           </div>
           
-          {/* Thinking model toggle */}
-          <div className="flex items-center">
-            <label htmlFor="thinking-model-toggle" className="flex items-center cursor-pointer">
-              <div className="relative inline-flex items-center">
-                <input 
-                  type="checkbox" 
-                  id="thinking-model-toggle" 
-                  className="sr-only"
-                  checked={useThinkingModel}
-                  onChange={toggleThinkingModel} 
-                />
-                <div className={`w-11 h-6 rounded-full transition-colors ${useThinkingModel ? 'bg-purple-600' : 'bg-gray-200 dark:bg-gray-700'}`}>
-                  <div className={`transform transition-transform duration-200 ease-in-out h-5 w-5 rounded-full bg-white border border-gray-300 inline-block ${useThinkingModel ? 'translate-x-6' : 'translate-x-1'}`} style={{marginTop: '2px'}}></div>
+          {/* Thinking model and transcript toggles */}
+          <div className="space-y-3">
+            {/* Thinking model toggle */}
+            <div className="flex items-center">
+              <label htmlFor="thinking-model-toggle" className="flex items-center cursor-pointer">
+                <div className="relative inline-flex items-center">
+                  <input 
+                    type="checkbox" 
+                    id="thinking-model-toggle" 
+                    className="sr-only"
+                    checked={useThinkingModel}
+                    onChange={toggleThinkingModel} 
+                    disabled={isMeetingTranscript} // Disable if transcript mode is on as it requires thinking model
+                  />
+                  <div className={`w-11 h-6 rounded-full transition-colors ${useThinkingModel ? 'bg-purple-600' : 'bg-gray-200 dark:bg-gray-700'}`}>
+                    <div className={`transform transition-transform duration-200 ease-in-out h-5 w-5 rounded-full bg-white border border-gray-300 inline-block ${useThinkingModel ? 'translate-x-6' : 'translate-x-1'}`} style={{marginTop: '2px'}}></div>
+                  </div>
+                  <span className="ml-3 text-sm font-medium text-gray-900 dark:text-gray-300">
+                    Use Gemini Thinking Model
+                  </span>
                 </div>
-                <span className="ml-3 text-sm font-medium text-gray-900 dark:text-gray-300">
-                  Use Gemini Thinking Model
-                </span>
+              </label>
+              <div className="relative ml-2 group">
+                <button
+                  type="button"
+                  className="text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400"
+                  aria-label="More information about thinking model"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                <div className="absolute hidden group-hover:block bg-black text-white text-xs rounded py-1 px-2 z-10 bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-60">
+                  Uses Gemini 2.5 Pro&apos;s enhanced reasoning capabilities for better task extraction. May improve accuracy for complex documents.
+                  <div className="absolute left-1/2 transform -translate-x-1/2 top-full">
+                    <div className="w-2 h-2 bg-black rotate-45"></div>
+                  </div>
+                </div>
               </div>
-            </label>
-            <div className="relative ml-2 group">
-              <button
-                type="button"
-                className="text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400"
-                aria-label="More information about thinking model"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-                </svg>
-              </button>
-              <div className="absolute hidden group-hover:block bg-black text-white text-xs rounded py-1 px-2 z-10 bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-60">
-                Uses Gemini 2.5 Pro&apos;s enhanced reasoning capabilities for better task extraction. May improve accuracy for complex documents.
-                <div className="absolute left-1/2 transform -translate-x-1/2 top-full">
-                  <div className="w-2 h-2 bg-black rotate-45"></div>
+            </div>
+            
+            {/* Meeting transcript toggle */}
+            <div className="flex items-center">
+              <label htmlFor="transcript-toggle" className="flex items-center cursor-pointer">
+                <div className="relative inline-flex items-center">
+                  <input 
+                    type="checkbox" 
+                    id="transcript-toggle" 
+                    className="sr-only"
+                    checked={isMeetingTranscript}
+                    onChange={toggleMeetingTranscript} 
+                  />
+                  <div className={`w-11 h-6 rounded-full transition-colors ${isMeetingTranscript ? 'bg-amber-600' : 'bg-gray-200 dark:bg-gray-700'}`}>
+                    <div className={`transform transition-transform duration-200 ease-in-out h-5 w-5 rounded-full bg-white border border-gray-300 inline-block ${isMeetingTranscript ? 'translate-x-6' : 'translate-x-1'}`} style={{marginTop: '2px'}}></div>
+                  </div>
+                  <span className="ml-3 text-sm font-medium text-gray-900 dark:text-gray-300">
+                    This is a meeting transcript
+                  </span>
+                </div>
+              </label>
+              <div className="relative ml-2 group">
+                <button
+                  type="button"
+                  className="text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400"
+                  aria-label="More information about transcript mode"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                <div className="absolute hidden group-hover:block bg-black text-white text-xs rounded py-1 px-2 z-10 bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-72">
+                  For documents containing multiple speakers (like meeting minutes or call transcripts). AI will first create a meeting summary before extracting tasks, improving task identification.
+                  <div className="absolute left-1/2 transform -translate-x-1/2 top-full">
+                    <div className="w-2 h-2 bg-black rotate-45"></div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1120,6 +1325,21 @@ export function BulkAddTaskFromPDF({
                 className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
               >
                 Review Tasks
+              </button>
+            </div>
+          )}
+          
+          {/* Download summary button (processing view) */}
+          {showProcessingView && isMeetingTranscript && meetingSummaryRef.current && optimizationComplete && (
+            <div className="mt-4">
+              <button
+                onClick={downloadMeetingSummary}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition-colors flex items-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+                Download Meeting Summary
               </button>
             </div>
           )}
