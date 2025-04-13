@@ -836,32 +836,21 @@ export function BulkAddTaskFromPDF({
     const newValue = !useThinkingModel;
     setUseThinkingModel(newValue);
     
-    // If enabled, ensure thinking model is also enabled as it's required
-    if (newValue && !isMeetingTranscript) {
-      setIsMeetingTranscript(true);
-      
-      // Show a confirmation message for thinking model being auto-enabled
-      const message = document.createElement('div');
-      message.className = 'fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm transition-opacity bg-purple-600';
-      message.textContent = '✓ Thinking Model automatically enabled for transcript processing';
-      document.body.appendChild(message);
-      setTimeout(() => {
-        message.style.opacity = '0';
-        setTimeout(() => document.body.removeChild(message), 300);
-      }, 3000);
+    // We no longer automatically set transcript mode when thinking model is enabled
+    // And we've removed the popup notifications as requested
+  };
+  
+  // Function to toggle the meeting transcript option
+  const toggleMeetingTranscript = () => {
+    const newValue = !isMeetingTranscript;
+    setIsMeetingTranscript(newValue);
+    
+    // If transcript mode is enabled, ensure thinking model is also enabled as it's required
+    if (newValue && !useThinkingModel) {
+      setUseThinkingModel(true);
     }
     
-    // Show a confirmation message for transcript mode
-    const message = document.createElement('div');
-    message.className = `fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm transition-opacity ${
-      newValue ? 'bg-amber-600' : 'bg-blue-600'
-    }`;
-    message.textContent = newValue ? '✓ Transcript processing mode enabled' : '✓ Standard document mode selected';
-    document.body.appendChild(message);
-    setTimeout(() => {
-      message.style.opacity = '0';
-      setTimeout(() => document.body.removeChild(message), 300);
-    }, 3000);
+    // Removed popup notifications as requested
   };
   
   // Function to handle the parsing and extraction of tasks from JSON text
@@ -1112,39 +1101,6 @@ export function BulkAddTaskFromPDF({
   const handleConfirmOptimization = () => {
     setOptimizationComplete(false); // Reset for next time
     setIsProcessing(false); // Now end processing and move to review
-  };
-  
-  // Add a function to toggle the meeting transcript option
-  const toggleMeetingTranscript = () => {
-    const newValue = !isMeetingTranscript;
-    setIsMeetingTranscript(newValue);
-    
-    // If enabled, ensure thinking model is also enabled as it's required
-    if (newValue && !useThinkingModel) {
-      setUseThinkingModel(true);
-      
-      // Show a confirmation message for thinking model being auto-enabled
-      const message = document.createElement('div');
-      message.className = 'fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm transition-opacity bg-purple-600';
-      message.textContent = '✓ Thinking Model automatically enabled for transcript processing';
-      document.body.appendChild(message);
-      setTimeout(() => {
-        message.style.opacity = '0';
-        setTimeout(() => document.body.removeChild(message), 300);
-      }, 3000);
-    }
-    
-    // Show a confirmation message for transcript mode
-    const message = document.createElement('div');
-    message.className = `fixed top-4 right-4 px-4 py-2 rounded-md text-white text-sm transition-opacity ${
-      newValue ? 'bg-amber-600' : 'bg-blue-600'
-    }`;
-    message.textContent = newValue ? '✓ Transcript processing mode enabled' : '✓ Standard document mode selected';
-    document.body.appendChild(message);
-    setTimeout(() => {
-      message.style.opacity = '0';
-      setTimeout(() => document.body.removeChild(message), 300);
-    }, 3000);
   };
   
   // Add a function to download meeting summary as PDF
