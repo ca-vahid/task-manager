@@ -938,12 +938,48 @@ export function BulkAddTaskFromPDF({
   // Function to handle the parsing and extraction of tasks from JSON text
   const parseAndExtractTasks = (jsonString: string) => {
     try {
+      // Handle case when using Thinking model with system messages
+      if (jsonString.includes("[System:")) {
+        console.log("Detected system messages in output, filtering for JSON content");
+        
+        // First, check if we have system messages indicating success but no tasks
+        if (jsonString.includes("No tasks could be extracted") || 
+            (jsonString.includes("[System: Optimization complete") && !jsonString.includes("["))) {
+          console.log("System indicated no tasks found");
+          setParsedTasks([]);
+          setNoTasksFound(true);
+          setIsProcessing(false);
+          return [];
+        }
+      }
+      
       // This is the optimized case where we get back valid JSON
       // In this case, we check if there's a 'tasks' array field or assume the whole response is the tasks array
       let extractedTasks: any[] = [];
       
       try {
-        const parsedData = JSON.parse(jsonString);
+        // Try to clean the input - remove any system messages or non-JSON text
+        let cleanedJsonString = jsonString;
+        
+        // If there are system messages, try to find and extract only the JSON part
+        if (jsonString.includes("[System:")) {
+          // Look for JSON arrays enclosed in square brackets, careful not to include system messages
+          const jsonArrayMatches = jsonString.match(/\[\s*\{(?:[^{}]|\{(?:[^{}]|[\s\S])*\})*\}(?:,\s*\{(?:[^{}]|\{(?:[^{}]|[\s\S])*\})*\})*\s*\]/g);
+          if (jsonArrayMatches && jsonArrayMatches.length > 0) {
+            cleanedJsonString = jsonArrayMatches[0];
+            console.log("Successfully extracted JSON array from output");
+          } else {
+            // If no array, try to find JSON objects
+            const jsonObjectMatches = jsonString.match(/\{\s*"(?:[^"]|[\s\S])*"\s*:(?:[^{}]|\{(?:[^{}]|[\s\S])*\})*\}/g);
+            if (jsonObjectMatches && jsonObjectMatches.length > 0) {
+              cleanedJsonString = jsonObjectMatches[0];
+              console.log("Successfully extracted JSON object from output");
+            }
+          }
+        }
+
+        // Now try to parse the cleaned JSON
+        const parsedData = JSON.parse(cleanedJsonString);
         
         if (Array.isArray(parsedData)) {
           // Direct array of tasks
@@ -967,11 +1003,16 @@ export function BulkAddTaskFromPDF({
       } catch (jsonError) {
         console.log("Couldn't parse as direct JSON, trying regex fallback", jsonError);
         
-        // Fallback: try to find JSON in the text with regex
-        const jsonMatches = jsonString ? jsonString.match(/\[.*\]/g) || [] : [];
+        // Fallback: Use a more robust regex to find JSON arrays in the text
+        // This new pattern is more careful to find complete arrays
+        const jsonMatches = jsonString ? 
+          jsonString.match(/\[\s*\{(?:[^{}]|\{(?:[^{}]|[\s\S])*\})*\}(?:,\s*\{(?:[^{}]|\{(?:[^{}]|[\s\S])*\})*\})*\s*\]/g) || [] 
+          : [];
+          
         if (jsonMatches.length > 0) {
           try {
-            const potentialJson = jsonMatches[0];
+            // Sort matches by length and take the longest one - it's more likely to be the complete array
+            const potentialJson = jsonMatches.sort((a, b) => b.length - a.length)[0];
             extractedTasks = JSON.parse(potentialJson);
             
             if (extractedTasks.length === 0) {
@@ -984,7 +1025,22 @@ export function BulkAddTaskFromPDF({
             }
           } catch (fallbackError) {
             console.error("Fallback JSON parsing failed", fallbackError);
+            
+            // Instead of failing, check if user can proceed to review
+            if (optimizationComplete) {
+              console.log("JSON parsing failed but optimization is complete - allowing user to proceed");
+              setIsProcessing(false);
+              return [];
+            }
           }
+        } else if (optimizationComplete) {
+          // If optimization is complete but no JSON was found, this might be a case
+          // where the system successfully processed but didn't return structured tasks
+          console.log("No JSON found but optimization is complete - allowing user to proceed");
+          setParsedTasks([]);
+          setNoTasksFound(true);
+          setIsProcessing(false);
+          return [];
         }
         
         // If we still don't have tasks, we can consider this an error
@@ -993,6 +1049,10 @@ export function BulkAddTaskFromPDF({
           console.log("No tasks found after all parsing attempts");
           setParsedTasks([]);
           setNoTasksFound(true);
+          // Allow user to continue if we're at optimization complete
+          if (optimizationComplete) {
+            setIsProcessing(false);
+          }
           return [];
         }
       }
@@ -1013,6 +1073,16 @@ export function BulkAddTaskFromPDF({
       return processedTasks;
     } catch (error: any) {
       console.error('Error parsing JSON:', error);
+      
+      // If we're at optimization complete, don't throw an error, just let the user proceed
+      if (optimizationComplete) {
+        console.log("Error occurred but optimization is complete - allowing user to proceed");
+        setParsedTasks([]);
+        setNoTasksFound(true);
+        setIsProcessing(false);
+        return [];
+      }
+      
       throw new Error(`Failed to extract tasks: ${error.message}`);
     }
   };
@@ -1668,6 +1738,39 @@ export function BulkAddTaskFromPDF({
               >
                 Review Tasks
               </button>
+            </div>
+          )}
+          
+          {/* Emergency button for when JSON parsing fails but optimization is complete */}
+          {!optimizationComplete && isProcessing && streamedOutput.includes("[System: Optimization complete") && (
+            <div className="flex justify-center mt-4">
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-md p-4 w-full">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-amber-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3 flex-1">
+                    <h3 className="text-sm font-medium text-amber-800 dark:text-amber-200">Processing appears to be complete</h3>
+                    <div className="mt-2 text-sm text-amber-700 dark:text-amber-300">
+                      <p>The optimization process appears to be complete but we're unable to automatically proceed.</p>
+                    </div>
+                    <div className="mt-4">
+                      <button
+                        type="button"
+                        onClick={handleConfirmOptimization}
+                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-amber-700 bg-amber-100 hover:bg-amber-200 dark:text-amber-100 dark:bg-amber-800 dark:hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500"
+                      >
+                        <svg className="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" />
+                        </svg>
+                        Continue to Review
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
           
