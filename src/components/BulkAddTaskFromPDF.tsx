@@ -4,6 +4,8 @@ import React, { useState, useRef, useEffect, ReactNode } from 'react';
 import { Task, Technician, TaskStatus, Group, PriorityLevel, Category } from '@/lib/types';
 import { Timestamp } from 'firebase/firestore';
 import { TaskReviewForm } from './TaskReviewForm';
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import mammoth from 'mammoth';
 
 interface BulkAddTaskFromPDFProps {
   technicians: Technician[];
@@ -143,6 +145,67 @@ const HighlightedOutput: React.FC<{ text: string }> = ({ text }) => {
   );
 };
 
+// Add a function to convert Word document to PDF
+const convertWordToPdf = async (wordFile: File): Promise<File> => {
+  try {
+    // Read the Word file as an ArrayBuffer
+    const wordBuffer = await wordFile.arrayBuffer();
+    
+    // Convert Word to HTML using mammoth
+    const result = await mammoth.convertToHtml({ arrayBuffer: wordBuffer });
+    const htmlContent = result.value;
+    
+    // Create a new PDF document
+    const pdfDoc = await PDFDocument.create();
+    const page = pdfDoc.addPage([612, 792]); // US Letter size
+    
+    // Add text from the Word document
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const fontSize = 12;
+    const lineHeight = fontSize * 1.2;
+    
+    // Strip HTML tags to get plain text (simple approach)
+    const plainText = htmlContent.replace(/<[^>]*>/g, '');
+    
+    // Add text to PDF
+    const lines = plainText.split('\n');
+    let y = page.getHeight() - 50; // Start from top with margin
+    
+    for (const line of lines) {
+      if (y < 50) { // Add a new page if we reach the bottom margin
+        const newPage = pdfDoc.addPage([612, 792]);
+        y = newPage.getHeight() - 50;
+      }
+      
+      if (line.trim()) { // Only draw non-empty lines
+        page.drawText(line, {
+          x: 50,
+          y,
+          size: fontSize,
+          font,
+          color: rgb(0, 0, 0),
+        });
+      }
+      
+      y -= lineHeight;
+    }
+    
+    // Save the PDF
+    const pdfBytes = await pdfDoc.save();
+    
+    // Create a new file from the PDF bytes
+    const convertedFile = new File([pdfBytes], `${wordFile.name.split('.')[0]}.pdf`, {
+      type: 'application/pdf',
+      lastModified: new Date().getTime(),
+    });
+    
+    return convertedFile;
+  } catch (error) {
+    console.error('Error converting Word to PDF:', error);
+    throw new Error('Failed to convert Word document to PDF');
+  }
+};
+
 export function BulkAddTaskFromPDF({
   technicians,
   groups,
@@ -174,16 +237,28 @@ export function BulkAddTaskFromPDF({
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
       
-      // Validate file type
-      if (file.type !== 'application/pdf') {
-        setError('Please select a PDF file');
-        return;
-      }
+      // Get file extension
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
       
-      // Reset state
-      setSelectedFile(file);
-      setStreamedOutput('');
-      setError(null);
+      // Validate file type - now accept PDF and Word documents
+      if (file.type === 'application/pdf') {
+        // Reset state for PDF files
+        setSelectedFile(file);
+        setStreamedOutput('');
+        setError(null);
+      } else if (
+        fileExt === 'docx' || 
+        fileExt === 'doc' || 
+        file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        file.type === 'application/msword'
+      ) {
+        // For Word documents, we'll set a flag to convert before processing
+        setSelectedFile(file);
+        setStreamedOutput('');
+        setError(null);
+      } else {
+        setError('Please select a PDF or Word (.doc, .docx) file');
+      }
     }
   };
   
@@ -195,16 +270,28 @@ export function BulkAddTaskFromPDF({
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0];
       
-      // Validate file type
-      if (file.type !== 'application/pdf') {
-        setError('Please drop a PDF file');
-        return;
-      }
+      // Get file extension
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
       
-      // Reset state
-      setSelectedFile(file);
-      setStreamedOutput('');
-      setError(null);
+      // Validate file type - now accept PDF and Word documents
+      if (file.type === 'application/pdf') {
+        // Reset state for PDF files
+        setSelectedFile(file);
+        setStreamedOutput('');
+        setError(null);
+      } else if (
+        fileExt === 'docx' || 
+        fileExt === 'doc' || 
+        file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        file.type === 'application/msword'
+      ) {
+        // For Word documents, we'll set a flag to convert before processing
+        setSelectedFile(file);
+        setStreamedOutput('');
+        setError(null);
+      } else {
+        setError('Please drop a PDF or Word (.doc, .docx) file');
+      }
     }
   };
   
@@ -217,7 +304,7 @@ export function BulkAddTaskFromPDF({
   // Process the PDF with Gemini
   const handleAnalyzeDocument = async () => {
     if (!selectedFile) {
-      setError('Please select a PDF file');
+      setError('Please select a PDF or Word file');
       return;
     }
     
@@ -227,9 +314,34 @@ export function BulkAddTaskFromPDF({
     setUploadProgress(0);
     
     try {
+      // Check if we need to convert a Word document to PDF
+      let fileToProcess = selectedFile;
+      
+      // Get file extension
+      const fileExt = selectedFile.name.split('.').pop()?.toLowerCase();
+      
+      // Check if it's a Word document
+      if (
+        fileExt === 'docx' || 
+        fileExt === 'doc' || 
+        selectedFile.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        selectedFile.type === 'application/msword'
+      ) {
+        // Show conversion message
+        setStreamedOutput('[System: Converting Word document to PDF format...]\n');
+        
+        try {
+          // Convert the Word document to PDF
+          fileToProcess = await convertWordToPdf(selectedFile);
+          setStreamedOutput(prev => prev + '[System: Word document successfully converted to PDF.]\n\n');
+        } catch (conversionError) {
+          throw new Error(`Failed to convert Word document: ${conversionError instanceof Error ? conversionError.message : 'Unknown error'}`);
+        }
+      }
+      
       // Create a FormData object to send the file and context
       const formData = new FormData();
-      formData.append('file', selectedFile);
+      formData.append('file', fileToProcess);
       formData.append('technicians', JSON.stringify(technicians.map(tech => ({ id: tech.id, name: tech.name }))));
       formData.append('groups', JSON.stringify(groups.map(group => ({ id: group.id, name: group.name }))));
       formData.append('categories', JSON.stringify(categories.map(cat => ({ id: cat.id, value: cat.value }))));
@@ -836,7 +948,7 @@ export function BulkAddTaskFromPDF({
                 type="file"
                 id="pdf-upload"
                 ref={fileInputRef}
-                accept="application/pdf"
+                accept="application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,.pdf,.doc,.docx"
                 onChange={handleFileChange}
                 className="hidden"
               />
@@ -856,17 +968,17 @@ export function BulkAddTaskFromPDF({
                   <svg className="w-10 h-10 text-gray-400 dark:text-gray-500 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Drag and drop your PDF here, or click to browse</p>
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Drag and drop your PDF or Word document here, or click to browse</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    PDF files only, max 10MB
+                    PDF or Word files only (.pdf, .doc, .docx), max 10MB
                   </p>
                 </div>
               )}
             </div>
             
             <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-              Upload a PDF document such as meeting minutes, project plans, or emails that contain tasks. 
-              Our AI will analyze the document and extract possible tasks.
+              Upload a PDF or Word document such as meeting minutes, project plans, or emails that contain tasks. 
+              Word documents will be automatically converted to PDF for processing.
             </p>
           </div>
           

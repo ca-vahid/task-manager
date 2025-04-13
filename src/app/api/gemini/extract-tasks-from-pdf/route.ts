@@ -349,10 +349,8 @@ async function processPdfJob(jobId: string): Promise<void> {
             "assignee": "Name of assignee or null",
             "group": "Group name or null",
             "category": "Category value or null",
-            "dueDate": "YYYY-MM-DD or null",
-            "priority": "Low|Medium|High|Critical",
-            "ticketNumber": "Ticket number or null",
-            "externalUrl": "URL or null"
+            "dueDate": "YYYY-MM-DD or two weeks from today if you can't find a specific date",
+            "priority": "Low|Medium|High|Critical"
           }
         ]
       }
@@ -587,9 +585,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No file was provided" }, { status: 400 });
     }
     
-    // Validate file
+    // Validate file - we only need to check if it's a PDF since Word documents 
+    // are converted to PDF on the client side before being sent
     if (file.type !== 'application/pdf') {
-      return NextResponse.json({ error: "Only PDF files are supported" }, { status: 400 });
+      return NextResponse.json({ error: "Only PDF files are supported. Word documents should be converted to PDF before uploading." }, { status: 400 });
     }
     
     // Get the file content as base64
