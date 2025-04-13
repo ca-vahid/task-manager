@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, ReactNode } from 'react';
 import { Task, Technician, TaskStatus, Group, PriorityLevel, Category } from '@/lib/types';
 import { Timestamp } from 'firebase/firestore';
 import { TaskReviewForm } from './TaskReviewForm';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb, PDFPage, PDFFont } from 'pdf-lib';
 import mammoth from 'mammoth';
 
 interface BulkAddTaskFromPDFProps {
@@ -227,6 +227,9 @@ export function BulkAddTaskFromPDF({
   const [isPaused, setIsPaused] = useState(false);
   const [optimizationComplete, setOptimizationComplete] = useState(false);
   const [isMeetingTranscript, setIsMeetingTranscript] = useState(false);
+  const [convertedPdfFile, setConvertedPdfFile] = useState<File | null>(null);
+  const [showConversionConfirmation, setShowConversionConfirmation] = useState(false);
+  const [conversionUrl, setConversionUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const streamOutputRef = useRef<HTMLDivElement>(null);
   const meetingSummaryRef = useRef<string | null>(null);
@@ -334,13 +337,44 @@ export function BulkAddTaskFromPDF({
         
         try {
           // Convert the Word document to PDF
-          fileToProcess = await convertWordToPdf(selectedFile);
-          setStreamedOutput(prev => prev + '[System: Word document successfully converted to PDF.]\n\n');
+          const convertedFile = await convertWordToPdf(selectedFile);
+          setConvertedPdfFile(convertedFile);
+          
+          // Create blob URL for PDF preview
+          const blobUrl = URL.createObjectURL(convertedFile);
+          setConversionUrl(blobUrl);
+          
+          // Show conversion confirmation dialog
+          setShowConversionConfirmation(true);
+          setIsProcessing(false);
+          setStreamedOutput('[System: Word document converted to PDF. Please verify the conversion before proceeding.]\n');
+          
+          // Stop execution here - the user will need to confirm
+          return;
         } catch (conversionError) {
           throw new Error(`Failed to convert Word document: ${conversionError instanceof Error ? conversionError.message : 'Unknown error'}`);
         }
       }
       
+      // If we get here with a PDF file, process it directly
+      await processFile(fileToProcess);
+      
+    } catch (err: any) {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+      console.error('Error analyzing document:', err);
+      setError(err.message || 'An error occurred while analyzing the document');
+      setIsProcessing(false);
+    } 
+  };
+  
+  // New function to continue processing after confirmation
+  const processFile = async (fileToProcess: File) => {
+    setIsProcessing(true);
+    
+    try {
       // Create a FormData object to send the file and context
       const formData = new FormData();
       formData.append('file', fileToProcess);
@@ -484,8 +518,7 @@ export function BulkAddTaskFromPDF({
         setProcessingComplete(true); 
         setCountdown(10); // Give more time to see the error
       }
-    } 
-    catch (err: any) {
+    } catch (err: any) {
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
         progressIntervalRef.current = null;
@@ -493,8 +526,55 @@ export function BulkAddTaskFromPDF({
       console.error('Error analyzing document:', err);
       setError(err.message || 'An error occurred while analyzing the document');
       setIsProcessing(false);
-    } 
+    }
   };
+  
+  // New helper function to download the converted PDF
+  const downloadConvertedPdf = () => {
+    if (!conversionUrl) return;
+    
+    const a = document.createElement('a');
+    a.href = conversionUrl;
+    a.download = convertedPdfFile?.name || 'converted-document.pdf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+  
+  // New function to confirm conversion and proceed
+  const confirmConversionAndProceed = () => {
+    if (!convertedPdfFile) {
+      setError('Converted PDF file not found');
+      return;
+    }
+    
+    setShowConversionConfirmation(false);
+    setStreamedOutput('[System: Word document successfully converted to PDF.]\n\n');
+    processFile(convertedPdfFile);
+  };
+  
+  // New function to cancel conversion and go back
+  const cancelConversion = () => {
+    // Clean up URL object
+    if (conversionUrl) {
+      URL.revokeObjectURL(conversionUrl);
+    }
+    
+    setConvertedPdfFile(null);
+    setConversionUrl(null);
+    setShowConversionConfirmation(false);
+    setIsProcessing(false);
+    setStreamedOutput('');
+  };
+  
+  // Cleanup the URL object when component unmounts
+  useEffect(() => {
+    return () => {
+      if (conversionUrl) {
+        URL.revokeObjectURL(conversionUrl);
+      }
+    };
+  }, [conversionUrl]);
   
   // Function to check if streaming has completed based on text patterns
   const hasStreamingCompleted = (text: string): boolean => {
@@ -1006,54 +1086,235 @@ export function BulkAddTaskFromPDF({
       const pdfDoc = await PDFDocument.create();
       const page = pdfDoc.addPage([612, 792]); // US Letter size
       
-      // Add title
-      const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-      const normalFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
-      const fontSize = 12;
-      const titleSize = 16;
-      const lineHeight = fontSize * 1.2;
+      // Add fonts - both regular and bold
+      const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+      const fontSize = 11;
+      const titleSize = 18;
+      const headingSize = 14;
+      const subheadingSize = 12;
+      const lineHeight = fontSize * 1.5;
+      const pageWidth = page.getWidth();
+      const margin = 50;
+      const textWidth = pageWidth - (margin * 2);
+      
+      // Keep track of vertical position
+      let y = page.getHeight() - margin;
+      let currentPage = page;
       
       // Add title
-      page.drawText('Meeting Summary', {
-        x: 50,
-        y: page.getHeight() - 50,
+      currentPage.drawText('Meeting Summary', {
+        x: margin,
+        y,
         size: titleSize,
-        font: font,
+        font: boldFont,
         color: rgb(0, 0, 0),
       });
+      y -= titleSize + 10;
       
       // Add date
       const currentDate = new Date().toLocaleDateString();
-      page.drawText(`Generated on ${currentDate}`, {
-        x: 50,
-        y: page.getHeight() - 50 - titleSize - 10,
+      currentPage.drawText(`Generated on ${currentDate}`, {
+        x: margin,
+        y,
         size: fontSize,
-        font: normalFont,
+        font: regularFont,
         color: rgb(0.4, 0.4, 0.4),
       });
+      y -= fontSize * 2;
       
-      // Add content - strip HTML tags for simplicity
-      const plainText = meetingSummaryRef.current.replace(/<[^>]*>/g, '');
+      // Clean the summary text - remove HTML tags but keep new lines
+      let plainText = meetingSummaryRef.current.replace(/<[^>]*>/g, '');
+      
+      // Split by lines
       const lines = plainText.split('\n');
-      let y = page.getHeight() - 50 - titleSize - 10 - fontSize - 20; // Start below the title and date
       
-      for (const line of lines) {
-        if (y < 50) { // Add a new page if we reach the bottom margin
-          const newPage = pdfDoc.addPage([612, 792]);
-          y = newPage.getHeight() - 50;
+      // Process each line with proper formatting
+      for (let i = 0; i < lines.length; i++) {
+        let line = lines[i].trim();
+        if (!line) {
+          y -= lineHeight / 2; // Add a small space for empty lines
+          continue;
         }
         
-        if (line.trim()) { // Only draw non-empty lines
-          page.drawText(line, {
-            x: 50,
+        // Check if we need a new page
+        if (y < margin + lineHeight) {
+          currentPage = pdfDoc.addPage([612, 792]);
+          y = currentPage.getHeight() - margin;
+        }
+        
+        // Process headings
+        if (line.startsWith('# ')) {
+          // Main heading
+          const headingText = line.replace(/^# /, '');
+          currentPage.drawText(headingText, {
+            x: margin,
             y,
-            size: fontSize,
-            font: normalFont,
+            size: headingSize,
+            font: boldFont,
             color: rgb(0, 0, 0),
           });
+          y -= headingSize + 10;
+        } else if (line.startsWith('## ')) {
+          // Subheading
+          const subheadingText = line.replace(/^## /, '');
+          currentPage.drawText(subheadingText, {
+            x: margin,
+            y,
+            size: subheadingSize,
+            font: boldFont,
+            color: rgb(0, 0, 0),
+          });
+          y -= subheadingSize + 8;
+        } else if (line.startsWith('- ')) {
+          // Bullet point
+          const bulletText = line.replace(/^- /, '');
+          
+          // Draw bullet
+          currentPage.drawText('•', {
+            x: margin,
+            y,
+            size: fontSize,
+            font: regularFont,
+            color: rgb(0, 0, 0),
+          });
+          
+          // Wrap and draw the bullet text
+          y = drawWrappedText(bulletText, currentPage, margin + 15, y, textWidth - 15, lineHeight, fontSize, regularFont, boldFont);
+        } else {
+          // Regular paragraph - handle text wrapping
+          y = drawWrappedText(line, currentPage, margin, y, textWidth, lineHeight, fontSize, regularFont, boldFont);
+        }
+      }
+      
+      // Function to draw wrapped text with bold formatting
+      function drawWrappedText(text: string, page: PDFPage, x: number, y: number, maxWidth: number, lineHeight: number, fontSize: number, regularFont: PDFFont, boldFont: PDFFont): number {
+        // Process markdown ** for bold text and split into segments
+        const segments: { text: string, bold: boolean }[] = [];
+        let remaining = text;
+        let boldStart = -1;
+        
+        while (remaining.length > 0) {
+          boldStart = remaining.indexOf('**');
+          
+          if (boldStart === -1) {
+            // No more bold markers, add the rest as regular text
+            if (remaining.length > 0) {
+              segments.push({ text: remaining, bold: false });
+            }
+            break;
+          }
+          
+          // Add text before the bold marker
+          if (boldStart > 0) {
+            segments.push({ text: remaining.substring(0, boldStart), bold: false });
+          }
+          
+          // Find the end of the bold section
+          const boldEnd = remaining.indexOf('**', boldStart + 2);
+          if (boldEnd === -1) {
+            // Unclosed bold marker, treat the rest as regular text
+            segments.push({ text: remaining, bold: false });
+            break;
+          }
+          
+          // Add the bold text without the markers
+          segments.push({ text: remaining.substring(boldStart + 2, boldEnd), bold: true });
+          
+          // Continue with the rest of the text
+          remaining = remaining.substring(boldEnd + 2);
         }
         
-        y -= lineHeight;
+        // If no segments were created (no ** found), add the whole text as one segment
+        if (segments.length === 0) {
+          segments.push({ text: text, bold: false });
+        }
+        
+        // Now draw the text with wrapping
+        let curX = x;
+        let curY = y;
+        let currentLineWidth = 0;
+        let currentLine = '';
+        let currentBold = false;
+        
+        // Process word by word for each segment
+        for (const segment of segments) {
+          const words = segment.text.split(' ');
+          
+          for (const word of words) {
+            if (!word) continue; // Skip empty words
+            
+            const font = segment.bold ? boldFont : regularFont;
+            const wordWidth = font.widthOfTextAtSize(word + ' ', fontSize);
+            
+            // Check if this word would exceed the line width
+            if (currentLineWidth + wordWidth > maxWidth) {
+              // Draw the current line
+              if (currentLine) {
+                page.drawText(currentLine, {
+                  x: curX,
+                  y: curY,
+                  size: fontSize,
+                  font: currentBold ? boldFont : regularFont,
+                  color: rgb(0, 0, 0),
+                });
+              }
+              
+              // Move to next line
+              curY -= lineHeight;
+              currentLine = word + ' ';
+              currentLineWidth = wordWidth;
+              currentBold = segment.bold;
+              
+              // Check if we need a new page
+              if (curY < margin) {
+                const newPage = pdfDoc.addPage([612, 792]);
+                page = newPage;
+                curY = page.getHeight() - margin;
+              }
+            } else {
+              // If we're changing bold state in the middle of a line
+              if (currentBold !== segment.bold && currentLine) {
+                // Draw the current part of the line
+                page.drawText(currentLine, {
+                  x: curX,
+                  y: curY,
+                  size: fontSize,
+                  font: currentBold ? boldFont : regularFont,
+                  color: rgb(0, 0, 0),
+                });
+                
+                // Update x position for next segment
+                curX += (currentBold ? boldFont : regularFont).widthOfTextAtSize(currentLine, fontSize);
+                currentLine = '';
+                currentBold = segment.bold;
+              }
+              
+              // Add word to current line
+              currentLine += word + ' ';
+              currentLineWidth += wordWidth;
+            }
+          }
+          
+          // Draw the remaining text in this segment
+          if (currentLine) {
+            page.drawText(currentLine, {
+              x: curX,
+              y: curY,
+              size: fontSize,
+              font: currentBold ? boldFont : regularFont,
+              color: rgb(0, 0, 0),
+            });
+            
+            // Update positions for next segment
+            curX += (currentBold ? boldFont : regularFont).widthOfTextAtSize(currentLine, fontSize);
+            currentLine = '';
+            currentBold = segment.bold;
+          }
+        }
+        
+        // Return the new y position
+        return curY - lineHeight;
       }
       
       // Save the PDF
@@ -1088,7 +1349,64 @@ export function BulkAddTaskFromPDF({
         </div>
       )}
       
-      {showInputView && (
+      {/* Show conversion confirmation UI */}
+      {showConversionConfirmation && convertedPdfFile && (
+        <div className="space-y-4">
+          <div className="bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-800/50 rounded-lg p-4">
+            <div className="flex items-center mb-3">
+              <svg className="h-6 w-6 text-amber-500 dark:text-amber-400 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+              <h3 className="text-base font-medium text-amber-800 dark:text-amber-300">Word to PDF Conversion Complete</h3>
+            </div>
+            <p className="text-sm text-amber-700 dark:text-amber-200 mb-4">
+              Your Word document has been converted to PDF. Please verify the conversion is correct before proceeding with task analysis.
+            </p>
+            
+            {/* PDF Preview */}
+            <div className="bg-white dark:bg-gray-900 rounded-md border border-gray-300 dark:border-gray-700 mb-4 aspect-[8.5/11] max-h-96 overflow-hidden">
+              {conversionUrl && (
+                <iframe 
+                  src={conversionUrl}
+                  className="w-full h-full"
+                  title="PDF Preview"
+                  aria-label="Preview of converted PDF document"
+                />
+              )}
+            </div>
+            
+            <div className="flex flex-col sm:flex-row justify-between space-y-3 sm:space-y-0 sm:space-x-3">
+              <div>
+                <button
+                  onClick={downloadConvertedPdf}
+                  className="w-full sm:w-auto px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors flex items-center"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                  Download PDF
+                </button>
+              </div>
+              <div className="flex space-x-3">
+                <button
+                  onClick={cancelConversion}
+                  className="w-full sm:w-auto px-4 py-2 border-2 border-red-300 dark:border-red-700 rounded-md text-sm font-medium text-red-700 dark:text-red-200 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                >
+                  Conversion Failed, Go Back
+                </button>
+                <button
+                  onClick={confirmConversionAndProceed}
+                  className="w-full sm:w-auto px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                >
+                  Looks Good, Continue
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {showInputView && !showConversionConfirmation && (
         /* Input view - Step 1: PDF upload */
         <div className="space-y-4">
           <div>
