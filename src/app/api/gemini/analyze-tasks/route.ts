@@ -147,6 +147,13 @@ export async function POST(request: Request) {
           1. When describing differences between tasks, don't just list IDs. Instead, describe the tasks by their titles, assignees by name, and categories by name.
           2. Focus on describing differences in terms of content, meaning, and objectives, not just metadata.
           3. Use human-readable descriptions like "Task about database backup" rather than referring to IDs.
+          4. ALWAYS USE TEXT NAMES for assignees, groups, and categories in your output - never use ID values.
+          5. For the mergedTask, the assignee, group, and category fields should contain the NAME not the ID.
+          
+          CRITICAL: The following fields must ALWAYS contain TEXT NAMES (not IDs):
+          - mergedTask.assignee: Use the person's name (e.g., "Anton Kuzmychev")
+          - mergedTask.group: Use the group name (e.g., "Security Team")
+          - mergedTask.category: Use the category name (e.g., "Security Incident")
 
           For each set of duplicate tasks:
           1. Identify why they are duplicates

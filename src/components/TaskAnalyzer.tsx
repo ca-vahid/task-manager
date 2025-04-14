@@ -227,50 +227,29 @@ export function TaskAnalyzer({
   // Extract JSON from text that may contain other content
   const extractJsonFromText = (text: string): any | null => {
     try {
-      // First, try to find a JSON object potentially surrounded by other text/markdown
-      const jsonStart = text.indexOf('{');
-      const jsonEnd = text.lastIndexOf('}');
-      
-      if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
-        const potentialJson = text.substring(jsonStart, jsonEnd + 1);
-        try {
-          const parsed = JSON.parse(potentialJson);
-          // Basic validation: check if it has the expected 'analysis' structure
-          if (parsed && typeof parsed === 'object' && parsed.analysis) {
-            console.log("Successfully extracted JSON using substring method.");
-            return parsed;
-          } else {
-            console.warn("Parsed JSON from substring, but missing 'analysis' key.");
-          }
-        } catch (substringParseError) {
-          console.warn("Failed to parse JSON from substring:", substringParseError);
-          // Fall through to try regex method if substring parsing fails
-        }
-      }
-
-      // Fallback: try regex to find JSON objects (might be less reliable with nested structures in surrounding text)
-      console.log("Falling back to regex JSON extraction.");
+      // Try to parse the entire text as JSON first
+      return JSON.parse(text);
+    } catch (e) {
+      // If that fails, try to find JSON objects in the text
       const jsonRegex = /\{(?:[^{}]|(\{(?:[^{}]|(\{(?:[^{}]|(\{[^{}]*\}))*\}))*\}))*\}/g;
       const matches = text.match(jsonRegex);
       
       if (matches && matches.length > 0) {
+        // Try parsing each match
         for (const match of matches) {
           try {
             const parsed = JSON.parse(match);
-            if (parsed.analysis && (parsed.analysis.duplicates || parsed.analysis.similar)) {
-              console.log("Successfully extracted JSON using regex method.");
+            // Look for the expected structure
+            if (parsed.analysis && 
+                (parsed.analysis.duplicates || parsed.analysis.similar)) {
               return parsed;
             }
-          } catch (regexParseError) {
-             console.warn("Regex match parsing failed:", regexParseError);
+          } catch (e) {
+            // Ignore parse errors for individual matches
           }
         }
       }
       
-      console.error("Failed to extract valid JSON from text:", text);
-      return null;
-    } catch (error) {
-      console.error("Unexpected error in extractJsonFromText:", error);
       return null;
     }
   };
@@ -331,9 +310,9 @@ export function TaskAnalyzer({
               mergedTask: {
                 title: group.mergedTask.title,
                 explanation: group.mergedTask.details,
-                assigneeId: findTechnicianId(group.mergedTask.assignee),
-                groupId: findGroupId(group.mergedTask.group),
-                categoryId: findCategoryId(group.mergedTask.category),
+                assigneeId: findTechnicianIdImproved(group.mergedTask.assignee),
+                groupId: findGroupIdImproved(group.mergedTask.group),
+                categoryId: findCategoryIdImproved(group.mergedTask.category),
                 status: mapPriorityToStatus(group.mergedTask.priority)
               }
             });
@@ -350,9 +329,9 @@ export function TaskAnalyzer({
               mergedTask: {
                 title: group.mergedTask.title,
                 explanation: group.mergedTask.details,
-                assigneeId: findTechnicianId(group.mergedTask.assignee),
-                groupId: findGroupId(group.mergedTask.group),
-                categoryId: findCategoryId(group.mergedTask.category),
+                assigneeId: findTechnicianIdImproved(group.mergedTask.assignee),
+                groupId: findGroupIdImproved(group.mergedTask.group),
+                categoryId: findCategoryIdImproved(group.mergedTask.category),
                 status: mapPriorityToStatus(group.mergedTask.priority)
               }
             });
@@ -375,25 +354,51 @@ export function TaskAnalyzer({
     }
   };
   
-  // Helper function to find technician ID by name
-  const findTechnicianId = (name: string | null): string | null => {
-    if (!name) return null;
-    const technician = technicians.find(tech => tech.name === name);
-    return technician ? technician.id : null;
+  // Improved helper functions that can handle either IDs or names
+  
+  // Helper function to find technician ID by name or return the ID if it's already an ID
+  const findTechnicianIdImproved = (nameOrId: string | null): string | null => {
+    if (!nameOrId) return null;
+    
+    // First check if nameOrId is already a valid ID in our technicians array
+    const techById = technicians.find(tech => tech.id === nameOrId);
+    if (techById) return nameOrId;
+    
+    // If not, try to find by name
+    const techByName = technicians.find(
+      tech => tech.name.toLowerCase() === nameOrId.toLowerCase()
+    );
+    return techByName ? techByName.id : null;
   };
   
-  // Helper function to find group ID by name
-  const findGroupId = (name: string | null): string | null => {
-    if (!name) return null;
-    const group = groups.find(g => g.name === name);
-    return group ? group.id : null;
+  // Helper function to find group ID by name or return the ID if it's already an ID
+  const findGroupIdImproved = (nameOrId: string | null): string | null => {
+    if (!nameOrId) return null;
+    
+    // First check if nameOrId is already a valid ID in our groups array
+    const groupById = groups.find(group => group.id === nameOrId);
+    if (groupById) return nameOrId;
+    
+    // If not, try to find by name
+    const groupByName = groups.find(
+      group => group.name.toLowerCase() === nameOrId.toLowerCase()
+    );
+    return groupByName ? groupByName.id : null;
   };
   
-  // Helper function to find category ID
-  const findCategoryId = (name: string | null): string | null => {
-    if (!name) return null;
-    const category = categories.find(cat => cat.value === name);
-    return category ? category.id : null;
+  // Helper function to find category ID by value or return the ID if it's already an ID
+  const findCategoryIdImproved = (valueOrId: string | null): string | null => {
+    if (!valueOrId) return null;
+    
+    // First check if valueOrId is already a valid ID in our categories array
+    const categoryById = categories.find(cat => cat.id === valueOrId);
+    if (categoryById) return valueOrId;
+    
+    // If not, try to find by value
+    const categoryByValue = categories.find(
+      cat => cat.value.toLowerCase() === valueOrId.toLowerCase()
+    );
+    return categoryByValue ? categoryByValue.id : null;
   };
   
   // Helper function to map priority to status
@@ -468,6 +473,50 @@ export function TaskAnalyzer({
     });
     
     return result;
+  };
+  
+  // Bulk select all or none
+  const selectAllDuplicates = (select: boolean) => {
+    if (!analysisResults?.analysis?.duplicates) return;
+    
+    const newSelections: Record<string, boolean> = {};
+    analysisResults.analysis.duplicates.forEach((group: any, index: number) => {
+      if (group.recommendedAction === 'merge') {
+        newSelections[index] = select;
+      }
+    });
+    
+    setSelectedDuplicateMerges(prev => ({
+      ...prev,
+      ...newSelections
+    }));
+  };
+  
+  const selectAllSimilar = (select: boolean) => {
+    if (!analysisResults?.analysis?.similar) return;
+    
+    const newSelections: Record<string, boolean> = {};
+    analysisResults.analysis.similar.forEach((group: any, index: number) => {
+      if (group.recommendedAction === 'merge') {
+        newSelections[index] = select;
+      }
+    });
+    
+    setSelectedSimilarMerges(prev => ({
+      ...prev,
+      ...newSelections
+    }));
+  };
+  
+  // Count merge-eligible suggestions
+  const countMergeEligibleDuplicates = (): number => {
+    if (!analysisResults?.analysis?.duplicates) return 0;
+    return analysisResults.analysis.duplicates.filter(group => group.recommendedAction === 'merge').length;
+  };
+  
+  const countMergeEligibleSimilar = (): number => {
+    if (!analysisResults?.analysis?.similar) return 0;
+    return analysisResults.analysis.similar.filter(group => group.recommendedAction === 'merge').length;
   };
   
   return (
@@ -634,6 +683,24 @@ export function TaskAnalyzer({
                 Duplicate Tasks ({analysisResults.analysis.duplicates.length})
               </h4>
               
+              {/* Bulk action controls for duplicates */}
+              {countMergeEligibleDuplicates() > 3 && (
+                <div className="flex justify-end space-x-2 mb-2">
+                  <button 
+                    onClick={() => selectAllDuplicates(true)}
+                    className="text-xs bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-800/40 text-blue-700 dark:text-blue-300 px-2 py-1 rounded transition-colors"
+                  >
+                    Select All
+                  </button>
+                  <button 
+                    onClick={() => selectAllDuplicates(false)}
+                    className="text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-1 rounded transition-colors"
+                  >
+                    Clear All
+                  </button>
+                </div>
+              )}
+              
               <div className="space-y-4">
                 {analysisResults.analysis.duplicates.map((group: any, index: number) => (
                   <div 
@@ -686,17 +753,32 @@ export function TaskAnalyzer({
                               <div className="text-xs text-gray-500 dark:text-gray-400">
                                 {task.assigneeId && 
                                   <span className="mr-2">
-                                    Assignee: {technicians.find(t => t.id === task.assigneeId)?.name || 'Unknown'}
+                                    Assignee: {
+                                      // Try to find if this is an ID
+                                      technicians.some(t => t.id === task.assigneeId) ? 
+                                        technicians.find(t => t.id === task.assigneeId)?.name :
+                                        task.assigneeId
+                                    }
                                   </span>
                                 }
                                 {task.groupId && 
                                   <span className="mr-2">
-                                    Group: {groups.find(g => g.id === task.groupId)?.name || 'Unknown'}
+                                    Group: {
+                                      // Try to find if this is an ID
+                                      groups.some(g => g.id === task.groupId) ? 
+                                        groups.find(g => g.id === task.groupId)?.name :
+                                        task.groupId
+                                    }
                                   </span>
                                 }
                                 {task.categoryId && 
                                   <span>
-                                    Category: {categories.find(c => c.id === task.categoryId)?.value || 'Unknown'}
+                                    Category: {
+                                      // Try to find if this is an ID
+                                      categories.some(c => c.id === task.categoryId) ? 
+                                        categories.find(c => c.id === task.categoryId)?.value :
+                                        task.categoryId
+                                    }
                                   </span>
                                 }
                               </div>
@@ -721,9 +803,36 @@ export function TaskAnalyzer({
                             dangerouslySetInnerHTML={{ __html: group.mergedTask.details }}
                           />
                           <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            {group.mergedTask.assignee && <span className="mr-2">Assignee: {group.mergedTask.assignee}</span>}
-                            {group.mergedTask.group && <span className="mr-2">Group: {group.mergedTask.group}</span>}
-                            {group.mergedTask.category && <span>Category: {group.mergedTask.category}</span>}
+                            {group.mergedTask.assignee && 
+                              <span className="mr-2">
+                                Assignee: {
+                                  // Try to find if this is an ID
+                                  technicians.some(t => t.id === group.mergedTask.assignee) ? 
+                                    technicians.find(t => t.id === group.mergedTask.assignee)?.name :
+                                    group.mergedTask.assignee
+                                }
+                              </span>
+                            }
+                            {group.mergedTask.group && 
+                              <span className="mr-2">
+                                Group: {
+                                  // Try to find if this is an ID
+                                  groups.some(g => g.id === group.mergedTask.group) ? 
+                                    groups.find(g => g.id === group.mergedTask.group)?.name :
+                                    group.mergedTask.group
+                                }
+                              </span>
+                            }
+                            {group.mergedTask.category && 
+                              <span>
+                                Category: {
+                                  // Try to find if this is an ID
+                                  categories.some(c => c.id === group.mergedTask.category) ? 
+                                    categories.find(c => c.id === group.mergedTask.category)?.value :
+                                    group.mergedTask.category
+                                }
+                              </span>
+                            }
                           </div>
                         </div>
                       </div>
@@ -741,6 +850,24 @@ export function TaskAnalyzer({
                 <span className="inline-block h-2 w-2 rounded-full bg-yellow-500 mr-2"></span>
                 Similar Tasks ({analysisResults.analysis.similar.length})
               </h4>
+              
+              {/* Bulk action controls for similar tasks */}
+              {countMergeEligibleSimilar() > 3 && (
+                <div className="flex justify-end space-x-2 mb-2">
+                  <button 
+                    onClick={() => selectAllSimilar(true)}
+                    className="text-xs bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-800/40 text-blue-700 dark:text-blue-300 px-2 py-1 rounded transition-colors"
+                  >
+                    Select All
+                  </button>
+                  <button 
+                    onClick={() => selectAllSimilar(false)}
+                    className="text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-1 rounded transition-colors"
+                  >
+                    Clear All
+                  </button>
+                </div>
+              )}
               
               <div className="space-y-4">
                 {analysisResults.analysis.similar.map((group: any, index: number) => (
@@ -794,17 +921,32 @@ export function TaskAnalyzer({
                               <div className="text-xs text-gray-500 dark:text-gray-400">
                                 {task.assigneeId && 
                                   <span className="mr-2">
-                                    Assignee: {technicians.find(t => t.id === task.assigneeId)?.name || 'Unknown'}
+                                    Assignee: {
+                                      // Try to find if this is an ID
+                                      technicians.some(t => t.id === task.assigneeId) ? 
+                                        technicians.find(t => t.id === task.assigneeId)?.name :
+                                        task.assigneeId
+                                    }
                                   </span>
                                 }
                                 {task.groupId && 
                                   <span className="mr-2">
-                                    Group: {groups.find(g => g.id === task.groupId)?.name || 'Unknown'}
+                                    Group: {
+                                      // Try to find if this is an ID
+                                      groups.some(g => g.id === task.groupId) ? 
+                                        groups.find(g => g.id === task.groupId)?.name :
+                                        task.groupId
+                                    }
                                   </span>
                                 }
                                 {task.categoryId && 
                                   <span>
-                                    Category: {categories.find(c => c.id === task.categoryId)?.value || 'Unknown'}
+                                    Category: {
+                                      // Try to find if this is an ID
+                                      categories.some(c => c.id === task.categoryId) ? 
+                                        categories.find(c => c.id === task.categoryId)?.value :
+                                        task.categoryId
+                                    }
                                   </span>
                                 }
                               </div>
@@ -829,9 +971,36 @@ export function TaskAnalyzer({
                             dangerouslySetInnerHTML={{ __html: group.mergedTask.details }}
                           />
                           <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            {group.mergedTask.assignee && <span className="mr-2">Assignee: {group.mergedTask.assignee}</span>}
-                            {group.mergedTask.group && <span className="mr-2">Group: {group.mergedTask.group}</span>}
-                            {group.mergedTask.category && <span>Category: {group.mergedTask.category}</span>}
+                            {group.mergedTask.assignee && 
+                              <span className="mr-2">
+                                Assignee: {
+                                  // Try to find if this is an ID
+                                  technicians.some(t => t.id === group.mergedTask.assignee) ? 
+                                    technicians.find(t => t.id === group.mergedTask.assignee)?.name :
+                                    group.mergedTask.assignee
+                                }
+                              </span>
+                            }
+                            {group.mergedTask.group && 
+                              <span className="mr-2">
+                                Group: {
+                                  // Try to find if this is an ID
+                                  groups.some(g => g.id === group.mergedTask.group) ? 
+                                    groups.find(g => g.id === group.mergedTask.group)?.name :
+                                    group.mergedTask.group
+                                }
+                              </span>
+                            }
+                            {group.mergedTask.category && 
+                              <span>
+                                Category: {
+                                  // Try to find if this is an ID
+                                  categories.some(c => c.id === group.mergedTask.category) ? 
+                                    categories.find(c => c.id === group.mergedTask.category)?.value :
+                                    group.mergedTask.category
+                                }
+                              </span>
+                            }
                           </div>
                         </div>
                       </div>

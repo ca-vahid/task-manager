@@ -1,7 +1,7 @@
 import React from 'react';
 
 // Application version
-export const APP_VERSION = "1.0.10";
+export const APP_VERSION = "1.0.11";
 
 // Version history for changelog
 export interface VersionInfo {
@@ -14,6 +14,21 @@ export interface VersionInfo {
 }
 
 export const VERSION_HISTORY: VersionInfo[] = [
+  {
+    version: "1.0.11",
+    date: "April 12, 2024",
+    changes: [
+      {
+        category: "Task Analysis Improvements",
+        items: [
+          "Fixed issue displaying assignee IDs instead of names in task merge suggestions",
+          "Enhanced task category display to show proper names instead of numeric IDs",
+          "Added bulk selection controls for easier management of large task sets",
+          "Improved name-to-ID conversion when applying merges"
+        ]
+      }
+    ]
+  },
   {
     version: "1.0.10",
     date: "April 12, 2024",
