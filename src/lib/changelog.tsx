@@ -16,16 +16,14 @@ export interface VersionInfo {
 export const VERSION_HISTORY: VersionInfo[] = [
   {
     version: "1.0.21",
-    date: "April 14, 2024",
+    date: "April 13, 2024",
     changes: [
       {
-        category: "User Interface",
+        category: "UI Improvements",
         items: [
-          "Improved TaskAnalyzer UI with collapsible task sections",
-          "Fixed 'Select All' checkbox behavior in task merge view",
-          "Added sticky header with merge action controls",
-          "Enhanced scrolling behavior with better containment",
-          "Added consistent height constraints for task items"
+          "Fixed checkbox selection issue in task analyzer",
+          "Made duplicate task section collapsible for better organization",
+          "Added collapse/expand controls to task analysis sections"
         ]
       }
     ]
