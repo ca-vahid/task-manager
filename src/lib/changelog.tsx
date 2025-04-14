@@ -1,7 +1,7 @@
 import React from 'react';
 
 // Application version
-export const APP_VERSION = "1.1.0";
+export const APP_VERSION = "1.1.1";
 
 // Version history for changelog
 export interface VersionInfo {
@@ -14,6 +14,20 @@ export interface VersionInfo {
 }
 
 export const VERSION_HISTORY: VersionInfo[] = [
+  {
+    version: "1.1.1",
+    date: "April 14, 2024",
+    changes: [
+      {
+        category: "Bug Fixes",
+        items: [
+          "Fixed unescaped quotes in TaskAnalyzer component for Vercel compatibility",
+          "Improved HTML entity handling for better deployment compatibility",
+          "Enhanced code quality for production builds"
+        ]
+      }
+    ]
+  },
   {
     version: "1.1.0",
     date: "April 14, 2024",

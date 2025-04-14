@@ -732,7 +732,7 @@ export function TaskAnalyzer({
           <li className="flex items-start">
             <span className="text-blue-500 dark:text-blue-400 mr-1.5 mt-0.5">•</span>
             <span>
-              <strong>Title:</strong> Using "{group.mergedTask.title}" from {
+              <strong>Title:</strong> Using &quot;{group.mergedTask.title}&quot; from {
                 group.mergedTask.title === originalTasks[0].title 
                   ? "the primary task" 
                   : "combined sources"

@@ -1,5 +1,5 @@
 # Task Manager Application Architecture
-**Version: 1.1.0** (Based on APP_VERSION constant)
+**Version: 1.1.1** (Based on APP_VERSION constant)
 
 ## Overview
 This document provides a comprehensive overview of the Task Manager application architecture, including components, APIs, AI models, and data flow. It serves as a reference for developers working on the application.
