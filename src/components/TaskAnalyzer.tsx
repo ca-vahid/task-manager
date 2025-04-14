@@ -130,7 +130,24 @@ export function TaskAnalyzer({
   // Helper function to get name from ID using the lookup maps
   const getNameFromId = (id: string | null, map: Record<string, string>): string => {
     if (!id) return '';
-    return map[id] || id;
+    
+    // If it's probably already a name (contains space), return it
+    if (id.includes(' ')) {
+      return id;
+    }
+    
+    // Look up in map
+    if (map[id]) {
+      return map[id];
+    }
+    
+    // If it looks like a complex ID (no spaces, longer than 15 chars), truncate for display
+    if (id.length > 15 && !id.includes(' ')) {
+      return `[Unknown: ${id.substring(0, 6)}...]`;
+    }
+    
+    // Default fallback
+    return id;
   };
   
   // Toggle thinking model
@@ -456,19 +473,89 @@ export function TaskAnalyzer({
   
   // Improved helper functions that can handle either IDs or names
   
-  // Helper function to find technician ID by name or return the ID if it's already an ID
+  // Improved helper function to find technician ID by name using much more robust matching
   const findTechnicianIdImproved = (nameOrId: string | null): string | null => {
     if (!nameOrId) return null;
     
     // First check if nameOrId is already a valid ID in our technicians array
     const techById = technicians.find(tech => tech.id === nameOrId);
-    if (techById) return nameOrId;
+    if (techById) {
+      console.log("Found exact ID match:", techById.name);
+      return nameOrId;
+    }
     
-    // If not, try to find by name
-    const techByName = technicians.find(
-      tech => tech.name.toLowerCase() === nameOrId.toLowerCase()
+    // Normalize input for better matching
+    const normalizedName = nameOrId.toLowerCase().trim();
+    
+    // Try exact name match
+    const exactNameMatch = technicians.find(
+      tech => tech.name.toLowerCase().trim() === normalizedName
     );
-    return techByName ? techByName.id : null;
+    if (exactNameMatch) {
+      console.log("Found exact name match:", exactNameMatch.name);
+      return exactNameMatch.id;
+    }
+    
+    // Try if any technician name contains the input name
+    const containsMatch = technicians.find(
+      tech => tech.name.toLowerCase().trim().includes(normalizedName)
+    );
+    if (containsMatch) {
+      console.log("Found contains match:", containsMatch.name);
+      return containsMatch.id;
+    }
+    
+    // Try if the input name contains any technician name
+    const reverseContainsMatch = technicians.find(
+      tech => normalizedName.includes(tech.name.toLowerCase().trim())
+    );
+    if (reverseContainsMatch) {
+      console.log("Found reverse contains match:", reverseContainsMatch.name);
+      return reverseContainsMatch.id;
+    }
+    
+    // Try if the input name contains any part (word) of any technician name
+    for (const tech of technicians) {
+      const techNameParts = tech.name.toLowerCase().trim().split(/\s+/);
+      for (const part of techNameParts) {
+        if (normalizedName.includes(part) && part.length > 1) {
+          console.log("Found part in name match:", tech.name, "part:", part);
+          return tech.id;
+        }
+      }
+    }
+    
+    // Try if any part of the input name matches any part of any technician name
+    const nameParts = normalizedName.split(/\s+/);
+    for (const part of nameParts) {
+      if (part.length < 2) continue; // Skip very short parts
+      
+      const partMatch = technicians.find(tech => {
+        const techParts = tech.name.toLowerCase().trim().split(/\s+/);
+        return techParts.some(techPart => techPart.includes(part) || part.includes(techPart));
+      });
+      
+      if (partMatch) {
+        console.log("Found name part match:", partMatch.name);
+        return partMatch.id;
+      }
+    }
+    
+    // If all matching fails, try with initials for multi-part names
+    if (nameParts.length > 1) {
+      const initials = nameParts.map(part => part[0]).join('').toLowerCase();
+      for (const tech of technicians) {
+        const techParts = tech.name.toLowerCase().trim().split(/\s+/);
+        const techInitials = techParts.map(part => part[0]).join('');
+        if (techInitials === initials) {
+          console.log("Found initials match:", tech.name);
+          return tech.id;
+        }
+      }
+    }
+    
+    console.log("No match found for:", nameOrId);
+    return null;
   };
   
   // Helper function to find group ID by name or return the ID if it's already an ID
