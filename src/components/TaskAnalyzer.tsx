@@ -804,21 +804,32 @@ export function TaskAnalyzer({
                 </span>
               </h4>
               
-              {/* Bulk action controls for duplicates */}
-              {countMergeEligibleDuplicates() > 3 && (
-                <div className="flex justify-end space-x-2 mb-2">
-                  <button 
-                    onClick={() => selectAllDuplicates(true)}
-                    className="text-xs bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-800/40 text-blue-700 dark:text-blue-300 px-2 py-1 rounded transition-colors"
-                  >
-                    Select All
-                  </button>
-                  <button 
-                    onClick={() => selectAllDuplicates(false)}
-                    className="text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-1 rounded transition-colors"
-                  >
-                    Clear All
-                  </button>
+              {/* Bulk action controls for duplicates - show whenever there are ANY eligible merges */}
+              {countMergeEligibleDuplicates() > 0 && (
+                <div className="flex items-center justify-between mb-2 bg-gray-50 dark:bg-gray-800 rounded p-2">
+                  <div className="text-xs text-gray-600 dark:text-gray-300">
+                    <span className="font-medium">{Object.values(selectedDuplicateMerges).filter(Boolean).length}</span> of <span className="font-medium">{countMergeEligibleDuplicates()}</span> duplicate groups selected
+                  </div>
+                  <div className="flex space-x-2">
+                    <button 
+                      onClick={() => selectAllDuplicates(true)}
+                      className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded transition-colors flex items-center"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                      </svg>
+                      Select All
+                    </button>
+                    <button 
+                      onClick={() => selectAllDuplicates(false)}
+                      className="text-xs bg-gray-400 hover:bg-gray-500 text-white px-2 py-1 rounded transition-colors flex items-center"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Clear All
+                    </button>
+                  </div>
                 </div>
               )}
               
@@ -1062,21 +1073,32 @@ export function TaskAnalyzer({
                 </span>
               </h4>
               
-              {/* Bulk action controls for similar tasks */}
-              {countMergeEligibleSimilar() > 3 && (
-                <div className="flex justify-end space-x-2 mb-2">
-                  <button 
-                    onClick={() => selectAllSimilar(true)}
-                    className="text-xs bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-800/40 text-blue-700 dark:text-blue-300 px-2 py-1 rounded transition-colors"
-                  >
-                    Select All
-                  </button>
-                  <button 
-                    onClick={() => selectAllSimilar(false)}
-                    className="text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-1 rounded transition-colors"
-                  >
-                    Clear All
-                  </button>
+              {/* Bulk action controls for similar tasks - show whenever there are ANY eligible merges */}
+              {countMergeEligibleSimilar() > 0 && (
+                <div className="flex items-center justify-between mb-2 bg-gray-50 dark:bg-gray-800 rounded p-2">
+                  <div className="text-xs text-gray-600 dark:text-gray-300">
+                    <span className="font-medium">{Object.values(selectedSimilarMerges).filter(Boolean).length}</span> of <span className="font-medium">{countMergeEligibleSimilar()}</span> similar groups selected
+                  </div>
+                  <div className="flex space-x-2">
+                    <button 
+                      onClick={() => selectAllSimilar(true)}
+                      className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded transition-colors flex items-center"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                      </svg>
+                      Select All
+                    </button>
+                    <button 
+                      onClick={() => selectAllSimilar(false)}
+                      className="text-xs bg-gray-400 hover:bg-gray-500 text-white px-2 py-1 rounded transition-colors flex items-center"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Clear All
+                    </button>
+                  </div>
                 </div>
               )}
               

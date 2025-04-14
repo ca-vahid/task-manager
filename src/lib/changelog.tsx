@@ -1,7 +1,7 @@
 import React from 'react';
 
 // Application version
-export const APP_VERSION = "1.0.15";
+export const APP_VERSION = "1.0.16";
 
 // Version history for changelog
 export interface VersionInfo {
@@ -14,6 +14,21 @@ export interface VersionInfo {
 }
 
 export const VERSION_HISTORY: VersionInfo[] = [
+  {
+    version: "1.0.16",
+    date: "April 13, 2024",
+    changes: [
+      {
+        category: "UI Improvements",
+        items: [
+          "Enhanced 'Select All' functionality for task merge suggestions",
+          "Added selection counter showing how many groups are selected",
+          "Improved bulk action button visibility and styling",
+          "Made selection controls visible when any mergeable groups exist"
+        ]
+      }
+    ]
+  },
   {
     version: "1.0.15",
     date: "April 13, 2024",
