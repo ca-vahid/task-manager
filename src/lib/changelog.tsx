@@ -1,7 +1,7 @@
 import React from 'react';
 
 // Application version
-export const APP_VERSION = "1.0.11";
+export const APP_VERSION = "1.0.12";
 
 // Version history for changelog
 export interface VersionInfo {
@@ -14,6 +14,21 @@ export interface VersionInfo {
 }
 
 export const VERSION_HISTORY: VersionInfo[] = [
+  {
+    version: "1.0.12",
+    date: "April 15, 2024",
+    changes: [
+      {
+        category: "Task Merge Enhancements",
+        items: [
+          "Added visual indicators for tasks with FreshService tickets",
+          "Added Master Task badges to clearly show which task others will merge into",
+          "Added AI recommendation indicators showing suggested merge counts",
+          "Improved task merge UI for better clarity during the merge process"
+        ]
+      }
+    ]
+  },
   {
     version: "1.0.11",
     date: "April 12, 2024",
