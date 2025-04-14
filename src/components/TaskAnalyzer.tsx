@@ -60,6 +60,147 @@ function HighlightedOutput({ text }: HighlightedOutputProps) {
   return <>{highlightJson(text)}</>;
 }
 
+// Add new interfaces for task detail modal
+interface TaskDetailModalProps {
+  task: Task;
+  onClose: () => void;
+}
+
+function TaskDetailModal({ task, onClose }: TaskDetailModalProps) {
+  if (!task) return null;
+  
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      {/* Backdrop with animation */}
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fadeIn" />
+      
+      {/* Modal container */}
+      <div 
+        className="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-2xl transform transition-all animate-scaleIn overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="border-b border-gray-200 dark:border-gray-700 py-3 px-4 flex justify-between items-center sticky top-0 bg-white dark:bg-gray-800 z-10">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center">
+            {task.ticketNumber && (
+              <span className="inline-flex items-center px-2 py-1 mr-2 rounded-md text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                Ticket #{task.ticketNumber}
+              </span>
+            )}
+            <span>{task.title}</span>
+          </h3>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors rounded-full p-1 hover:bg-gray-100 dark:hover:bg-gray-700"
+          >
+            <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        
+        {/* Content area */}
+        <div className="py-4 px-6 overflow-y-auto max-h-[70vh]">
+          {/* Task metadata */}
+          <div className="grid grid-cols-3 gap-4 mb-4 text-sm">
+            <div className="space-y-1">
+              <p className="font-medium text-gray-500 dark:text-gray-400">Status</p>
+              <p className="font-semibold text-gray-900 dark:text-gray-100">
+                {task.status}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="font-medium text-gray-500 dark:text-gray-400">Priority</p>
+              <p className="font-semibold text-gray-900 dark:text-gray-100">
+                {task.priorityLevel || "Not set"}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="font-medium text-gray-500 dark:text-gray-400">Due Date</p>
+              <p className="font-semibold text-gray-900 dark:text-gray-100">
+                {task.estimatedCompletionDate ? new Date(task.estimatedCompletionDate.seconds * 1000).toLocaleDateString() : "Not set"}
+              </p>
+            </div>
+          </div>
+          
+          {/* Details section */}
+          <div className="mb-6">
+            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description</h4>
+            <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 text-sm text-gray-800 dark:text-gray-200">
+              {task.explanation ? (
+                <div dangerouslySetInnerHTML={{ __html: task.explanation }} />
+              ) : (
+                <p className="italic text-gray-500 dark:text-gray-400">No description provided</p>
+              )}
+            </div>
+          </div>
+          
+          {/* Assignee, Group and Category */}
+          <div className="grid grid-cols-3 gap-4 text-sm">
+            <div className="space-y-1">
+              <p className="font-medium text-gray-500 dark:text-gray-400">Assignee</p>
+              <p className="font-semibold text-gray-900 dark:text-gray-100">
+                {task.assigneeId || "Unassigned"}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="font-medium text-gray-500 dark:text-gray-400">Group</p>
+              <p className="font-semibold text-gray-900 dark:text-gray-100">
+                {task.groupId || "None"}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="font-medium text-gray-500 dark:text-gray-400">Category</p>
+              <p className="font-semibold text-gray-900 dark:text-gray-100">
+                {task.categoryId || "Uncategorized"}
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        {/* Footer */}
+        <div className="border-t border-gray-200 dark:border-gray-700 py-3 px-4 bg-gray-50 dark:bg-gray-800">
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Function to highlight differences between text strings
+function highlightDifferences(text1: string, text2: string): string {
+  if (!text1 || !text2) return text1 || text2 || '';
+  
+  if (text1 === text2) return text1;
+  
+  // If they're completely different, just return the original
+  if (text1.length / text2.length > 2 || text2.length / text1.length > 2) {
+    return text1;
+  }
+  
+  // Simple word-by-word comparison to highlight additions
+  const words1 = text1.split(/\s+/);
+  const words2 = text2.split(/\s+/);
+  
+  // Mark added words
+  const highlightedWords = words1.map(word => {
+    if (!words2.includes(word)) {
+      return `<span class="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 px-1 rounded">${word}</span>`;
+    }
+    return word;
+  });
+  
+  return highlightedWords.join(' ');
+}
+
 export function TaskAnalyzer({
   tasks,
   technicians,
@@ -715,6 +856,288 @@ export function TaskAnalyzer({
     return analysisResults.analysis.similar.filter((group: any) => group.recommendedAction === 'merge').length;
   };
   
+  // Add new state for task detail modal
+  const [selectedTaskDetail, setSelectedTaskDetail] = useState<Task | null>(null);
+  
+  // Helper function to show task details modal
+  const showTaskDetails = (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (task) {
+      setSelectedTaskDetail(task);
+    }
+  };
+  
+  // Modified version to highlight differences
+  function ComparisonView({ group }: { group: any }) {
+    // Get the primary task (first in list) to compare against
+    const primaryTaskId = group.tasks[0];
+    const primaryTask = tasks.find(t => t.id === primaryTaskId);
+    
+    if (!primaryTask) return null;
+    
+    return (
+      <div className="border-x border-b border-gray-200 dark:border-gray-700 rounded-b-lg overflow-hidden">
+        <div className="bg-blue-50 dark:bg-blue-900/10 p-2 border-b border-gray-200 dark:border-gray-700">
+          <div className="text-xs font-medium text-blue-700 dark:text-blue-300 flex justify-between">
+            <span>Task Comparison</span>
+            <span className="text-gray-500 dark:text-gray-400 italic text-xs">
+              Click on any task to view complete details
+            </span>
+          </div>
+        </div>
+        
+        <div className="flex flex-col">
+          {/* Header row */}
+          <div className="grid grid-cols-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+            <div className="p-2 text-xs font-medium text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">Field</div>
+            <div className="p-2 text-xs font-medium text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">Source Task Values</div>
+            <div className="p-2 text-xs font-medium text-gray-700 dark:text-gray-300">
+              <span className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 px-1.5 py-0.5 rounded text-xs font-medium">
+                Merged Result
+              </span>
+            </div>
+          </div>
+          
+          {/* Title comparison */}
+          <div className="grid grid-cols-3 border-b border-gray-200 dark:border-gray-700">
+            <div className="p-2 bg-gray-50 dark:bg-gray-800/50 text-xs font-medium text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">
+              Title
+            </div>
+            <div className="p-2 text-xs text-gray-700 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700">
+              <div className="space-y-1 max-h-24 overflow-y-auto">
+                {group.tasks.map((taskId: string, i: number) => {
+                  const task = tasks.find(t => t.id === taskId);
+                  if (!task) return null;
+                  
+                  return (
+                    <div 
+                      key={taskId} 
+                      className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer" 
+                      onClick={() => showTaskDetails(taskId)}
+                    >
+                      <span className={`inline-block w-5 h-5 text-xs font-medium text-center rounded-full mr-1 ${
+                        i === 0 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300'
+                      }`}>{i+1}</span>
+                      {task.title}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="p-2 text-xs text-gray-900 dark:text-gray-100 bg-green-50 dark:bg-green-900/10">
+              <span className="font-medium">{group.mergedTask.title}</span>
+              <div className="mt-1 text-xs text-green-600 dark:text-green-400">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 inline-block mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                Best combined title was selected
+              </div>
+            </div>
+          </div>
+          
+          {/* Details comparison */}
+          <div className="grid grid-cols-3 border-b border-gray-200 dark:border-gray-700">
+            <div className="p-2 bg-gray-50 dark:bg-gray-800/50 text-xs font-medium text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">
+              Details
+            </div>
+            <div className="p-2 text-xs text-gray-700 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700">
+              <div className="space-y-2 max-h-28 overflow-y-auto">
+                {group.tasks.map((taskId: string, i: number) => {
+                  const task = tasks.find(t => t.id === taskId);
+                  if (!task || !task.explanation) return null;
+                  
+                  return (
+                    <div 
+                      key={taskId} 
+                      className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer" 
+                      onClick={() => showTaskDetails(taskId)}
+                    >
+                      <span className={`inline-block w-5 h-5 text-xs font-medium text-center rounded-full mr-1 ${
+                        i === 0 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300'
+                      }`}>{i+1}</span>
+                      <span className="line-clamp-1">{task.explanation.replace(/<[^>]*>/g, '')}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="p-2 text-xs text-gray-900 dark:text-gray-100 bg-green-50 dark:bg-green-900/10">
+              <div className="max-h-28 overflow-y-auto" dangerouslySetInnerHTML={{ __html: group.mergedTask.details }} />
+              <div className="mt-1 text-xs text-green-600 dark:text-green-400">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 inline-block mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Merged from relevant information
+              </div>
+            </div>
+          </div>
+          
+          {/* Assignee comparison */}
+          <div className="grid grid-cols-3 border-b border-gray-200 dark:border-gray-700">
+            <div className="p-2 bg-gray-50 dark:bg-gray-800/50 text-xs font-medium text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">
+              Assignee
+            </div>
+            <div className="p-2 text-xs text-gray-700 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700">
+              <div className="space-y-1">
+                {group.tasks.map((taskId: string, i: number) => {
+                  const task = tasks.find(t => t.id === taskId);
+                  if (!task) return null;
+                  
+                  return (
+                    <div 
+                      key={taskId} 
+                      className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer" 
+                      onClick={() => showTaskDetails(taskId)}
+                    >
+                      <span className={`inline-block w-5 h-5 text-xs font-medium text-center rounded-full mr-1 ${
+                        i === 0 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300'
+                      }`}>{i+1}</span>
+                      {task.assigneeId ? getNameFromId(task.assigneeId, technicianMap) : 'Unassigned'}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="p-2 text-xs text-gray-900 dark:text-gray-100 bg-green-50 dark:bg-green-900/10">
+              <span className="font-medium">{group.mergedTask.assignee || 'Unassigned'}</span>
+              {group.mergedTask.assignee && (
+                <div className="mt-1 text-xs text-green-600 dark:text-green-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 inline-block mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  Preserved assignee for continuity
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Group comparison */}
+          <div className="grid grid-cols-3 border-b border-gray-200 dark:border-gray-700">
+            <div className="p-2 bg-gray-50 dark:bg-gray-800/50 text-xs font-medium text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">
+              Group
+            </div>
+            <div className="p-2 text-xs text-gray-700 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700">
+              <div className="space-y-1">
+                {group.tasks.map((taskId: string, i: number) => {
+                  const task = tasks.find(t => t.id === taskId);
+                  if (!task) return null;
+                  
+                  return (
+                    <div 
+                      key={taskId} 
+                      className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer" 
+                      onClick={() => showTaskDetails(taskId)}
+                    >
+                      <span className={`inline-block w-5 h-5 text-xs font-medium text-center rounded-full mr-1 ${
+                        i === 0 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300'
+                      }`}>{i+1}</span>
+                      {task.groupId ? getNameFromId(task.groupId, groupMap) : 'None'}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="p-2 text-xs text-gray-900 dark:text-gray-100 bg-green-50 dark:bg-green-900/10">
+              <span className="font-medium">{group.mergedTask.group || 'None'}</span>
+              {group.mergedTask.group && (
+                <div className="mt-1 text-xs text-green-600 dark:text-green-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 inline-block mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  Selected most appropriate group
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Category comparison */}
+          <div className="grid grid-cols-3 border-b border-gray-200 dark:border-gray-700">
+            <div className="p-2 bg-gray-50 dark:bg-gray-800/50 text-xs font-medium text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">
+              Category
+            </div>
+            <div className="p-2 text-xs text-gray-700 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700">
+              <div className="space-y-1">
+                {group.tasks.map((taskId: string, i: number) => {
+                  const task = tasks.find(t => t.id === taskId);
+                  if (!task) return null;
+                  
+                  return (
+                    <div 
+                      key={taskId} 
+                      className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer" 
+                      onClick={() => showTaskDetails(taskId)}
+                    >
+                      <span className={`inline-block w-5 h-5 text-xs font-medium text-center rounded-full mr-1 ${
+                        i === 0 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300'
+                      }`}>{i+1}</span>
+                      {task.categoryId ? getNameFromId(task.categoryId, categoryMap) : 'Uncategorized'}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="p-2 text-xs text-gray-900 dark:text-gray-100 bg-green-50 dark:bg-green-900/10">
+              <span className="font-medium">{group.mergedTask.category || 'Uncategorized'}</span>
+              {group.mergedTask.category && (
+                <div className="mt-1 text-xs text-green-600 dark:text-green-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 inline-block mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                  Most relevant category selected
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Priority comparison */}
+          <div className="grid grid-cols-3">
+            <div className="p-2 bg-gray-50 dark:bg-gray-800/50 text-xs font-medium text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">
+              Priority
+            </div>
+            <div className="p-2 text-xs text-gray-700 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700">
+              <div className="space-y-1">
+                {group.tasks.map((taskId: string, i: number) => {
+                  const task = tasks.find(t => t.id === taskId);
+                  if (!task) return null;
+                  
+                  return (
+                    <div 
+                      key={taskId} 
+                      className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer" 
+                      onClick={() => showTaskDetails(taskId)}
+                    >
+                      <span className={`inline-block w-5 h-5 text-xs font-medium text-center rounded-full mr-1 ${
+                        i === 0 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300'
+                      }`}>{i+1}</span>
+                      {task.priorityLevel || 'Normal'}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="p-2 text-xs text-gray-900 dark:text-gray-100 bg-green-50 dark:bg-green-900/10">
+              <span className={`font-medium ${
+                group.mergedTask.priority === 'Critical' 
+                  ? 'text-red-600 dark:text-red-400' 
+                  : group.mergedTask.priority === 'High'
+                    ? 'text-orange-600 dark:text-orange-400'
+                    : ''
+              }`}>
+                {group.mergedTask.priority || 'Normal'}
+              </span>
+              <div className="mt-1 text-xs text-green-600 dark:text-green-400">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 inline-block mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                </svg>
+                Highest priority was selected
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-h-[70vh] overflow-y-auto py-4">
       {showProcessingView && (
@@ -1031,7 +1454,7 @@ export function TaskAnalyzer({
                           </>
                         )}
                         
-                        {/* Task comparison UI */}
+                        {/* Task comparison UI - UPDATED FOR SIDE-BY-SIDE */}
                         {group.recommendedAction === 'merge' && group.mergedTask && (
                           <div>
                             <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-t-lg p-2">
@@ -1058,101 +1481,9 @@ export function TaskAnalyzer({
                                 </span>
                               </div>
                             </div>
-                            <div className="flex border-x border-b border-gray-200 dark:border-gray-700 rounded-b-lg overflow-hidden">
-                              {/* Left side: Original tickets */}
-                              <div className="w-1/2 border-r border-gray-200 dark:border-gray-700">
-                                <div className="bg-gray-50 dark:bg-gray-800 p-2 border-b border-gray-200 dark:border-gray-700">
-                                  <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                                    Original Tickets ({group.tasks.length})
-                                  </div>
-                                </div>
-                                <div className="p-3 space-y-3 max-h-80 overflow-y-auto">
-                                  {group.tasks.map((taskId: string, taskIndex: number) => {
-                                    const task = tasks.find(t => t.id === taskId);
-                                    return task ? (
-                                      <div key={taskId} className="text-sm border-b border-gray-100 dark:border-gray-800 pb-2 last:border-0 last:pb-0">
-                                        <div className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-1.5">
-                                          {/* Master Task Indicator */}
-                                          {taskIndex === 0 && (
-                                            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" title="Primary Task">
-                                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
-                                                <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clipRule="evenodd" />
-                                              </svg>
-                                            </span>
-                                          )}
-                                          
-                                          {/* FreshService Ticket Indicator */}
-                                          {task.ticketNumber && (
-                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
-                                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
-                                              </svg>
-                                              Ticket #{task.ticketNumber}
-                                            </span>
-                                          )}
-                                          
-                                          {task.ticketNumber ? `#${task.ticketNumber}: ` : ''}{task.title}
-                                        </div>
-                                        
-                                        {/* Restore assignee, group, and category info */}
-                                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex flex-wrap gap-x-4">
-                                          {task.assigneeId && (
-                                            <span className="flex items-center">
-                                              <span className="font-medium mr-1">Assignee:</span> {getNameFromId(task.assigneeId, technicianMap)}
-                                            </span>
-                                          )}
-                                          {task.groupId && (
-                                            <span className="flex items-center">
-                                              <span className="font-medium mr-1">Group:</span> {getNameFromId(task.groupId, groupMap)}
-                                            </span>
-                                          )}
-                                          {task.categoryId && (
-                                            <span className="flex items-center">
-                                              <span className="font-medium mr-1">Category:</span> {getNameFromId(task.categoryId, categoryMap)}
-                                            </span>
-                                          )}
-                                        </div>
-                                      </div>
-                                    ) : null;
-                                  })}
-                                </div>
-                              </div>
-                              
-                              {/* Right side: Merged task */}
-                              <div className="w-1/2">
-                                <div className="bg-green-50 dark:bg-green-900/20 p-2 border-b border-gray-200 dark:border-gray-700">
-                                  <div className="text-xs font-medium text-green-700 dark:text-green-300">
-                                    Merged Result
-                                  </div>
-                                </div>
-                                <div className="p-3">
-                                  <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                    {group.mergedTask.title}
-                                  </div>
-                                  <div 
-                                    className="text-xs mt-2 text-gray-700 dark:text-gray-300"
-                                    dangerouslySetInnerHTML={{ __html: group.mergedTask.details }}
-                                  />
-                                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-3 pt-2 border-t border-gray-100 dark:border-gray-800 flex flex-wrap gap-x-4">
-                                    {group.mergedTask.assignee && (
-                                      <span className="flex items-center">
-                                        <span className="font-medium mr-1">Assignee:</span> {getNameFromId(group.mergedTask.assignee, technicianMap)}
-                                      </span>
-                                    )}
-                                    {group.mergedTask.group && (
-                                      <span className="flex items-center">
-                                        <span className="font-medium mr-1">Group:</span> {getNameFromId(group.mergedTask.group, groupMap)}
-                                      </span>
-                                    )}
-                                    {group.mergedTask.category && (
-                                      <span className="flex items-center">
-                                        <span className="font-medium mr-1">Category:</span> {getNameFromId(group.mergedTask.category, categoryMap)}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
+                            
+                            {/* New comparison view */}
+                            <ComparisonView group={group} />
                           </div>
                         )}
                       </div>
@@ -1312,7 +1643,7 @@ export function TaskAnalyzer({
                           </>
                         )}
                         
-                        {/* Task comparison UI */}
+                        {/* Task comparison UI - UPDATED FOR SIDE-BY-SIDE */}
                         {group.recommendedAction === 'merge' && group.mergedTask && (
                           <div>
                             <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-t-lg p-2">
@@ -1339,101 +1670,9 @@ export function TaskAnalyzer({
                                 </span>
                               </div>
                             </div>
-                            <div className="flex border-x border-b border-gray-200 dark:border-gray-700 rounded-b-lg overflow-hidden">
-                              {/* Left side: Original tickets */}
-                              <div className="w-1/2 border-r border-gray-200 dark:border-gray-700">
-                                <div className="bg-gray-50 dark:bg-gray-800 p-2 border-b border-gray-200 dark:border-gray-700">
-                                  <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                                    Original Tickets ({group.tasks.length})
-                                  </div>
-                                </div>
-                                <div className="p-3 space-y-3 max-h-80 overflow-y-auto">
-                                  {group.tasks.map((taskId: string, taskIndex: number) => {
-                                    const task = tasks.find(t => t.id === taskId);
-                                    return task ? (
-                                      <div key={taskId} className="text-sm border-b border-gray-100 dark:border-gray-800 pb-2 last:border-0 last:pb-0">
-                                        <div className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-1.5">
-                                          {/* Master Task Indicator */}
-                                          {taskIndex === 0 && (
-                                            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" title="Primary Task">
-                                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
-                                                <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clipRule="evenodd" />
-                                              </svg>
-                                            </span>
-                                          )}
-                                          
-                                          {/* FreshService Ticket Indicator */}
-                                          {task.ticketNumber && (
-                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
-                                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
-                                              </svg>
-                                              Ticket #{task.ticketNumber}
-                                            </span>
-                                          )}
-                                          
-                                          {task.ticketNumber ? `#${task.ticketNumber}: ` : ''}{task.title}
-                                        </div>
-                                        
-                                        {/* Restore assignee, group, and category info */}
-                                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex flex-wrap gap-x-4">
-                                          {task.assigneeId && (
-                                            <span className="flex items-center">
-                                              <span className="font-medium mr-1">Assignee:</span> {getNameFromId(task.assigneeId, technicianMap)}
-                                            </span>
-                                          )}
-                                          {task.groupId && (
-                                            <span className="flex items-center">
-                                              <span className="font-medium mr-1">Group:</span> {getNameFromId(task.groupId, groupMap)}
-                                            </span>
-                                          )}
-                                          {task.categoryId && (
-                                            <span className="flex items-center">
-                                              <span className="font-medium mr-1">Category:</span> {getNameFromId(task.categoryId, categoryMap)}
-                                            </span>
-                                          )}
-                                        </div>
-                                      </div>
-                                    ) : null;
-                                  })}
-                                </div>
-                              </div>
-                              
-                              {/* Right side: Merged task */}
-                              <div className="w-1/2">
-                                <div className="bg-green-50 dark:bg-green-900/20 p-2 border-b border-gray-200 dark:border-gray-700">
-                                  <div className="text-xs font-medium text-green-700 dark:text-green-300">
-                                    Merged Result
-                                  </div>
-                                </div>
-                                <div className="p-3">
-                                  <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                    {group.mergedTask.title}
-                                  </div>
-                                  <div 
-                                    className="text-xs mt-2 text-gray-700 dark:text-gray-300"
-                                    dangerouslySetInnerHTML={{ __html: group.mergedTask.details }}
-                                  />
-                                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-3 pt-2 border-t border-gray-100 dark:border-gray-800 flex flex-wrap gap-x-4">
-                                    {group.mergedTask.assignee && (
-                                      <span className="flex items-center">
-                                        <span className="font-medium mr-1">Assignee:</span> {getNameFromId(group.mergedTask.assignee, technicianMap)}
-                                      </span>
-                                    )}
-                                    {group.mergedTask.group && (
-                                      <span className="flex items-center">
-                                        <span className="font-medium mr-1">Group:</span> {getNameFromId(group.mergedTask.group, groupMap)}
-                                      </span>
-                                    )}
-                                    {group.mergedTask.category && (
-                                      <span className="flex items-center">
-                                        <span className="font-medium mr-1">Category:</span> {getNameFromId(group.mergedTask.category, categoryMap)}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
+                            
+                            {/* New comparison view */}
+                            <ComparisonView group={group} />
                           </div>
                         )}
                       </div>
@@ -1516,6 +1755,14 @@ export function TaskAnalyzer({
             </div>
           </div>
         </div>
+      )}
+      
+      {/* Add Task Detail Modal */}
+      {selectedTaskDetail && (
+        <TaskDetailModal 
+          task={selectedTaskDetail} 
+          onClose={() => setSelectedTaskDetail(null)} 
+        />
       )}
     </div>
   );
