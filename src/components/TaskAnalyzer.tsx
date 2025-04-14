@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Task, Technician, Group, Category, TaskStatus } from '@/lib/types';
 
 interface TaskAnalyzerProps {
@@ -101,6 +101,37 @@ export function TaskAnalyzer({
   // Merge selections
   const [selectedDuplicateMerges, setSelectedDuplicateMerges] = useState<Record<string, boolean>>({});
   const [selectedSimilarMerges, setSelectedSimilarMerges] = useState<Record<string, boolean>>({});
+  
+  // Create lookup maps for efficient ID translation
+  const technicianMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    technicians.forEach(tech => {
+      map[tech.id] = tech.name;
+    });
+    return map;
+  }, [technicians]);
+  
+  const groupMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    groups.forEach(group => {
+      map[group.id] = group.name;
+    });
+    return map;
+  }, [groups]);
+  
+  const categoryMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    categories.forEach(category => {
+      map[category.id] = category.value;
+    });
+    return map;
+  }, [categories]);
+  
+  // Helper function to get name from ID using the lookup maps
+  const getNameFromId = (id: string | null, map: Record<string, string>): string => {
+    if (!id) return '';
+    return map[id] || id;
+  };
   
   // Toggle thinking model
   const toggleThinkingModel = () => {
@@ -602,17 +633,9 @@ export function TaskAnalyzer({
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-            ) : (
-              <svg className="h-5 w-5 text-gray-500 dark:text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            )}
+            ) : null}
             <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
-              {optimizationComplete 
-                ? 'Analysis Complete!' 
-                : isProcessing 
-                  ? 'Analyzing Tasks...' 
-                  : 'Select Model and Start Analysis'}
+              {optimizationComplete ? 'Analysis Complete!' : isProcessing ? 'Analyzing Tasks...' : 'Select Model and Start Analysis'}
             </h3>
           </div>
           
@@ -684,11 +707,11 @@ export function TaskAnalyzer({
           <div>
             <div
               ref={streamOutputRef}
-              className={`font-mono text-sm overflow-auto max-h-96 p-4 border ${
+              className={`font-mono text-sm overflow-auto max-h-[calc(50vh-100px)] p-4 border ${
                 useThinkingModel 
                   ? 'border-purple-200 dark:border-purple-800' 
                   : 'border-gray-200 dark:border-gray-800'
-              } rounded-lg bg-white dark:bg-gray-900 whitespace-pre-wrap`}
+              } rounded-lg bg-white dark:bg-gray-900 whitespace-pre-wrap scrollbar`}
             >
               <HighlightedOutput text={streamedOutput} />
               <div className="h-4"></div>
@@ -848,11 +871,10 @@ export function TaskAnalyzer({
                                   <div className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-1.5">
                                     {/* Master Task Indicator */}
                                     {taskIndex === 0 && (
-                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" title="Primary Task">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+                                          <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clipRule="evenodd" />
                                         </svg>
-                                        Master
                                       </span>
                                     )}
                                     
@@ -871,31 +893,17 @@ export function TaskAnalyzer({
                                   
                                   {/* Restore assignee, group, and category info */}
                                   <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex flex-wrap gap-x-2">
-                                    {task.assigneeId && 
-                                      <span>
-                                        Assignee: {
-                                          technicians.some(t => t.id === task.assigneeId) ? 
-                                            technicians.find(t => t.id === task.assigneeId)?.name :
-                                            task.assigneeId
-                                        }
-                                      </span>
-                                    }
+                                    <span>
+                                      Assignee: {getNameFromId(task.assigneeId, technicianMap)}
+                                    </span>
                                     {task.groupId && 
                                       <span>
-                                        Group: {
-                                          groups.some(g => g.id === task.groupId) ? 
-                                            groups.find(g => g.id === task.groupId)?.name :
-                                            task.groupId
-                                        }
+                                        Group: {getNameFromId(task.groupId, groupMap)}
                                       </span>
                                     }
                                     {task.categoryId && 
                                       <span>
-                                        Category: {
-                                          categories.some(c => c.id === task.categoryId) ? 
-                                            categories.find(c => c.id === task.categoryId)?.value :
-                                            task.categoryId
-                                        }
+                                        Category: {getNameFromId(task.categoryId, categoryMap)}
                                       </span>
                                     }
                                   </div>
@@ -950,11 +958,10 @@ export function TaskAnalyzer({
                                     <div className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-1.5">
                                       {/* Master Task Indicator */}
                                       {taskIndex === 0 && (
-                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" title="Primary Task">
+                                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+                                            <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clipRule="evenodd" />
                                           </svg>
-                                          Master
                                         </span>
                                       )}
                                       
@@ -973,31 +980,17 @@ export function TaskAnalyzer({
                                     
                                     {/* Restore assignee, group, and category info */}
                                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex flex-wrap gap-x-2">
-                                      {task.assigneeId && 
-                                        <span>
-                                          Assignee: {
-                                            technicians.some(t => t.id === task.assigneeId) ? 
-                                              technicians.find(t => t.id === task.assigneeId)?.name :
-                                              task.assigneeId
-                                          }
-                                        </span>
-                                      }
+                                      <span>
+                                        Assignee: {getNameFromId(task.assigneeId, technicianMap)}
+                                      </span>
                                       {task.groupId && 
                                         <span>
-                                          Group: {
-                                            groups.some(g => g.id === task.groupId) ? 
-                                              groups.find(g => g.id === task.groupId)?.name :
-                                              task.groupId
-                                          }
+                                          Group: {getNameFromId(task.groupId, groupMap)}
                                         </span>
                                       }
                                       {task.categoryId && 
                                         <span>
-                                          Category: {
-                                            categories.some(c => c.id === task.categoryId) ? 
-                                              categories.find(c => c.id === task.categoryId)?.value :
-                                              task.categoryId
-                                          }
+                                          Category: {getNameFromId(task.categoryId, categoryMap)}
                                         </span>
                                       }
                                     </div>
@@ -1025,29 +1018,17 @@ export function TaskAnalyzer({
                               <div className="text-xs text-gray-500 dark:text-gray-400 mt-3 pt-2 border-t border-gray-100 dark:border-gray-800">
                                 {group.mergedTask.assignee && 
                                   <span className="mr-2">
-                                    Assignee: {
-                                      technicians.some(t => t.id === group.mergedTask.assignee) ? 
-                                        technicians.find(t => t.id === group.mergedTask.assignee)?.name :
-                                        group.mergedTask.assignee
-                                    }
+                                    Assignee: {getNameFromId(group.mergedTask.assignee, technicianMap)}
                                   </span>
                                 }
                                 {group.mergedTask.group && 
                                   <span className="mr-2">
-                                    Group: {
-                                      groups.some(g => g.id === group.mergedTask.group) ? 
-                                        groups.find(g => g.id === group.mergedTask.group)?.name :
-                                        group.mergedTask.group
-                                    }
+                                    Group: {getNameFromId(group.mergedTask.group, groupMap)}
                                   </span>
                                 }
                                 {group.mergedTask.category && 
                                   <span>
-                                    Category: {
-                                      categories.some(c => c.id === group.mergedTask.category) ? 
-                                        categories.find(c => c.id === group.mergedTask.category)?.value :
-                                        group.mergedTask.category
-                                    }
+                                    Category: {getNameFromId(group.mergedTask.category, categoryMap)}
                                   </span>
                                 }
                               </div>
@@ -1144,11 +1125,10 @@ export function TaskAnalyzer({
                                   <div className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-1.5">
                                     {/* Master Task Indicator */}
                                     {taskIndex === 0 && (
-                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" title="Primary Task">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+                                          <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clipRule="evenodd" />
                                         </svg>
-                                        Master
                                       </span>
                                     )}
                                     
@@ -1167,31 +1147,17 @@ export function TaskAnalyzer({
                                   
                                   {/* Restore assignee, group, and category info */}
                                   <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex flex-wrap gap-x-2">
-                                    {task.assigneeId && 
-                                      <span>
-                                        Assignee: {
-                                          technicians.some(t => t.id === task.assigneeId) ? 
-                                            technicians.find(t => t.id === task.assigneeId)?.name :
-                                            task.assigneeId
-                                        }
-                                      </span>
-                                    }
+                                    <span>
+                                      Assignee: {getNameFromId(task.assigneeId, technicianMap)}
+                                    </span>
                                     {task.groupId && 
                                       <span>
-                                        Group: {
-                                          groups.some(g => g.id === task.groupId) ? 
-                                            groups.find(g => g.id === task.groupId)?.name :
-                                            task.groupId
-                                        }
+                                        Group: {getNameFromId(task.groupId, groupMap)}
                                       </span>
                                     }
                                     {task.categoryId && 
                                       <span>
-                                        Category: {
-                                          categories.some(c => c.id === task.categoryId) ? 
-                                            categories.find(c => c.id === task.categoryId)?.value :
-                                            task.categoryId
-                                        }
+                                        Category: {getNameFromId(task.categoryId, categoryMap)}
                                       </span>
                                     }
                                   </div>
@@ -1246,11 +1212,10 @@ export function TaskAnalyzer({
                                     <div className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-1.5">
                                       {/* Master Task Indicator */}
                                       {taskIndex === 0 && (
-                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" title="Primary Task">
+                                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+                                            <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clipRule="evenodd" />
                                           </svg>
-                                          Master
                                         </span>
                                       )}
                                       
@@ -1269,31 +1234,17 @@ export function TaskAnalyzer({
                                     
                                     {/* Restore assignee, group, and category info */}
                                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex flex-wrap gap-x-2">
-                                      {task.assigneeId && 
-                                        <span>
-                                          Assignee: {
-                                            technicians.some(t => t.id === task.assigneeId) ? 
-                                              technicians.find(t => t.id === task.assigneeId)?.name :
-                                              task.assigneeId
-                                          }
-                                        </span>
-                                      }
+                                      <span>
+                                        Assignee: {getNameFromId(task.assigneeId, technicianMap)}
+                                      </span>
                                       {task.groupId && 
                                         <span>
-                                          Group: {
-                                            groups.some(g => g.id === task.groupId) ? 
-                                              groups.find(g => g.id === task.groupId)?.name :
-                                              task.groupId
-                                          }
+                                          Group: {getNameFromId(task.groupId, groupMap)}
                                         </span>
                                       }
                                       {task.categoryId && 
                                         <span>
-                                          Category: {
-                                            categories.some(c => c.id === task.categoryId) ? 
-                                              categories.find(c => c.id === task.categoryId)?.value :
-                                              task.categoryId
-                                          }
+                                          Category: {getNameFromId(task.categoryId, categoryMap)}
                                         </span>
                                       }
                                     </div>
@@ -1321,29 +1272,17 @@ export function TaskAnalyzer({
                               <div className="text-xs text-gray-500 dark:text-gray-400 mt-3 pt-2 border-t border-gray-100 dark:border-gray-800">
                                 {group.mergedTask.assignee && 
                                   <span className="mr-2">
-                                    Assignee: {
-                                      technicians.some(t => t.id === group.mergedTask.assignee) ? 
-                                        technicians.find(t => t.id === group.mergedTask.assignee)?.name :
-                                        group.mergedTask.assignee
-                                    }
+                                    Assignee: {getNameFromId(group.mergedTask.assignee, technicianMap)}
                                   </span>
                                 }
                                 {group.mergedTask.group && 
                                   <span className="mr-2">
-                                    Group: {
-                                      groups.some(g => g.id === group.mergedTask.group) ? 
-                                        groups.find(g => g.id === group.mergedTask.group)?.name :
-                                        group.mergedTask.group
-                                    }
+                                    Group: {getNameFromId(group.mergedTask.group, groupMap)}
                                   </span>
                                 }
                                 {group.mergedTask.category && 
                                   <span>
-                                    Category: {
-                                      categories.some(c => c.id === group.mergedTask.category) ? 
-                                        categories.find(c => c.id === group.mergedTask.category)?.value :
-                                        group.mergedTask.category
-                                    }
+                                    Category: {getNameFromId(group.mergedTask.category, categoryMap)}
                                   </span>
                                 }
                               </div>
