@@ -1,7 +1,7 @@
 import React from 'react';
 
 // Application version
-export const APP_VERSION = "1.0.12";
+export const APP_VERSION = "1.0.13";
 
 // Version history for changelog
 export interface VersionInfo {
@@ -14,6 +14,21 @@ export interface VersionInfo {
 }
 
 export const VERSION_HISTORY: VersionInfo[] = [
+  {
+    version: "1.0.13",
+    date: "April 16, 2024",
+    changes: [
+      {
+        category: "UI Improvements",
+        items: [
+          "Enhanced Task Analyzer with new progress bar implementation",
+          "Fixed progress animation to only start after analysis begins",
+          "Added stage-based progress tracking for more accurate feedback",
+          "Implemented different progress speeds for thinking vs. standard models"
+        ]
+      }
+    ]
+  },
   {
     version: "1.0.12",
     date: "April 15, 2024",

@@ -81,6 +81,15 @@ export function TaskAnalyzer({
   const [uploadProgress, setUploadProgress] = useState(0);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Add process stage tracking
+  const [currentProcessStage, setCurrentProcessStage] = useState<'idle' | 'initializing' | 'analyzing' | 'processing' | 'complete'>('idle');
+  const [processingStages, setProcessingStages] = useState<{stage: string, percent: number}[]>([
+    { stage: 'Initializing Analysis', percent: 15 },
+    { stage: 'Analyzing Tasks', percent: 60 },
+    { stage: 'Processing Results', percent: 95 },
+    { stage: 'Complete', percent: 100 },
+  ]);
+  
   // Analysis output
   const [streamedOutput, setStreamedOutput] = useState('');
   const streamOutputRef = useRef<HTMLDivElement>(null);
@@ -96,7 +105,63 @@ export function TaskAnalyzer({
   // Toggle thinking model
   const toggleThinkingModel = () => {
     setUseThinkingModel(!useThinkingModel);
+    // Update stage percentages based on model
+    setProcessingStages([
+      { stage: 'Initializing Analysis', percent: 15 },
+      { stage: 'Analyzing Tasks', percent: useThinkingModel ? 40 : 60 }, // Thinking model takes longer
+      { stage: 'Processing Results', percent: useThinkingModel ? 85 : 95 },
+      { stage: 'Complete', percent: 100 },
+    ]);
   };
+  
+  // Function to make progress bar continuously increase during long operations
+  const useProgressIncrementer = (currentStage: string, currentProgress: number) => {
+    useEffect(() => {
+      let incrementInterval: NodeJS.Timeout | undefined;
+      
+      // Find the target percentage for the current stage
+      const currentStageInfo = processingStages.find(stage => 
+        stage.stage.toLowerCase().includes(currentStage.toLowerCase()));
+      const currentTarget = currentStageInfo?.percent || 0;
+      
+      // Calculate the previous stage's ending percentage
+      const previousStageIndex = processingStages.findIndex(stage => 
+        stage.stage.toLowerCase().includes(currentStage.toLowerCase())) - 1;
+      const previousPercent = previousStageIndex >= 0 ? processingStages[previousStageIndex].percent : 0;
+      
+      // Only increment if we're in an active stage and not at target
+      if (currentStage !== 'complete' && currentStage !== 'idle' && currentProgress < currentTarget) {
+        // Calculate increment based on model type
+        const incrementSize = useThinkingModel ? 0.15 : 0.3;
+        const intervalTime = useThinkingModel ? 400 : 300;
+        
+        incrementInterval = setInterval(() => {
+          setUploadProgress(prev => {
+            // Don't increment past the target
+            if (prev >= currentTarget) return prev;
+            
+            // Calculate how far we are through the current stage (as a percentage)
+            const stageProgress = (prev - previousPercent) / (currentTarget - previousPercent);
+            
+            // As we get closer to the target, make increments smaller
+            const dynamicIncrement = stageProgress > 0.7 ? incrementSize * 0.5 :
+                                    stageProgress > 0.5 ? incrementSize * 0.7 :
+                                    incrementSize;
+                                    
+            return Math.min(prev + dynamicIncrement, currentTarget);
+          });
+        }, intervalTime);
+      }
+      
+      // Cleanup
+      return () => {
+        if (incrementInterval) clearInterval(incrementInterval);
+      };
+    }, [currentStage, currentProgress, processingStages, useThinkingModel]);
+  };
+  
+  // Apply the progress increments
+  useProgressIncrementer(currentProcessStage, uploadProgress);
   
   // Scroll output to bottom when new content is added
   useEffect(() => {
@@ -117,19 +182,17 @@ export function TaskAnalyzer({
   // Start the analysis process
   const handleAnalyzeTasks = async () => {
     setIsProcessing(true);
-    setUploadProgress(0);
+    setCurrentProcessStage('initializing');
+    setUploadProgress(1); // Start at a small value
     setStreamedOutput('');
     setError(null);
     setAnalysisResults(null);
     
     try {
-      // Simulate progress updates
-      progressIntervalRef.current = setInterval(() => {
-        setUploadProgress(prev => {
-          if (prev >= 90) return prev;
-          return prev + Math.random() * 5;
-        });
-      }, 500);
+      // After a short delay, transition to analyzing stage
+      setTimeout(() => {
+        setCurrentProcessStage('analyzing');
+      }, useThinkingModel ? 4000 : 2000);
       
       // Send the tasks to the API for analysis
       const response = await fetch('/api/gemini/analyze-tasks', {
@@ -143,11 +206,8 @@ export function TaskAnalyzer({
         }),
       });
       
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-        progressIntervalRef.current = null;
-      }
-      setUploadProgress(100);
+      // Move to processing stage
+      setCurrentProcessStage('processing');
       
       if (!response.ok) {
         const errorData = await response.json();
@@ -177,6 +237,11 @@ export function TaskAnalyzer({
             const chunk = new TextDecoder().decode(value);
             receivedText += chunk;
             setStreamedOutput(receivedText);
+            
+            // Check for completion markers in the text
+            if (chunk.includes('Analysis complete')) {
+              setCurrentProcessStage('complete');
+            }
           }
           
           // Try to extract JSON from the streamed output
@@ -206,6 +271,9 @@ export function TaskAnalyzer({
             }
           }
           
+          // Set to complete at the end
+          setCurrentProcessStage('complete');
+          setUploadProgress(100);
           setOptimizationComplete(true);
         } catch (err) {
           console.error('Error processing stream:', err);
@@ -219,6 +287,7 @@ export function TaskAnalyzer({
     } catch (err: any) {
       console.error('Analysis error:', err);
       setError(err.message || 'An error occurred during analysis');
+      setCurrentProcessStage('idle');
     } finally {
       setIsProcessing(false);
     }
@@ -539,14 +608,28 @@ export function TaskAnalyzer({
             </h3>
           </div>
           
-          {/* Progress bar */}
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-4">
-            <div 
-              className={`h-2 rounded-full ${
-                useThinkingModel ? 'bg-purple-500 dark:bg-purple-400' : 'bg-blue-500 dark:bg-blue-400'
-              }`}
-              style={{ width: `${uploadProgress}%` }}
-            ></div>
+          {/* Progress bar with stage information */}
+          <div className="w-full space-y-1 mb-4">
+            <div className="mb-1 flex justify-between items-center">
+              <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                {currentProcessStage === 'idle' && 'Select Model and Start Analysis'}
+                {currentProcessStage === 'initializing' && 'Initializing Analysis'}
+                {currentProcessStage === 'analyzing' && 'Analyzing Tasks'}
+                {currentProcessStage === 'processing' && 'Processing Results'}
+                {currentProcessStage === 'complete' && 'Processing Complete'}
+              </div>
+              <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                {Math.round(uploadProgress)}%
+              </span>
+            </div>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-4">
+              <div 
+                className={`h-2 rounded-full ${
+                  useThinkingModel ? 'bg-purple-500 dark:bg-purple-400' : 'bg-blue-500 dark:bg-blue-400'
+                } transition-all duration-500 ease-out`}
+                style={{ width: `${uploadProgress}%` }}
+              ></div>
+            </div>
           </div>
           
           {/* Thinking model toggle */}
