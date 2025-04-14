@@ -1,7 +1,7 @@
 import React from 'react';
 
 // Application version
-export const APP_VERSION = "1.0.20";
+export const APP_VERSION = "1.0.21";
 
 // Version history for changelog
 export interface VersionInfo {
@@ -14,6 +14,22 @@ export interface VersionInfo {
 }
 
 export const VERSION_HISTORY: VersionInfo[] = [
+  {
+    version: "1.0.21",
+    date: "April 14, 2024",
+    changes: [
+      {
+        category: "User Interface",
+        items: [
+          "Improved TaskAnalyzer UI with collapsible task sections",
+          "Fixed 'Select All' checkbox behavior in task merge view",
+          "Added sticky header with merge action controls",
+          "Enhanced scrolling behavior with better containment",
+          "Added consistent height constraints for task items"
+        ]
+      }
+    ]
+  },
   {
     version: "1.0.20",
     date: "April 13, 2024",
