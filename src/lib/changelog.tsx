@@ -1,7 +1,7 @@
 import React from 'react';
 
 // Application version
-export const APP_VERSION = "1.0.22";
+export const APP_VERSION = "1.1.0";
 
 // Version history for changelog
 export interface VersionInfo {
@@ -14,6 +14,39 @@ export interface VersionInfo {
 }
 
 export const VERSION_HISTORY: VersionInfo[] = [
+  {
+    version: "1.1.0",
+    date: "April 14, 2024",
+    changes: [
+      {
+        category: "Major Feature",
+        items: [
+          "Added Outlook email task extraction capability",
+          "Implemented .eml and .msg file support for direct task creation from emails",
+          "Added robust JSON parsing to handle different Gemini response formats",
+          "Enhanced fallback extraction for better reliability with AI models"
+        ]
+      },
+      {
+        category: "UI Improvements",
+        items: [
+          "Added email upload interface with drag-and-drop support",
+          "Implemented real-time processing feedback with progress indicators",
+          "Added option to show/hide AI analysis transcript during processing",
+          "Enhanced task review interface for email-extracted tasks"
+        ]
+      },
+      {
+        category: "AI Integration",
+        items: [
+          "Added Gemini thinking model toggle for improved email analysis accuracy",
+          "Enhanced prompts to ensure AI returns proper data structures",
+          "Improved error handling and recovery for AI-powered task extraction",
+          "Implemented structured schema mapping for consistent task generation"
+        ]
+      }
+    ]
+  },
   {
     version: "1.0.22",
     date: "April 13, 2024",

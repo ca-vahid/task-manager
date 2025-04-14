@@ -207,6 +207,12 @@ export async function POST(request: Request) {
           Here are the tasks to analyze:
           ${JSON.stringify(transformedTasks, null, 2)}
 
+          CRITICAL INSTRUCTIONS:
+          1. You MUST return valid analysis data with actual content, NOT just a schema definition
+          2. Your response should contain actual task analysis with real results, not a type definition
+          3. DO NOT return a JSONSchema definition - return actual data
+          4. Return the analysis results in the following format with real analysis of the tasks provided
+
           Format your response ONLY as a valid JSON object conforming to this structure (do not include any extra text or markdown formatting like \`\`\`json):
           ${JSON.stringify(TASK_ANALYSIS_SCHEMA, null, 2)}
         `;
@@ -215,6 +221,12 @@ export async function POST(request: Request) {
         const response = await genAI.models.generateContentStream({
           model: MODEL,
           contents: [{role: "user", parts: [{text: analysisPrompt}]}],
+          // Add proper generation config for thinking model
+          ...(useThinkingModel ? {
+            generation_config: {
+              response_structure: { schema: TASK_ANALYSIS_SCHEMA }
+            }
+          } : {})
         });
 
         // Process the streaming response

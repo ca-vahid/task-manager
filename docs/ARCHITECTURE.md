@@ -1,5 +1,5 @@
 # Task Manager Application Architecture
-**Version: 1.0.0** (Based on APP_VERSION constant)
+**Version: 1.1.0** (Based on APP_VERSION constant)
 
 ## Overview
 This document provides a comprehensive overview of the Task Manager application architecture, including components, APIs, AI models, and data flow. It serves as a reference for developers working on the application.
@@ -7,7 +7,7 @@ This document provides a comprehensive overview of the Task Manager application 
 ## Version Control Rules
 
 ### Version Numbering
-- **Major.Minor.Patch** format (e.g., 1.0.0)
+- **Major.Minor.Patch** format (e.g., 1.1.0)
 - **Major**: Significant changes, new architectures, or breaking changes
 - **Minor**: New features and substantial improvements
 - **Patch**: Bug fixes and minor improvements
@@ -31,10 +31,10 @@ This document provides a comprehensive overview of the Task Manager application 
 - **Backend Storage**: Firebase Firestore
 - **Authentication**: Firebase Authentication
 - **AI Integration**: Gemini, OpenAI, Anthropic models
-- **Media Processing**: PDF analysis
+- **Media Processing**: PDF analysis, Email parsing
 
 ## Progress Bar Architecture
-The application implements a sophisticated progress tracking system in the document processing components, particularly in `BulkAddTaskFromPDF.tsx`.
+The application implements a sophisticated progress tracking system in the document processing components, particularly in `BulkAddTaskFromPDF.tsx` and `EmailTaskExtractor.tsx`.
 
 ### Progress Bar Components
 1. **Stage-Based Progress Tracking**
@@ -128,6 +128,7 @@ The application implements a sophisticated progress tracking system in the docum
 - **AddTaskForm**: Form for adding a single task
 - **BulkAddTaskAI**: Component for adding multiple tasks using AI text analysis
 - **BulkAddTaskFromPDF**: Component for extracting tasks from PDF documents
+- **EmailTaskExtractor**: Component for extracting tasks from Outlook emails (.eml, .msg files)
 - **TaskReviewForm**: Form for reviewing and editing AI-extracted tasks
 
 ## API Structure
@@ -157,6 +158,9 @@ All API routes are located in `src/app/api/`:
 5. **Ticket Integration**
    - `tickets/route.ts` - Integration with external ticket systems (likely FreshService)
 
+6. **Email Processing**
+   - `email/analyze/route.ts` - Extract tasks from Outlook email files (.eml, .msg)
+
 ### AI API Endpoints
 
 1. **OpenAI Integration**
@@ -177,15 +181,18 @@ All API routes are located in `src/app/api/`:
 ## AI Model Usage
 
 ### 1. Google Gemini Models
-- **Used for**: Task analysis, duplicate detection, and similarity detection
+- **Used for**: Task analysis, duplicate detection, similarity detection, and email task extraction
 - **Models**:
-  - `gemini-2.0-flash` (Standard model) - Fast task analysis
+  - `gemini-2.0-flash` (Standard model) - Fast task analysis and email processing
   - `gemini-2.5-pro-preview-03-25` (Thinking model) - More detailed analysis with reasoning steps
-- **Implementation**: See `src/app/api/gemini/analyze-tasks/route.ts`
+- **Implementation**: 
+  - Task Analysis: `src/app/api/gemini/analyze-tasks/route.ts`
+  - Email Analysis: `src/app/api/email/analyze/route.ts`
 - **Features**:
   - Structured output using JSON schema
   - Streaming responses for real-time updates
   - Two modes: standard (fast) and thinking (detailed)
+  - Email tasks extraction with metadata preservation
   - Identifies duplicate and similar tasks
   - Recommends merge operations with detailed rationale
 
@@ -236,6 +243,15 @@ All API routes are located in `src/app/api/`:
 - Generate merged task content when combining tasks
 - Real-time feedback during analysis
 - Two analysis modes: standard and thinking
+
+### Email Task Extraction
+- Extract tasks from Outlook email files (.eml, .msg)
+- Parse email content including subject, sender, and message body
+- Identify actionable items from email text
+- Assign appropriate priority levels
+- Extract due dates, assignees, and other task metadata
+- Support for both standard and thinking model analysis
+- Drag-and-drop interface for easy email uploading
 
 ### Document Processing
 - Extract tasks from PDF documents
@@ -295,6 +311,21 @@ interface Category {
 }
 ```
 
+### Email Task Extraction
+```typescript
+interface ParsedTask {
+  title: string;
+  details: string;
+  assignee: string | null;
+  group: string | null;
+  category: string | null;
+  dueDate: string | null;
+  priority: string;
+  ticketNumber: string | null;
+  externalUrl: string | null;
+}
+```
+
 ## Firebase Integration
 - **Database**: Firestore for storing tasks, technicians, groups, categories
 - **Authentication**: User authentication with Firebase Auth
@@ -313,9 +344,17 @@ interface Category {
 - **useUndo**: Hook for undo operations
 
 ## UI Components
-- **Modal**: Reusable modal with configurable sizes (sm, md, lg, xl, 2xl)
+- **Modal**: Reusable modal component with configurable sizes (sm, md, lg, xl, 2xl)
 - **CollapsibleGroup**: Expandable/collapsible container
 - **QuillEditor**: Rich text editor for task details
+
+## Email Processing Features
+- Email file format support (.eml, .msg)
+- Simple email parser with Edge Runtime compatibility
+- Email metadata extraction (sender, subject, date, attachments)
+- AI-powered task identification from email content
+- Thinking vs. Standard model toggle for email analysis
+- Optional AI transcript display during processing
 
 ## Document Processing Features
 - PDF task extraction
