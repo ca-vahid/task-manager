@@ -237,6 +237,8 @@ export async function POST(request: Request) {
           4. Identify the assignee when specified or implied
           5. Group related tasks when appropriate
           6. Include all relevant context in the task details
+          7. IMPORTANT: Return a maximum of 3 tasks total
+          8. If you identify more than 3 potential tasks, combine similar or related tasks into more comprehensive tasks
 
           Email Information:
           Subject: ${subject}
@@ -254,6 +256,8 @@ export async function POST(request: Request) {
           2. Your response should contain actual task objects with real titles and details from the email
           3. DO NOT return a JSONSchema definition or a type definition
           4. Return the actual data with real task information extracted from the email
+          5. Limit your response to a MAXIMUM of 3 tasks - combine tasks if necessary
+          6. Prioritize the most important/urgent tasks if you need to choose which ones to include
 
           Format your response as a valid JSON object conforming to this structure:
           ${JSON.stringify(TASK_EXTRACTION_SCHEMA, null, 2)}

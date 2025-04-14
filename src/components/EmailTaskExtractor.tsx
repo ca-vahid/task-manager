@@ -51,7 +51,7 @@ export function EmailTaskExtractor({
 
   // Model and View states
   const [useThinkingModel, setUseThinkingModel] = useState(false);
-  const [showTranscript, setShowTranscript] = useState(false);
+  const [showTranscript, setShowTranscript] = useState(true);
   const [showInputView, setShowInputView] = useState(true);
   const [showProcessingView, setShowProcessingView] = useState(false);
   const [showReviewView, setShowReviewView] = useState(false);
@@ -261,7 +261,7 @@ export function EmailTaskExtractor({
             const taskExamples = parsedSchema.properties.tasks.items;
             const validTasks = taskExamples.filter((item: any) => item && item.title && item.details);
             if (validTasks.length > 0) {
-              return validTasks;
+              return limitAndMergeTasks(validTasks);
             }
           }
         } catch (e) {
@@ -277,14 +277,14 @@ export function EmailTaskExtractor({
         
         // Standard response format
         if (parsedData.tasks && Array.isArray(parsedData.tasks)) {
-          return parsedData.tasks;
+          return limitAndMergeTasks(parsedData.tasks);
         }
         
         // Handle the thinking model schema-like response format
         if (parsedData.properties && parsedData.properties.tasks) {
           // Case 1: When tasks property has items that are task objects
           if (parsedData.properties.tasks.items && Array.isArray(parsedData.properties.tasks.items)) {
-            return parsedData.properties.tasks.items.filter((item: any) => item.title && item.details);
+            return limitAndMergeTasks(parsedData.properties.tasks.items.filter((item: any) => item.title && item.details));
           }
           
           // Case 2: When tasks property contains a general schema with nested examples
@@ -327,7 +327,7 @@ export function EmailTaskExtractor({
             );
             
             if (foundTasks.length > 0) {
-              return foundTasks;
+              return limitAndMergeTasks(foundTasks);
             }
           }
         }
@@ -341,7 +341,7 @@ export function EmailTaskExtractor({
         
         if (matches.length > 0) {
           // Attempt to reconstruct tasks from regex matches
-          return matches.map(match => {
+          const extractedTasks = matches.map(match => {
             const taskText = text.substring(match.index!, match.index! + match[0].length + 200);
             try {
               // Try to parse a JSON object from this section
@@ -374,6 +374,8 @@ export function EmailTaskExtractor({
               };
             }
           }).filter(Boolean) as ParsedTask[];
+          
+          return limitAndMergeTasks(extractedTasks);
         }
       } catch (regexError) {
         console.error('Error in fallback task extraction:', regexError);
@@ -384,6 +386,82 @@ export function EmailTaskExtractor({
       console.error('Error extracting tasks from output:', error);
       return null;
     }
+  };
+
+  // Function to limit tasks to a maximum of 3 by merging if necessary
+  const limitAndMergeTasks = (tasks: ParsedTask[]): ParsedTask[] => {
+    if (!tasks || tasks.length <= 3) {
+      return tasks;
+    }
+    
+    // If we have more than 3 tasks, we need to merge some
+    console.log(`Found ${tasks.length} tasks, merging to maximum of 3...`);
+    
+    // First, sort tasks by priority to keep the most important ones separate
+    const sortedTasks = [...tasks].sort((a, b) => {
+      const priorityOrder: Record<string, number> = {
+        'Critical': 3,
+        'High': 2,
+        'Medium': 1,
+        'Low': 0
+      };
+      
+      const aPriority = a.priority ? priorityOrder[a.priority] || 0 : 0;
+      const bPriority = b.priority ? priorityOrder[b.priority] || 0 : 0;
+      
+      return bPriority - aPriority; // Descending order by priority
+    });
+    
+    // Keep top 2 tasks with highest priority
+    const highPriorityTasks = sortedTasks.slice(0, 2);
+    
+    // Merge the remaining tasks into one consolidated task
+    const remainingTasks = sortedTasks.slice(2);
+    
+    if (remainingTasks.length === 1) {
+      // If only one remains, just add it to our result
+      return [...highPriorityTasks, remainingTasks[0]];
+    }
+    
+    // Create a merged task from the remaining tasks
+    const mergedTask: ParsedTask = {
+      title: `Consolidated: ${remainingTasks[0].title}`,
+      details: `This task consolidates ${remainingTasks.length} related items:\n\n` + 
+        remainingTasks.map((task, index) => (
+          `${index + 1}. **${task.title}**\n${task.details}\n`
+        )).join('\n'),
+      // Use the highest priority among merged tasks
+      priority: remainingTasks.reduce((highest, task) => {
+        const priorityRank: Record<string, number> = {
+          'Critical': 3,
+          'High': 2,
+          'Medium': 1,
+          'Low': 0
+        };
+        
+        const taskRank = task.priority ? priorityRank[task.priority] || 0 : 0;
+        const highestRank = highest ? priorityRank[highest] || 0 : 0;
+        
+        if (taskRank > highestRank) {
+          return task.priority;
+        }
+        return highest;
+      }, 'Medium'),
+      // Use earliest due date if any are specified
+      dueDate: remainingTasks
+        .map(task => task.dueDate)
+        .filter(Boolean)
+        .sort()[0] || null,
+      // Prefer first task's assignee if available
+      assignee: remainingTasks[0].assignee,
+      group: remainingTasks[0].group,
+      category: remainingTasks[0].category,
+      ticketNumber: remainingTasks.find(t => t.ticketNumber)?.ticketNumber || null,
+      externalUrl: remainingTasks.find(t => t.externalUrl)?.externalUrl || null
+    };
+    
+    // Return high priority tasks + merged task
+    return [...highPriorityTasks, mergedTask];
   };
 
   // When the user submits the reviewed tasks

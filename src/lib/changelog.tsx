@@ -32,7 +32,7 @@ export const VERSION_HISTORY: VersionInfo[] = [
         items: [
           "Added email upload interface with drag-and-drop support",
           "Implemented real-time processing feedback with progress indicators",
-          "Added option to show/hide AI analysis transcript during processing",
+          "Set AI transcript to be visible by default during email processing",
           "Enhanced task review interface for email-extracted tasks"
         ]
       },
@@ -41,7 +41,7 @@ export const VERSION_HISTORY: VersionInfo[] = [
         items: [
           "Added Gemini thinking model toggle for improved email analysis accuracy",
           "Enhanced prompts to ensure AI returns proper data structures",
-          "Improved error handling and recovery for AI-powered task extraction",
+          "Added smart task merging to limit email extraction to maximum 3 tasks",
           "Implemented structured schema mapping for consistent task generation"
         ]
       }
