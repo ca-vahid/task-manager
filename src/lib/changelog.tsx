@@ -21,10 +21,10 @@ export const VERSION_HISTORY: VersionInfo[] = [
       {
         category: "Task Comparison Improvements",
         items: [
-          "Added side-by-side comparison view for tasks being merged",
-          "Added task detail popup for viewing complete task information",
-          "Enhanced comparison UI with visual indicators for preserved/modified data",
-          "Added clear explanation of what information will be kept in merged tasks"
+          "Added detailed information about what data will be preserved during merges",
+          "Added ability to click on source tasks to view complete task details",
+          "Improved display of technician names in task details modal",
+          "Enhanced merge information with clear preservation indicators"
         ]
       }
     ]
