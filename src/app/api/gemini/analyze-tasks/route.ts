@@ -110,11 +110,50 @@ export async function POST(request: Request) {
   const requestData = await request.json();
   
   // Extract necessary information from the request
-  const { tasks, useThinkingModel = false } = requestData;
+  const { tasks, useThinkingModel = false, technicians = [], groups = [], categories = [] } = requestData;
   
   if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
     return NextResponse.json({ error: "Tasks array is required" }, { status: 400 });
   }
+
+  // Create lookup maps for converting IDs to names
+  const technicianMap: Record<string, string> = {};
+  const groupMap: Record<string, string> = {};
+  const categoryMap: Record<string, string> = {};
+  
+  // Fill lookup maps
+  if (Array.isArray(technicians)) {
+    technicians.forEach((tech: any) => {
+      if (tech.id && tech.name) {
+        technicianMap[tech.id] = tech.name;
+      }
+    });
+  }
+  
+  if (Array.isArray(groups)) {
+    groups.forEach((group: any) => {
+      if (group.id && group.name) {
+        groupMap[group.id] = group.name;
+      }
+    });
+  }
+  
+  if (Array.isArray(categories)) {
+    categories.forEach((category: any) => {
+      if (category.id && category.value) {
+        categoryMap[category.id] = category.value;
+      }
+    });
+  }
+  
+  // Transform tasks to use human-readable names instead of IDs
+  const transformedTasks = tasks.map((task: any) => ({
+    ...task,
+    // Include the assignee name alongside the ID
+    assigneeName: task.assigneeId ? technicianMap[task.assigneeId] || `Unknown (${task.assigneeId})` : null,
+    groupName: task.groupId ? groupMap[task.groupId] || `Unknown (${task.groupId})` : null,
+    categoryName: task.categoryId ? categoryMap[task.categoryId] || `Unknown (${task.categoryId})` : null
+  }));
 
   // Set up streaming response
   const stream = new ReadableStream({
@@ -166,7 +205,7 @@ export async function POST(request: Request) {
           3. If recommending a merge, provide the merged task details
 
           Here are the tasks to analyze:
-          ${JSON.stringify(tasks, null, 2)}
+          ${JSON.stringify(transformedTasks, null, 2)}
 
           Format your response ONLY as a valid JSON object conforming to this structure (do not include any extra text or markdown formatting like \`\`\`json):
           ${JSON.stringify(TASK_ANALYSIS_SCHEMA, null, 2)}

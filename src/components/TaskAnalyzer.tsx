@@ -251,6 +251,9 @@ export function TaskAnalyzer({
         body: JSON.stringify({
           tasks,
           useThinkingModel,
+          technicians, // Pass the technicians data to the API
+          groups,      // Pass the groups data to the API
+          categories   // Pass the categories data to the API
         }),
       });
       
