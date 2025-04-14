@@ -892,20 +892,22 @@ export function TaskAnalyzer({
                                   </div>
                                   
                                   {/* Restore assignee, group, and category info */}
-                                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex flex-wrap gap-x-2">
-                                    <span>
-                                      Assignee: {getNameFromId(task.assigneeId, technicianMap)}
-                                    </span>
-                                    {task.groupId && 
-                                      <span>
-                                        Group: {getNameFromId(task.groupId, groupMap)}
+                                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex flex-wrap gap-x-4">
+                                    {task.assigneeId && (
+                                      <span className="flex items-center">
+                                        <span className="font-medium mr-1">Assignee:</span> {getNameFromId(task.assigneeId, technicianMap)}
                                       </span>
-                                    }
-                                    {task.categoryId && 
-                                      <span>
-                                        Category: {getNameFromId(task.categoryId, categoryMap)}
+                                    )}
+                                    {task.groupId && (
+                                      <span className="flex items-center">
+                                        <span className="font-medium mr-1">Group:</span> {getNameFromId(task.groupId, groupMap)}
                                       </span>
-                                    }
+                                    )}
+                                    {task.categoryId && (
+                                      <span className="flex items-center">
+                                        <span className="font-medium mr-1">Category:</span> {getNameFromId(task.categoryId, categoryMap)}
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                               ) : null;
@@ -979,20 +981,22 @@ export function TaskAnalyzer({
                                     </div>
                                     
                                     {/* Restore assignee, group, and category info */}
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex flex-wrap gap-x-2">
-                                      <span>
-                                        Assignee: {getNameFromId(task.assigneeId, technicianMap)}
-                                      </span>
-                                      {task.groupId && 
-                                        <span>
-                                          Group: {getNameFromId(task.groupId, groupMap)}
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex flex-wrap gap-x-4">
+                                      {task.assigneeId && (
+                                        <span className="flex items-center">
+                                          <span className="font-medium mr-1">Assignee:</span> {getNameFromId(task.assigneeId, technicianMap)}
                                         </span>
-                                      }
-                                      {task.categoryId && 
-                                        <span>
-                                          Category: {getNameFromId(task.categoryId, categoryMap)}
+                                      )}
+                                      {task.groupId && (
+                                        <span className="flex items-center">
+                                          <span className="font-medium mr-1">Group:</span> {getNameFromId(task.groupId, groupMap)}
                                         </span>
-                                      }
+                                      )}
+                                      {task.categoryId && (
+                                        <span className="flex items-center">
+                                          <span className="font-medium mr-1">Category:</span> {getNameFromId(task.categoryId, categoryMap)}
+                                        </span>
+                                      )}
                                     </div>
                                   </div>
                                 ) : null;
@@ -1015,22 +1019,22 @@ export function TaskAnalyzer({
                                 className="text-xs mt-2 text-gray-700 dark:text-gray-300"
                                 dangerouslySetInnerHTML={{ __html: group.mergedTask.details }}
                               />
-                              <div className="text-xs text-gray-500 dark:text-gray-400 mt-3 pt-2 border-t border-gray-100 dark:border-gray-800">
-                                {group.mergedTask.assignee && 
-                                  <span className="mr-2">
-                                    Assignee: {getNameFromId(group.mergedTask.assignee, technicianMap)}
+                              <div className="text-xs text-gray-500 dark:text-gray-400 mt-3 pt-2 border-t border-gray-100 dark:border-gray-800 flex flex-wrap gap-x-4">
+                                {group.mergedTask.assignee && (
+                                  <span className="flex items-center">
+                                    <span className="font-medium mr-1">Assignee:</span> {getNameFromId(group.mergedTask.assignee, technicianMap)}
                                   </span>
-                                }
-                                {group.mergedTask.group && 
-                                  <span className="mr-2">
-                                    Group: {getNameFromId(group.mergedTask.group, groupMap)}
+                                )}
+                                {group.mergedTask.group && (
+                                  <span className="flex items-center">
+                                    <span className="font-medium mr-1">Group:</span> {getNameFromId(group.mergedTask.group, groupMap)}
                                   </span>
-                                }
-                                {group.mergedTask.category && 
-                                  <span>
-                                    Category: {getNameFromId(group.mergedTask.category, categoryMap)}
+                                )}
+                                {group.mergedTask.category && (
+                                  <span className="flex items-center">
+                                    <span className="font-medium mr-1">Category:</span> {getNameFromId(group.mergedTask.category, categoryMap)}
                                   </span>
-                                }
+                                )}
                               </div>
                             </div>
                           </div>
@@ -1146,20 +1150,22 @@ export function TaskAnalyzer({
                                   </div>
                                   
                                   {/* Restore assignee, group, and category info */}
-                                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex flex-wrap gap-x-2">
-                                    <span>
-                                      Assignee: {getNameFromId(task.assigneeId, technicianMap)}
-                                    </span>
-                                    {task.groupId && 
-                                      <span>
-                                        Group: {getNameFromId(task.groupId, groupMap)}
+                                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex flex-wrap gap-x-4">
+                                    {task.assigneeId && (
+                                      <span className="flex items-center">
+                                        <span className="font-medium mr-1">Assignee:</span> {getNameFromId(task.assigneeId, technicianMap)}
                                       </span>
-                                    }
-                                    {task.categoryId && 
-                                      <span>
-                                        Category: {getNameFromId(task.categoryId, categoryMap)}
+                                    )}
+                                    {task.groupId && (
+                                      <span className="flex items-center">
+                                        <span className="font-medium mr-1">Group:</span> {getNameFromId(task.groupId, groupMap)}
                                       </span>
-                                    }
+                                    )}
+                                    {task.categoryId && (
+                                      <span className="flex items-center">
+                                        <span className="font-medium mr-1">Category:</span> {getNameFromId(task.categoryId, categoryMap)}
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                               ) : null;
@@ -1233,20 +1239,22 @@ export function TaskAnalyzer({
                                     </div>
                                     
                                     {/* Restore assignee, group, and category info */}
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex flex-wrap gap-x-2">
-                                      <span>
-                                        Assignee: {getNameFromId(task.assigneeId, technicianMap)}
-                                      </span>
-                                      {task.groupId && 
-                                        <span>
-                                          Group: {getNameFromId(task.groupId, groupMap)}
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex flex-wrap gap-x-4">
+                                      {task.assigneeId && (
+                                        <span className="flex items-center">
+                                          <span className="font-medium mr-1">Assignee:</span> {getNameFromId(task.assigneeId, technicianMap)}
                                         </span>
-                                      }
-                                      {task.categoryId && 
-                                        <span>
-                                          Category: {getNameFromId(task.categoryId, categoryMap)}
+                                      )}
+                                      {task.groupId && (
+                                        <span className="flex items-center">
+                                          <span className="font-medium mr-1">Group:</span> {getNameFromId(task.groupId, groupMap)}
                                         </span>
-                                      }
+                                      )}
+                                      {task.categoryId && (
+                                        <span className="flex items-center">
+                                          <span className="font-medium mr-1">Category:</span> {getNameFromId(task.categoryId, categoryMap)}
+                                        </span>
+                                      )}
                                     </div>
                                   </div>
                                 ) : null;
@@ -1269,22 +1277,22 @@ export function TaskAnalyzer({
                                 className="text-xs mt-2 text-gray-700 dark:text-gray-300"
                                 dangerouslySetInnerHTML={{ __html: group.mergedTask.details }}
                               />
-                              <div className="text-xs text-gray-500 dark:text-gray-400 mt-3 pt-2 border-t border-gray-100 dark:border-gray-800">
-                                {group.mergedTask.assignee && 
-                                  <span className="mr-2">
-                                    Assignee: {getNameFromId(group.mergedTask.assignee, technicianMap)}
+                              <div className="text-xs text-gray-500 dark:text-gray-400 mt-3 pt-2 border-t border-gray-100 dark:border-gray-800 flex flex-wrap gap-x-4">
+                                {group.mergedTask.assignee && (
+                                  <span className="flex items-center">
+                                    <span className="font-medium mr-1">Assignee:</span> {getNameFromId(group.mergedTask.assignee, technicianMap)}
                                   </span>
-                                }
-                                {group.mergedTask.group && 
-                                  <span className="mr-2">
-                                    Group: {getNameFromId(group.mergedTask.group, groupMap)}
+                                )}
+                                {group.mergedTask.group && (
+                                  <span className="flex items-center">
+                                    <span className="font-medium mr-1">Group:</span> {getNameFromId(group.mergedTask.group, groupMap)}
                                   </span>
-                                }
-                                {group.mergedTask.category && 
-                                  <span>
-                                    Category: {getNameFromId(group.mergedTask.category, categoryMap)}
+                                )}
+                                {group.mergedTask.category && (
+                                  <span className="flex items-center">
+                                    <span className="font-medium mr-1">Category:</span> {getNameFromId(group.mergedTask.category, categoryMap)}
                                   </span>
-                                }
+                                )}
                               </div>
                             </div>
                           </div>
