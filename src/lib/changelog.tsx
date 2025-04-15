@@ -525,6 +525,18 @@ export const VERSION_HISTORY: VersionInfo[] = [
         ]
       }
     ]
+  },
+  {
+    version: "1.0.23",
+    date: "2024-05-30",
+    changes: [
+      {
+        category: "Added",
+        items: [
+          "Main page title is now editable via Firestore. The title is stored in /settings/mainPageTitle and is auto-created if missing."
+        ]
+      }
+    ]
   }
 ];
 

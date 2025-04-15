@@ -11,6 +11,8 @@ import {
   doc,
   updateDoc,
   deleteDoc,
+  getDoc,
+  setDoc,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
@@ -45,6 +47,38 @@ export const updateDocument = (collectionName: string, id: string, data: any) =>
 
 export const deleteDocument = (collectionName: string, id: string) =>
   deleteDoc(doc(db, collectionName, id));
+
+// Get the project name from Firestore (/settings/projectName)
+export const getProjectName = async (): Promise<string | null> => {
+  const docRef = doc(db, "settings", "projectName");
+  const docSnap = await getDoc(docRef);
+  if (docSnap.exists()) {
+    return docSnap.data().value || null;
+  }
+  return null;
+};
+
+// Set the project name in Firestore (/settings/projectName)
+export const setProjectName = async (name: string): Promise<void> => {
+  const docRef = doc(db, "settings", "projectName");
+  await setDoc(docRef, { value: name });
+};
+
+// Get the main page title from Firestore (/settings/mainPageTitle)
+export const getMainPageTitle = async (): Promise<string | null> => {
+  const docRef = doc(db, "settings", "mainPageTitle");
+  const docSnap = await getDoc(docRef);
+  if (docSnap.exists()) {
+    return docSnap.data().value || null;
+  }
+  return null;
+};
+
+// Set the main page title in Firestore (/settings/mainPageTitle)
+export const setMainPageTitle = async (title: string): Promise<void> => {
+  const docRef = doc(db, "settings", "mainPageTitle");
+  await setDoc(docRef, { value: title });
+};
 
 // Storage functions
 export const uploadFile = async (file: File, path: string) => {

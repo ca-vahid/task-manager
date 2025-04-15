@@ -21,6 +21,7 @@ import { CompactView } from './CompactView';
 import { APP_VERSION, ChangelogModal } from '@/lib/changelog';
 import { TaskAnalyzer } from './TaskAnalyzer';
 import { EmailTaskExtractor } from './EmailTaskExtractor';
+import { getMainPageTitle, setMainPageTitle } from '@/lib/firebase/firebaseUtils';
 
 interface TaskListProps {
   initialTasks?: Task[];
@@ -64,6 +65,9 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
 
   // Add a new state for the email extractor
   const [showEmailExtractor, setShowEmailExtractor] = useState(false);
+
+  // Add a new state for the main page title
+  const [mainPageTitle, setMainPageTitleState] = useState<string>('BGC IT Task Manager');
 
   // Fetch initial data (tasks, technicians, groups, and categories)
   const fetchData = useCallback(async () => {
@@ -131,6 +135,18 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    const fetchMainPageTitle = async () => {
+      let title = await getMainPageTitle();
+      if (!title) {
+        title = 'BGC IT Task Manager';
+        await setMainPageTitle(title);
+      }
+      setMainPageTitleState(title);
+    };
+    fetchMainPageTitle();
+  }, []);
 
   // Set filtered tasks whenever tasks change
   const handleFilterChange = useCallback((filtered: Task[]) => {
@@ -818,7 +834,7 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
               </svg>
             </span>
             <div className="flex flex-col">
-              <span>BGC IT Task Manager</span>
+              <span>{mainPageTitle}</span>
               <button 
                 onClick={() => setIsChangelogOpen(true)}
                 className="text-xs text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:underline focus:outline-none"
