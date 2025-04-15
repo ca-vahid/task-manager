@@ -1,7 +1,7 @@
 import React from 'react';
 
 // Application version
-export const APP_VERSION = "1.1.1";
+export const APP_VERSION = "1.1.2";
 
 // Version history for changelog
 export interface VersionInfo {
@@ -14,6 +14,18 @@ export interface VersionInfo {
 }
 
 export const VERSION_HISTORY: VersionInfo[] = [
+  {
+    version: "1.1.2",
+    date: "April 14, 2024",
+    changes: [
+      {
+        category: "Added",
+        items: [
+          "Main page title is now editable via Firestore. The title is stored in /settings/mainPageTitle and is auto-created if missing."
+        ]
+      }
+    ]
+  },
   {
     version: "1.1.1",
     date: "April 14, 2024",
