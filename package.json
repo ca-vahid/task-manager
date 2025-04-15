@@ -24,6 +24,7 @@
     "ai": "^3.3.20",
     "date-fns": "^3.6.0",
     "dompurify": "^3.2.5",
+    "emailjs-mime-parser": "^2.0.7",
     "file-saver": "^2.0.5",
     "firebase": "^10.13.0",
     "framer-motion": "^11.18.2",

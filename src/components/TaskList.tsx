@@ -20,6 +20,7 @@ import { useTheme } from '@/lib/contexts/ThemeContext';
 import { CompactView } from './CompactView';
 import { APP_VERSION, ChangelogModal } from '@/lib/changelog';
 import { TaskAnalyzer } from './TaskAnalyzer';
+import { EmailTaskExtractor } from './EmailTaskExtractor';
 
 interface TaskListProps {
   initialTasks?: Task[];
@@ -60,6 +61,9 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
 
   // Changelog modal state
   const [isChangelogOpen, setIsChangelogOpen] = useState(false);
+
+  // Add a new state for the email extractor
+  const [showEmailExtractor, setShowEmailExtractor] = useState(false);
 
   // Fetch initial data (tasks, technicians, groups, and categories)
   const fetchData = useCallback(async () => {
@@ -772,6 +776,11 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
     }
   }, [tasks]);
 
+  // Add a handler for the bulk email task extraction
+  const handleShowEmailExtractor = () => {
+    setShowEmailExtractor(true);
+  };
+
   // Render loading state
   if (loading) {
     return (
@@ -849,6 +858,17 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
                         <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
                       </svg>
                       Document Analysis
+                    </button>
+                    {/* Add Email Analysis Button */}
+                    <button
+                      onClick={handleShowEmailExtractor}
+                      className="flex w-full items-center rounded-md px-2 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                        <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                      </svg>
+                      Email Analysis
                     </button>
                   </div>
                 </div>
@@ -1064,6 +1084,26 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
             categories={categories}
             onMergeTasks={handleMergeTasks}
             onCancel={() => setShowTaskAnalyzer(false)}
+          />
+        </Modal>
+      )}
+
+      {/* Add the new EmailTaskExtractor modal */}
+      {showEmailExtractor && (
+        <Modal 
+          onClose={() => setShowEmailExtractor(false)} 
+          title="Extract Tasks from Email" 
+          size="lg"
+          preventOutsideClose={true} 
+        >
+          <EmailTaskExtractor
+            technicians={technicians}
+            groups={groups}
+            categories={categories}
+            currentOrderCount={tasks.length}
+            onAddTasks={handleBulkAddTasks}
+            onCancel={() => setShowEmailExtractor(false)}
+            onCreateGroup={handleCreateGroup}
           />
         </Modal>
       )}

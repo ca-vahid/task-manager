@@ -227,18 +227,18 @@ export async function POST(request: Request) {
           I need you to carefully read the following email and extract any tasks, action items, or requests that need to be addressed. Look for explicit directives, implicit requests, important deadlines, and any other information that should be tracked as a task.
 
           ${useThinkingModel ? 
-            'Be thorough in your analysis and provide detailed explanations in the task details field. Think about how to structure the task information clearly.' : 
+            'Be thorough in your analysis and provide detailed explanations in the task details field in <HTML> format. Think about how to structure the task information clearly.' : 
             'Be concise in your task extraction.'}
 
           Important guidelines:
-          1. Identify clear, actionable tasks with specific titles
+          1. Identify clear, actionable tasks with specific titles in <HTML> format
           2. Assign appropriate priority levels (Low, Medium, High, Critical)
           3. Extract due dates when mentioned
           4. Identify the assignee when specified or implied
           5. Group related tasks when appropriate
           6. Include all relevant context in the task details
           7. IMPORTANT: Return a maximum of 3 tasks total
-          8. If you identify more than 3 potential tasks, combine similar or related tasks into more comprehensive tasks
+          8. If you found more than 3 tasks, combine similar or related tasks into more comprehensive tasks
 
           Email Information:
           Subject: ${subject}
@@ -257,7 +257,7 @@ export async function POST(request: Request) {
           3. DO NOT return a JSONSchema definition or a type definition
           4. Return the actual data with real task information extracted from the email
           5. Limit your response to a MAXIMUM of 3 tasks - combine tasks if necessary
-          6. Prioritize the most important/urgent tasks if you need to choose which ones to include
+          6. If you found more than 3 tasks, combine similar or related tasks into more comprehensive tasks
 
           Format your response as a valid JSON object conforming to this structure:
           ${JSON.stringify(TASK_EXTRACTION_SCHEMA, null, 2)}
