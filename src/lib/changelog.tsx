@@ -1,7 +1,7 @@
 import React from 'react';
 
 // Application version
-export const APP_VERSION = "1.1.3";
+export const APP_VERSION = "1.2.8";
 
 // Version history for changelog
 export interface VersionInfo {
@@ -14,6 +14,31 @@ export interface VersionInfo {
 }
 
 export const VERSION_HISTORY: VersionInfo[] = [
+  {
+    version: "1.2.8",
+    date: "April 18, 2024",
+    changes: [
+      {
+        category: "Major Feature",
+        items: [
+          "Added support for OpenAI o3 and o4-mini models for bulk task extraction",
+          "Implemented model selection toggle for choosing between standard (o4-mini) and higher precision (o3) models",
+          "Added auto-selection of o3 model for meeting transcripts",
+          "Enhanced text extraction from PDFs, Word documents, and plain text files",
+          "Improved streaming response handling for real-time feedback during AI processing"
+        ]
+      },
+      {
+        category: "UI Improvements",
+        items: [
+          "Enhanced progress indicators for document processing stages",
+          "Added clear model information display during processing",
+          "Improved error handling with more descriptive messages",
+          "Updated file upload interface with clearer file type indicators"
+        ]
+      }
+    ]
+  },
   {
     version: "1.1.3",
     date: "April 17, 2024",
