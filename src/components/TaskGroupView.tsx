@@ -426,18 +426,49 @@ export function TaskGroupView({
                   </h3>
                 </div>
                 
-                {/* Collapse/Expand button */}
-                <button 
-                  onClick={() => setCollapsedGroups(prev => ({...prev, [groupKey]: !prev[groupKey]}))}
-                  className={`${columnsPerPage === 4 ? 'p-1' : 'p-2'} rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 transition`}
-                  aria-label={isCollapsed ? "Expand group" : "Collapse group"}
-                >
-                  {isCollapsed ? (
-                    <ChevronDownIcon className={`${columnsPerPage === 4 ? 'w-4 h-4' : 'w-6 h-6'}`} />
-                  ) : (
-                    <ChevronUpIcon className={`${columnsPerPage === 4 ? 'w-4 h-4' : 'w-6 h-6'}`} />
+                <div className="flex items-center gap-2">
+                  {/* Select All button - only show if there are tasks in the group */}
+                  {groupTasks.length > 0 && (
+                    <button
+                      onClick={() => {
+                        // Check if all tasks in this group are already selected
+                        const allSelected = groupTasks.every(task => selectedTaskIds.includes(task.id));
+                        
+                        // If all are selected, deselect all. Otherwise, select all
+                        groupTasks.forEach(task => {
+                          onTaskSelection(task.id, !allSelected);
+                        });
+                      }}
+                      className={`${columnsPerPage === 4 ? 'p-1 text-xs' : 'p-1.5 text-sm'} rounded hover:bg-indigo-100 dark:hover:bg-indigo-900/30 
+                        text-indigo-600 dark:text-indigo-400 transition flex items-center`}
+                      title={groupTasks.every(task => selectedTaskIds.includes(task.id)) 
+                        ? "Deselect all tasks in this group" 
+                        : "Select all tasks in this group"}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className={`${columnsPerPage === 4 ? 'w-3.5 h-3.5' : 'w-4 h-4'} mr-1`} 
+                           fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                      </svg>
+                      <span className={columnsPerPage === 4 ? 'hidden' : 'inline'}>
+                        {groupTasks.every(task => selectedTaskIds.includes(task.id)) ? "Deselect All" : "Select All"}
+                      </span>
+                    </button>
                   )}
-                </button>
+                
+                  {/* Collapse/Expand button */}
+                  <button 
+                    onClick={() => setCollapsedGroups(prev => ({...prev, [groupKey]: !prev[groupKey]}))}
+                    className={`${columnsPerPage === 4 ? 'p-1' : 'p-2'} rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 transition`}
+                    aria-label={isCollapsed ? "Expand group" : "Collapse group"}
+                  >
+                    {isCollapsed ? (
+                      <ChevronDownIcon className={`${columnsPerPage === 4 ? 'w-4 h-4' : 'w-6 h-6'}`} />
+                    ) : (
+                      <ChevronUpIcon className={`${columnsPerPage === 4 ? 'w-4 h-4' : 'w-6 h-6'}`} />
+                    )}
+                  </button>
+                </div>
               </div>
               
               {/* Cards grid */}

@@ -1,7 +1,7 @@
 import React from 'react';
 
 // Application version
-export const APP_VERSION = "1.2.10";
+export const APP_VERSION = "1.2.11";
 
 // Version history for changelog
 export interface VersionInfo {
@@ -15,8 +15,23 @@ export interface VersionInfo {
 
 export const VERSION_HISTORY: VersionInfo[] = [
   {
+    version: "1.2.11",
+    date: "April 18, 2024",
+    changes: [
+      {
+        category: "Feature Improvements",
+        items: [
+          "Added bulk selection capability for tasks in Kanban view",
+          "New 'Select All' button in each group header to quickly select all tasks in a group",
+          "Implemented toggle functionality to select or deselect all tasks in a group with one click",
+          "Enhanced bulk operations workflow for more efficient task management"
+        ]
+      }
+    ]
+  },
+  {
     version: "1.2.10",
-    date: "April 19, 2024",
+    date: "April 18, 2024",
     changes: [
       {
         category: "UI Improvements",
