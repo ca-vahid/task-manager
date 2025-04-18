@@ -1,7 +1,7 @@
 import React from 'react';
 
 // Application version
-export const APP_VERSION = "1.1.2";
+export const APP_VERSION = "1.1.3";
 
 // Version history for changelog
 export interface VersionInfo {
@@ -14,6 +14,23 @@ export interface VersionInfo {
 }
 
 export const VERSION_HISTORY: VersionInfo[] = [
+  {
+    version: "1.1.3",
+    date: "April 17, 2024",
+    changes: [
+      {
+        category: "UI Improvements",
+        items: [
+          "Enhanced BatchOperationsToolbar with draggable functionality",
+          "Added ability to position toolbar anywhere on the screen",
+          "Implemented vertical orientation when dragged to screen edges",
+          "Added persistent positioning between sessions using localStorage",
+          "Improved visual styling with more distinct background and border",
+          "Added double-click to center functionality for easy reset"
+        ]
+      }
+    ]
+  },
   {
     version: "1.1.2",
     date: "April 14, 2024",
@@ -537,18 +554,7 @@ export const VERSION_HISTORY: VersionInfo[] = [
         ]
       }
     ]
-  },
-  {
-    version: "1.0.23",
-    date: "2024-05-30",
-    changes: [
-      {
-        category: "Added",
-        items: [
-          "Main page title is now editable via Firestore. The title is stored in /settings/mainPageTitle and is auto-created if missing."
-        ]
-      }
-    ]
+
   }
 ];
 
