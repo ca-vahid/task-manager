@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Task, Technician, Group, ViewDensity, TaskStatus, PriorityLevel, Category } from '@/lib/types';
 import { Timestamp } from 'firebase/firestore';
 import { ChevronUpIcon, ChevronDownIcon, EllipsisHorizontalIcon, CheckIcon, ClockIcon, ArrowPathIcon, DocumentIcon, LinkIcon, PlusIcon } from '@heroicons/react/24/outline';
+import DOMPurify from 'dompurify';
 
 interface CompactViewProps {
   tasks: Task[];
@@ -675,7 +676,12 @@ export function CompactView({
                             <div>
                               <p className="text-xs text-gray-500 font-medium mb-1">Description</p>
                               <div className="prose prose-sm max-w-none dark:prose-invert">
-                                {task.explanation || '—'}
+                                {task.explanation ? 
+                                  <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(task.explanation, {
+                                    ALLOWED_TAGS: ['p', 'ul', 'ol', 'li', 'strong', 'em', 'b', 'i', 'a', 'h1', 'h2', 'h3', 'h4', 'br', 'span'],
+                                    ALLOWED_ATTR: ['href', 'target', 'rel', 'style', 'class']
+                                  }) }} />
+                                : '—'}
                               </div>
                             </div>
                           </div>

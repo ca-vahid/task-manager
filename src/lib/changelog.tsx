@@ -1,7 +1,7 @@
 import React from 'react';
 
 // Application version
-export const APP_VERSION = "1.2.11";
+export const APP_VERSION = "1.2.12";
 
 // Version history for changelog
 export interface VersionInfo {
@@ -14,6 +14,20 @@ export interface VersionInfo {
 }
 
 export const VERSION_HISTORY: VersionInfo[] = [
+  {
+    version: "1.2.12",
+    date: "April 18, 2024",
+    changes: [
+      {
+        category: "Bug Fixes",
+        items: [
+          "Fixed HTML rendering in task descriptions when using compact view",
+          "Added proper sanitization for HTML content in CompactView component",
+          "Ensured consistent rich text display across all view modes"
+        ]
+      }
+    ]
+  },
   {
     version: "1.2.11",
     date: "April 18, 2024",
