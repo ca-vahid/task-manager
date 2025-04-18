@@ -893,7 +893,7 @@ export function TaskCard({
       group
       ${isRemoving ? 'opacity-0 transform scale-95 -translate-x-4' : 'opacity-100 transform scale-100 translate-x-0'}`}>
         {/* Selection corner indicator */}
-        {onSelect && (
+            {onSelect && (
           <div 
             onClick={(e) => { 
               e.stopPropagation();
@@ -908,8 +908,8 @@ export function TaskCard({
                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
               </svg>
             )}
-          </div>
-        )}
+              </div>
+            )}
 
         {/* Header with title and action buttons */}
         <div className="relative mb-2">
@@ -1214,8 +1214,12 @@ export function TaskCard({
         {showDescription && task.explanation && (
             <div 
               className="mb-4 text-sm text-gray-700 dark:text-gray-300 bg-white/50 dark:bg-black/20 p-3 rounded-md border border-gray-200 dark:border-gray-700 transition-all duration-200 ease-in rich-text-content"
+            >
+              <div 
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(task.explanation || '') }}
+                className="prose prose-sm dark:prose-invert max-w-none"
             />
+            </div>
         )}
         
         {/* Task details */}

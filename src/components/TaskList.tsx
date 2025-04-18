@@ -819,6 +819,20 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
     setShowEmailExtractor(true);
   };
 
+  // Add listener for data restoration event
+  useEffect(() => {
+    const handleDataRestored = () => {
+      console.log('Data restored event received. Refreshing data...');
+      fetchData();
+    };
+
+    window.addEventListener('dataRestored', handleDataRestored);
+
+    return () => {
+      window.removeEventListener('dataRestored', handleDataRestored);
+    };
+  }, [fetchData]); // Ensure fetchData is stable or included in dependency array
+
   // Render loading state
   if (loading) {
     return (

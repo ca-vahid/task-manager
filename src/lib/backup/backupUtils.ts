@@ -40,6 +40,15 @@ export interface BackupData {
   };
 }
 
+export interface RestoreSummary {
+  processed: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: number;
+  warnings: string[];
+}
+
 // Process data in chunks to avoid hitting limits
 const CHUNK_SIZE = 100;
 
@@ -182,71 +191,143 @@ export const backupData = async (options: BackupOptions): Promise<BackupData> =>
 /**
  * Restore data from a backup JSON object
  */
-export const restoreData = async (backupData: BackupData, options: RestoreOptions): Promise<void> => {
+export const restoreData = async (
+  backupData: BackupData,
+  options: RestoreOptions
+): Promise<RestoreSummary> => {
+  const result: RestoreSummary = {
+    processed: 0,
+    created: 0,
+    updated: 0,
+    skipped: 0,
+    errors: 0,
+    warnings: [],
+  };
+
   const { strategy, progressCallback } = options;
+  // Get collections from the backup data
   const collections = Object.keys(backupData.collections) as BackupCollection[];
-  
-  // Calculate total items for progress tracking
-  let totalItems = 0;
+  const totalItems = collections.reduce((sum: number, colName: BackupCollection) => {
+    return sum + (backupData.collections[colName]?.length || 0);
+  }, 0);
+
+  // Calculate total number of items to be processed
   let processedItems = 0;
-  
-  collections.forEach(collectionName => {
-    totalItems += backupData.collections[collectionName]?.length || 0;
-  });
 
-  for (const collectionName of collections) {
-    const items = backupData.collections[collectionName] || [];
-    
-    if (progressCallback) {
-      progressCallback(
-        (processedItems / totalItems) * 100,
-        `Restoring ${collectionName}...`
-      );
-    }
+  // How many items to process before updating progress
+  const progressUpdateInterval = 5;
 
-    for (let i = 0; i < items.length; i += CHUNK_SIZE) {
-      const chunk = items.slice(i, i + CHUNK_SIZE);
+  // Helper function to add a small delay between operations for smoother UI updates
+  const addDelay = (ms: number = 25) => new Promise(resolve => setTimeout(resolve, ms));
+
+  try {
+    // Process each selected collection
+    for (const collectionName of collections) {
+      if (!backupData.collections[collectionName]) {
+        result.warnings.push(`Collection '${collectionName}' not found in backup data.`);
+        continue;
+      }
+
+      const items = backupData.collections[collectionName] || [];
       
       if (progressCallback) {
         progressCallback(
-          (processedItems / totalItems) * 100,
-          `Restoring ${collectionName}... (${processedItems + 1} to ${processedItems + chunk.length} of ${totalItems})`
+          Math.min(Math.round((processedItems / totalItems) * 100), 99),
+          `Starting to restore collection: ${collectionName} (${items.length} items)`
+        );
+        await addDelay(50); // Shorter delay
+      }
+      
+      const collectionRef = collection(db, collectionName);
+
+      // Process items in chunks
+      const chunkSize = 10; // Back to 10 for faster processing
+      for (let i = 0; i < items.length; i += chunkSize) {
+        const chunk = items.slice(i, i + chunkSize);
+        let chunkProcessedItems = 0;
+        
+        // Process each item in the chunk
+        for (const item of chunk) {
+          const docId = item.id;
+          const docRef = doc(db, collectionName, docId);
+          
+          try {
+            // Check if document exists
+            const docSnapshot = await getDoc(docRef);
+            
+            if (docSnapshot.exists()) {
+              if (strategy === 'overwrite') {
+                // Update existing document
+                const { id, ...dataWithoutId } = item;
+                await updateDoc(docRef, denormalizeData(dataWithoutId));
+                result.updated++;
+              } else {
+                // Skip if document exists and overwrite is false
+                result.skipped++;
+              }
+            } else {
+              // Create new document
+              const { id, ...dataWithoutId } = item;
+              await setDoc(docRef, denormalizeData(dataWithoutId));
+              result.created++;
+            }
+            
+            result.processed++;
+            chunkProcessedItems++;
+          } catch (error: any) {
+            console.error(`Error restoring document ${docId} in ${collectionName}:`, error);
+            result.errors++;
+            result.warnings.push(`Failed to restore ${collectionName}/${docId}: ${error.message}`);
+          }
+          
+          // Update progress counter
+          processedItems++;
+          
+          // Only update UI every progressUpdateInterval items or at the end of a chunk
+          if (progressCallback && 
+              (processedItems % progressUpdateInterval === 0 || 
+               chunkProcessedItems === chunk.length)) {
+              
+            const progress = Math.min(Math.round((processedItems / totalItems) * 100), 99);
+            const actionText = `(created: ${result.created}, updated: ${result.updated}, skipped: ${result.skipped})`;
+            
+            progressCallback(
+              progress,
+              `Processed ${processedItems}/${totalItems} items ${actionText}`
+            );
+            
+            // Only add delay when we're actually updating the UI
+            await addDelay();
+          }
+        }
+      }
+      
+      if (progressCallback) {
+        progressCallback(
+          Math.min(Math.round((processedItems / totalItems) * 100), 99),
+          `Completed restoring ${collectionName}: ${items.length} items processed`
         );
       }
-
-      // Process each item in the chunk
-      for (const item of chunk) {
-        const { id, ...data } = item;
-        const denormalizedData = denormalizeData(data);
-        
-        try {
-          // Check if document with this ID already exists
-          const docRef = doc(db, collectionName, id);
-          const docSnapshot = await getDoc(docRef);
-          
-          if (docSnapshot.exists()) {
-            // Document exists, handle according to strategy
-            if (strategy === 'overwrite') {
-              await updateDoc(docRef, denormalizedData);
-            }
-            // If strategy is 'skip', do nothing
-          } else {
-            // Document doesn't exist, create it with the original ID
-            // Use setDoc instead of updateDoc for non-existent documents
-            await setDoc(docRef, denormalizedData);
-          }
-        } catch (error) {
-          console.error(`Error restoring document ${id} in ${collectionName}:`, error);
-          // Continue with next document even if one fails
-        }
-        
-        processedItems++;
-      }
     }
-  }
-
-  if (progressCallback) {
-    progressCallback(100, `Restore completed successfully!`);
+    
+    // Final callback with 100% progress and summary
+    if (progressCallback) {
+      // Small delay before showing final result
+      await addDelay(100);
+      
+      progressCallback(
+        100,
+        `Import complete: ${result.created} created, ${result.updated} updated, ${result.errors} errors`
+      );
+    }
+    
+    return result;
+  } catch (error: any) {
+    console.error('Restore operation failed:', error);
+    if (progressCallback) {
+      progressCallback(0, `Restore failed: ${error.message}`);
+    }
+    throw error;
   }
 };
 

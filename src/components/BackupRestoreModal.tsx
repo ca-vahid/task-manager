@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   backupData, 
   restoreData, 
@@ -8,8 +8,9 @@ import {
   readBackupFile,
   BackupCollection,
   RestoreStrategy,
-  BackupData
-} from '@/lib/backup/backupUtils';
+  BackupData,
+  RestoreSummary
+} from '@/lib/backup';
 
 interface BackupRestoreModalProps {
   isOpen: boolean;
@@ -23,11 +24,25 @@ export function BackupRestoreModal({ isOpen, onClose }: BackupRestoreModalProps)
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
+  const [statusHistory, setStatusHistory] = useState<{message: string, timestamp: string}[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [backupJson, setBackupJson] = useState<BackupData | null>(null);
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
+  const [restoreSummary, setRestoreSummary] = useState<RestoreSummary | null>(null);
+  const progressBarRef = useRef<HTMLDivElement>(null);
+  const [isLogExpanded, setIsLogExpanded] = useState(false);
+
+  // Effect to scroll status history to bottom when new messages are added
+  useEffect(() => {
+    if (isLogExpanded) {
+      const statusHistoryElement = document.getElementById('status-history-container');
+      if (statusHistoryElement) {
+        statusHistoryElement.scrollTop = statusHistoryElement.scrollHeight;
+      }
+    }
+  }, [statusHistory, isLogExpanded]);
 
   if (!isOpen) return null;
 
@@ -40,10 +55,26 @@ export function BackupRestoreModal({ isOpen, onClose }: BackupRestoreModalProps)
     }
   };
 
-  // Handle progress updates
+  // Add a message to status history with timestamp
+  const addStatusHistoryMessage = (message: string) => {
+    const now = new Date();
+    const timestamp = now.toLocaleTimeString();
+    setStatusHistory(prev => [...prev, { message, timestamp }]);
+  };
+
+  // Handle progress updates with history tracking
   const updateProgress = (progress: number, message: string) => {
     setProgress(progress);
     setStatusMessage(message);
+    addStatusHistoryMessage(message);
+    
+    // Animate progress bar
+    if (progressBarRef.current) {
+      progressBarRef.current.style.width = `${progress}%`;
+      
+      // Add transition class for smooth animation
+      progressBarRef.current.classList.add('transition-all', 'duration-500', 'ease-in-out');
+    }
   };
 
   // Handle backup
@@ -56,7 +87,9 @@ export function BackupRestoreModal({ isOpen, onClose }: BackupRestoreModalProps)
     setError(null);
     setIsProcessing(true);
     setProgress(0);
+    setStatusHistory([]);
     setStatusMessage('Starting backup...');
+    addStatusHistoryMessage('Starting backup...');
 
     try {
       const data = await backupData({
@@ -69,8 +102,10 @@ export function BackupRestoreModal({ isOpen, onClose }: BackupRestoreModalProps)
       exportBackupToFile(data, `task-manager-backup-${timestamp}.json`);
       
       setStatusMessage('Backup completed successfully!');
+      addStatusHistoryMessage('Backup completed successfully!');
     } catch (err: any) {
       setError(`Backup failed: ${err.message || 'Unknown error'}`);
+      addStatusHistoryMessage(`Error: ${err.message || 'Unknown error'}`);
     } finally {
       setIsProcessing(false);
     }
@@ -82,15 +117,19 @@ export function BackupRestoreModal({ isOpen, onClose }: BackupRestoreModalProps)
     if (files && files.length > 0) {
       setSelectedFile(files[0]);
       setError(null);
+      setStatusHistory([]);
+      addStatusHistoryMessage(`Selected file: ${files[0].name}`);
       
       // Read the file to preview its contents
       readBackupFile(files[0])
-        .then(data => {
+        .then((data: BackupData) => {
           setBackupJson(data);
           setStatusMessage(`Backup file loaded: ${data.timestamp}`);
+          addStatusHistoryMessage(`Backup file loaded: ${data.timestamp}`);
         })
-        .catch(err => {
+        .catch((err: Error) => {
           setError(`Error reading backup file: ${err.message}`);
+          addStatusHistoryMessage(`Error reading backup file: ${err.message}`);
           setBackupJson(null);
         });
     }
@@ -104,20 +143,44 @@ export function BackupRestoreModal({ isOpen, onClose }: BackupRestoreModalProps)
     }
 
     setError(null);
+    setRestoreSummary(null);
     setIsProcessing(true);
     setProgress(0);
+    setStatusHistory([]);
     setStatusMessage('Starting restore...');
+    addStatusHistoryMessage('Starting restore operation...');
+    addStatusHistoryMessage(`Restore strategy: ${restoreStrategy === 'overwrite' ? 'Overwrite existing items' : 'Skip existing items'}`);
 
     try {
-      await restoreData(backupJson, {
-        strategy: restoreStrategy,
-        progressCallback: updateProgress
-      });
+      // Count collections and items for progress display
+      const collections = Object.keys(backupJson.collections);
+      const totalItems = collections.reduce((sum, colName) => {
+        return sum + (backupJson.collections[colName as BackupCollection]?.length || 0);
+      }, 0);
       
-      setStatusMessage('Restore completed successfully!');
+      addStatusHistoryMessage(`Found ${collections.length} collections with ${totalItems} total items`);
+      
+      // Directly call restoreData with progress callback
+      const summary = await restoreData(
+        backupJson,
+        {
+          strategy: restoreStrategy,
+          progressCallback: updateProgress
+        }
+      );
+      
+      setStatusMessage('Restore completed!');
+      addStatusHistoryMessage('Restore operation completed successfully!');
+      addStatusHistoryMessage(`Summary: ${summary.created} created, ${summary.updated} updated, ${summary.skipped} skipped, ${summary.errors} errors`);
+      
+      setRestoreSummary(summary);
       setShowRestoreConfirm(false);
+
+      window.dispatchEvent(new CustomEvent('dataRestored'));
+
     } catch (err: any) {
       setError(`Restore failed: ${err.message || 'Unknown error'}`);
+      addStatusHistoryMessage(`Error: ${err.message || 'Unknown error'}`);
     } finally {
       setIsProcessing(false);
     }
@@ -167,7 +230,7 @@ export function BackupRestoreModal({ isOpen, onClose }: BackupRestoreModalProps)
         </div>
 
         {/* Content */}
-        <div className="p-4">
+        <div className="p-4 max-h-[70vh] overflow-y-auto">
           {/* Error message */}
           {error && (
             <div className="mb-4 bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300 p-3 rounded-md text-sm">
@@ -175,23 +238,179 @@ export function BackupRestoreModal({ isOpen, onClose }: BackupRestoreModalProps)
             </div>
           )}
 
-          {/* Progress indicator */}
+          {/* Enhanced Progress indicator */}
           {isProcessing && (
-            <div className="mb-4">
-              <div className="relative h-4 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+            <div className="mb-6">
+              {/* Progress percentage and status */}
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {statusMessage}
+                </span>
+                <span className="text-sm font-medium text-indigo-600 dark:text-indigo-400">
+                  {progress}%
+                </span>
+              </div>
+              
+              {/* Progress bar */}
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-indigo-500 dark:bg-indigo-400 transition-all duration-300 ease-in-out"
+                  ref={progressBarRef}
+                  className="h-full bg-indigo-600 dark:bg-indigo-500"
                   style={{ width: `${progress}%` }}
                 ></div>
               </div>
-              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                {statusMessage}
+              
+              {/* Status history log with toggle */}
+              <div className="mt-4">
+                <div className="flex justify-between items-center mb-2">
+                  <button 
+                    onClick={() => setIsLogExpanded(!isLogExpanded)}
+                    className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                  >
+                    <span>Operation Log</span>
+                    <svg 
+                      className={`ml-1 h-4 w-4 transition-transform duration-200 ${isLogExpanded ? 'transform rotate-180' : ''}`} 
+                      fill="none" 
+                      viewBox="0 0 24 24" 
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {statusHistory.length} events
+                  </span>
+                </div>
+                
+                {isLogExpanded && (
+                  <div 
+                    id="status-history-container"
+                    className="bg-gray-100 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700 p-2 h-32 overflow-y-auto text-xs font-mono transition-all duration-300 ease-in-out"
+                  >
+                    {statusHistory.map((status, index) => (
+                      <div key={index} className="mb-1 last:mb-0">
+                        <span className="text-gray-500 dark:text-gray-400">[{status.timestamp}]</span>{' '}
+                        <span className="text-gray-800 dark:text-gray-200">{status.message}</span>
+                      </div>
+                    ))}
+                    {statusHistory.length === 0 && (
+                      <div className="text-gray-500 dark:text-gray-400 italic">No activity yet...</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Success Message / Summary Display */}
+          {!isProcessing && restoreSummary && (
+            <div className="mb-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/50 rounded-md">
+              <div className="flex items-center mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600 dark:text-green-400 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <p className="text-base font-medium text-green-800 dark:text-green-200">Restore Completed Successfully</p>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="bg-white dark:bg-gray-800 p-3 rounded-md shadow-sm border border-green-100 dark:border-green-900/30">
+                  <p className="text-sm font-semibold text-green-700 dark:text-green-300 mb-1">Created</p>
+                  <p className="text-xl font-bold text-green-600 dark:text-green-400">{restoreSummary.created}</p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-3 rounded-md shadow-sm border border-blue-100 dark:border-blue-900/30">
+                  <p className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-1">Updated</p>
+                  <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{restoreSummary.updated}</p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-3 rounded-md shadow-sm border border-gray-100 dark:border-gray-700">
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Skipped</p>
+                  <p className="text-xl font-bold text-gray-600 dark:text-gray-400">{restoreSummary.skipped}</p>
+                </div>
+                <div className={`bg-white dark:bg-gray-800 p-3 rounded-md shadow-sm border ${
+                  restoreSummary.errors > 0 
+                    ? 'border-red-100 dark:border-red-900/30' 
+                    : 'border-gray-100 dark:border-gray-700'
+                }`}>
+                  <p className={`text-sm font-semibold mb-1 ${
+                    restoreSummary.errors > 0 
+                      ? 'text-red-700 dark:text-red-300' 
+                      : 'text-gray-700 dark:text-gray-300'
+                  }`}>Errors</p>
+                  <p className={`text-xl font-bold ${
+                    restoreSummary.errors > 0 
+                      ? 'text-red-600 dark:text-red-400' 
+                      : 'text-gray-600 dark:text-gray-400'
+                  }`}>{restoreSummary.errors}</p>
+                </div>
+              </div>
+              
+              <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
+                Total processed: <span className="font-semibold">{restoreSummary.processed}</span> items
               </p>
+              
+              {/* Operation Log */}
+              <div className="mb-4">
+                <button
+                  onClick={() => setIsLogExpanded(!isLogExpanded)}
+                  className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors mb-2"
+                >
+                  <span>Operation Log</span>
+                  <svg 
+                    className={`ml-1 h-4 w-4 transition-transform duration-200 ${isLogExpanded ? 'transform rotate-180' : ''}`} 
+                    fill="none" 
+                    viewBox="0 0 24 24" 
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                
+                {isLogExpanded && (
+                  <div className="bg-gray-100 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700 p-2 max-h-32 overflow-y-auto text-xs font-mono">
+                    {statusHistory.map((status, index) => (
+                      <div key={index} className="mb-1 last:mb-0">
+                        <span className="text-gray-500 dark:text-gray-400">[{status.timestamp}]</span>{' '}
+                        <span className="text-gray-800 dark:text-gray-200">{status.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              {restoreSummary.warnings.length > 0 && (
+                <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800/50 rounded-md">
+                  <div className="flex items-start">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mr-2 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    <div>
+                      <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-300 mb-1">Warnings ({restoreSummary.warnings.length})</p>
+                      <ul className="text-xs text-yellow-700 dark:text-yellow-400 list-disc list-inside space-y-1 max-h-32 overflow-y-auto pr-2">
+                        {restoreSummary.warnings.map((warning: string, index: number) => (
+                          <li key={index}>{warning}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              <button 
+                onClick={() => { 
+                  setRestoreSummary(null); 
+                  setActiveTab('restore'); 
+                  setSelectedFile(null); 
+                  setBackupJson(null); 
+                  setStatusHistory([]);
+                }} 
+                className="mt-4 text-sm text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-700 px-4 py-2 rounded-md transition-colors"
+              >
+                Perform Another Restore
+              </button>
             </div>
           )}
 
           {/* Backup Tab Content */}
-          {activeTab === 'backup' && !isProcessing && (
+          {activeTab === 'backup' && !isProcessing && !restoreSummary && (
             <div>
               <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
                 Select the data you want to include in your backup:
@@ -246,7 +465,7 @@ export function BackupRestoreModal({ isOpen, onClose }: BackupRestoreModalProps)
           )}
 
           {/* Restore Tab Content */}
-          {activeTab === 'restore' && !isProcessing && !showRestoreConfirm && (
+          {activeTab === 'restore' && !isProcessing && !showRestoreConfirm && !restoreSummary && (
             <div>
               <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
                 Select a backup file to restore:

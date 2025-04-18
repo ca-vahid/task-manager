@@ -412,7 +412,7 @@ export function TaskGroupView({
           
           return (
             <div 
-              key={groupKey} 
+            key={groupKey}
               className={`relative bg-gradient-to-br from-white to-gray-100 dark:from-gray-900 dark:to-gray-800 rounded-3xl shadow-2xl hover:shadow-3xl transition-all ${columnsPerPage === 4 ? 'p-3 space-y-2' : 'p-6 space-y-6'}`}
             >
               {/* Group header */}
@@ -478,21 +478,21 @@ export function TaskGroupView({
                 <div 
                   className={`grid ${columnsPerPage === 4 ? 'gap-2' : 'gap-8'} ${getAnimationClasses()}`}
                   style={{ gridTemplateColumns: `repeat(${columnsPerPage}, minmax(0, 1fr))` }}
-                >
-                  {(groupTasks as Task[]).map(task => (
+          >
+            {(groupTasks as Task[]).map(task => (
                     <div key={task.id} className={`transform ${columnsPerPage === 4 ? 'hover:-translate-y-0.5' : 'hover:-translate-y-1.5'} transition-transform duration-200`}>
-                      <TaskCard
-                        task={task}
-                        technicians={technicians}
-                        categories={categories}
-                        onUpdateTask={onUpdateTask}
-                        onDeleteTask={onDeleteTask}
-                        viewDensity={viewDensity}
-                        isSelected={selectedTaskIds.includes(task.id)}
-                        onSelect={(selected) => onTaskSelection(task.id, selected)}
-                      />
-                    </div>
-                  ))}
+                <TaskCard
+                  task={task}
+                  technicians={technicians}
+                  categories={categories}
+                  onUpdateTask={onUpdateTask}
+                  onDeleteTask={onDeleteTask}
+                  viewDensity={viewDensity}
+                  isSelected={selectedTaskIds.includes(task.id)}
+                  onSelect={(selected) => onTaskSelection(task.id, selected)}
+                />
+              </div>
+            ))}
                 </div>
                 
                 {/* Empty state */}

@@ -36,14 +36,16 @@ export async function POST(request: NextRequest) {
       restoreStrategy = 'overwrite';
     }
 
-    // Initiate restore
-    await restoreData(backupData as BackupData, {
+    // Initiate restore and get the summary
+    const summary = await restoreData(backupData as BackupData, {
       strategy: restoreStrategy
+      // We don't pass progressCallback here as it's handled client-side
     });
 
     return NextResponse.json({ 
       success: true,
-      message: 'Restore completed successfully'
+      message: 'Restore completed', // Changed message
+      summary: summary // Include the summary in the response
     });
   } catch (error: any) {
     console.error('Restore API error:', error);

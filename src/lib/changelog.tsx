@@ -1,7 +1,7 @@
 import React from 'react';
 
 // Application version
-export const APP_VERSION = "1.3.0";
+export const APP_VERSION = "1.3.5";
 
 // Version history for changelog
 export interface VersionInfo {
@@ -15,8 +15,37 @@ export interface VersionInfo {
 
 export const VERSION_HISTORY: VersionInfo[] = [
   {
-    version: "1.3.0",
+    version: "1.3.5",
     date: "April 18, 2024",
+    changes: [
+      {
+        category: "Added",
+        items: [
+          "Backup & Restore functionality for Tasks, Technicians, and Groups.",
+          "UI for creating backups and restoring data from JSON files.",
+          "Detailed progress tracking with percentage and operation log for backup/restore.",
+          "Collapsible operation log for better UI management.",
+          "Refined restore progress updates to improve performance and UI responsiveness (batching every 5 items).",
+          "Improved module resolution for backup utilities using barrel file pattern."
+        ]
+      }
+    ]
+  },
+  {
+    version: "1.3.4",
+    date: "April 16, 2024",
+    changes: [
+      {
+        category: "Added",
+        items: [
+          "Task Analyzer feature: Uses OpenAI to analyze selected tasks, provides summaries, identifies potential issues, and suggests improvements."
+        ]
+      }
+    ]
+  },
+  {
+    version: "1.3.0",
+    date: "April 07, 2024",
     changes: [
       {
         category: "Major Feature",
@@ -653,7 +682,6 @@ export const VERSION_HISTORY: VersionInfo[] = [
         ]
       }
     ]
-
   }
 ];
 

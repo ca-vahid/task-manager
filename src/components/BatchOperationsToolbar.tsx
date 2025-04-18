@@ -36,7 +36,7 @@ export function BatchOperationsToolbar({
   
   // State for delete confirmation modal
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
+  
   // State for dragging functionality
   const [position, setPosition] = useState({ x: 0, y: 20 });
   const [isDragging, setIsDragging] = useState(false);
@@ -353,21 +353,43 @@ export function BatchOperationsToolbar({
     }
   };
 
+  const toolbarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const centerToolbar = () => {
+      if (toolbarRef.current) {
+        const width = toolbarRef.current.offsetWidth;
+        return { x: Math.max(0, (window.innerWidth - width) / 2), y: 20 };
+      }
+      // Fallback if ref isn't available yet
+      return { x: window.innerWidth / 2 - 200, y: 20 };
+    };
+
+    // Always center the toolbar on mount
+    setPosition(centerToolbar());
+    
+    // Add resize listener to keep it centered
+    const updatePosition = () => {
+      setPosition(centerToolbar());
+    };
+    
+    window.addEventListener('resize', updatePosition);
+    return () => window.removeEventListener('resize', updatePosition);
+  }, []);
+
   return (
-    <div 
-      ref={dragRef}
+    <div
+      ref={toolbarRef}
+      style={{
+        position: 'fixed',
+        top: `${position.y}px`,
+        left: `${position.x}px`,
+        zIndex: 100,
+        transition: 'all 0.2s ease-in-out',
+      }}
       className={`py-2 px-3 bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-800 dark:to-indigo-800 border-2 border-blue-400 dark:border-blue-600 rounded-xl shadow-xl animate-fade-in-down text-white ${
         orientation.startsWith('vertical') ? 'max-w-[150px]' : 'max-w-[90vw]'
       }`}
-      style={{ 
-        position: 'fixed',
-        left: `${position.x}px`, 
-        top: `${position.y}px`,
-        zIndex: 100,
-        opacity: isDragging ? 0.8 : 1,
-        cursor: isDragging ? 'grabbing' : 'default',
-        transition: isDragging ? 'none' : 'opacity 0.2s ease',
-      }}
     >
       {/* Drag handle */}
       <div 
