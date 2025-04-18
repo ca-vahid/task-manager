@@ -702,7 +702,7 @@ export function BulkAddTaskFromOpenAI({
           <div className="mb-2">
             <h3 className="text-lg font-semibold mb-2 text-blue-700 dark:text-blue-300">Document Analysis with OpenAI</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Extract tasks from PDF documents using OpenAI's advanced document processing capabilities.
+              Extract tasks from PDF documents using OpenAI&apos;s advanced document processing capabilities.
             </p>
           </div>
           

@@ -71,6 +71,26 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
   // Add a new state for the main page title
   const [mainPageTitle, setMainPageTitleState] = useState<string>('BGC IT Task Manager');
 
+  // Add dropdown state at the top of the component along with other state variables
+  const [showBulkAddDropdown, setShowBulkAddDropdown] = useState(false);
+
+  // Add click outside handler for dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showBulkAddDropdown) {
+        const dropdownEl = document.getElementById('bulk-add-dropdown');
+        if (dropdownEl && !dropdownEl.contains(event.target as Node)) {
+          setShowBulkAddDropdown(false);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showBulkAddDropdown]);
+
   // Fetch initial data (tasks, technicians, groups, and categories)
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -832,7 +852,7 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
           <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100 flex items-center">
             <span className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-1 rounded mr-2">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
               </svg>
             </span>
             <div className="flex flex-col">
@@ -848,58 +868,104 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
           </h1>
 
           <div className="mt-4 md:mt-0 space-x-2 flex">
-            <div className="relative inline-block text-left group">
-              <div
-                className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded hover:from-indigo-600 hover:to-purple-700 shadow flex items-center cursor-pointer"
+            <div className="relative inline-block text-left" id="bulk-add-dropdown">
+              <button
+                onClick={() => setShowBulkAddDropdown(!showBulkAddDropdown)}
+                className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded hover:from-indigo-600 hover:to-purple-700 shadow flex items-center cursor-pointer transition-all"
+                aria-expanded={showBulkAddDropdown}
+                aria-haspopup="true"
               >
                 <span>Bulk Add</span>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-1" viewBox="0 0 20 20" fill="currentColor">
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  className={`h-5 w-5 ml-1 transition-transform duration-200 ${showBulkAddDropdown ? 'rotate-180' : ''}`} 
+                  viewBox="0 0 20 20" 
+                  fill="currentColor"
+                >
                   <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                 </svg>
-                <div className="hidden absolute right-0 z-10 mt-1 w-56 origin-top-right divide-y divide-gray-100 rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 dark:bg-gray-800 dark:divide-gray-700 dark:ring-gray-700 group-hover:block">
-                  <div className="p-1">
+              </button>
+
+              {/* Dropdown menu now opens on click */}
+              {showBulkAddDropdown && (
+                <div className="absolute right-0 z-10 mt-2 w-64 origin-top-right rounded-lg bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:bg-gray-800 dark:ring-gray-700 transition-all transform opacity-100 scale-100">
+                  <div className="py-1">
                     <button
-                      onClick={() => setShowBulkAddForm(true)}
-                      className="flex w-full items-center rounded-md px-2 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      onClick={() => {
+                        setShowBulkAddForm(true);
+                        setShowBulkAddDropdown(false);
+                      }}
+                      className="flex w-full items-center px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
-                        <path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
-                      </svg>
-                      Text Analysis
+                      <span className="flex items-center justify-center h-8 w-8 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 mr-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
+                          <path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
+                        </svg>
+                      </span>
+                      <div>
+                        <div className="font-medium">Text Analysis</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Extract tasks from text input</div>
+                      </div>
                     </button>
+                    
                     <button
-                      onClick={() => setShowBulkAddPDFForm(true)}
-                      className="flex w-full items-center rounded-md px-2 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      onClick={() => {
+                        setShowBulkAddPDFForm(true);
+                        setShowBulkAddDropdown(false);
+                      }}
+                      className="flex w-full items-center px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-purple-500" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
-                      </svg>
-                      Document Analysis
+                      <span className="flex items-center justify-center h-8 w-8 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 mr-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                        </svg>
+                      </span>
+                      <div>
+                        <div className="font-medium">Document Analysis Gemini</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Extract tasks from documents</div>
+                      </div>
                     </button>
+                    
                     <button
-                      onClick={() => setShowOpenAIPDFForm(true)}
-                      className="flex w-full items-center rounded-md px-2 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      onClick={() => {
+                        setShowOpenAIPDFForm(true);
+                        setShowBulkAddDropdown(false);
+                      }}
+                      className="flex w-full items-center px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-orange-500" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
-                      </svg>
-                      Document Analysis (OpenAI)
+                      <span className="flex items-center justify-center h-8 w-8 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 mr-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                        </svg>
+                      </span>
+                      <div>
+                        <div className="font-medium">Document Analysis OpenAI</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">AI-powered task extraction</div>
+                      </div>
                     </button>
-                    {/* Add Email Analysis Button */}
+                    
                     <button
-                      onClick={handleShowEmailExtractor}
-                      className="flex w-full items-center rounded-md px-2 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      onClick={() => {
+                        handleShowEmailExtractor();
+                        setShowBulkAddDropdown(false);
+                      }}
+                      className="flex w-full items-center px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
-                        <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
-                      </svg>
-                      Email Analysis
+                      <span className="flex items-center justify-center h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 mr-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                          <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                        </svg>
+                      </span>
+                      <div>
+                        <div className="font-medium">Email Analysis</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Extract tasks from emails</div>
+                      </div>
                     </button>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
             <button
               onClick={() => setShowAddForm(true)}
