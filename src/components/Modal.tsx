@@ -77,9 +77,9 @@ export function Modal({
       <div className="fixed inset-0 bg-black bg-opacity-40 dark:bg-opacity-60 transition-opacity"></div>
       
       <div className="w-full max-h-[95vh] flex items-center justify-center px-4 py-4">
-        <div ref={modalRef} className={`${sizeClasses[size]} w-full bg-white dark:bg-gray-800 rounded-lg shadow-xl transform transition-all relative`}>
+        <div ref={modalRef} className={`${sizeClasses[size]} w-full bg-white dark:bg-gray-800 rounded-lg shadow-xl transform transition-all relative flex flex-col max-h-[95vh]`}>
           {/* Modal header */}
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 relative">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 relative flex-shrink-0">
             <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">{title}</h3>
             
             {/* Close button */}
@@ -93,8 +93,8 @@ export function Modal({
             </button>
           </div>
           
-          {/* Modal content - increased height */}
-          <div className="px-6 py-4 max-h-[calc(95vh-100px)] overflow-hidden">
+          {/* Modal content - with proper overflow handling */}
+          <div className="px-6 py-4 overflow-y-auto flex-grow">
             {children}
           </div>
         </div>

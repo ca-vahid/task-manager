@@ -148,10 +148,11 @@ export function QuillEditor({ value, onChange, placeholder }: QuillEditorProps) 
     }
     .quill-container .ql-container.ql-snow {
       border: none;
-      height: 200px;
+      height: 160px; /* Reduced height */
     }
     .quill-container .ql-editor {
-      min-height: 150px;
+      min-height: 120px; /* Reduced min-height */
+      max-height: 200px; /* Added max-height */
       direction: ltr !important;
       text-align: left !important;
       unicode-bidi: plaintext !important;
@@ -834,7 +835,8 @@ export function AddTaskForm({
         </div>
       </div>
       
-      <div className="flex justify-end gap-3 pt-4">
+      {/* Action buttons - fixed position at the bottom of form */}
+      <div className="flex justify-end gap-3 pt-4 sticky bottom-0 bg-white dark:bg-gray-800 pb-2 mt-6 border-t border-gray-200 dark:border-gray-700">
         <button
           type="button"
           onClick={onCancel}
