@@ -5,9 +5,11 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/hooks/useAuth';
 import Image from 'next/image';
 import { ThemeToggle } from './ThemeToggle';
+import { useProjectName } from '@/lib/contexts/ProjectNameContext';
 
 export function Header() {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading: authLoading, signOut } = useAuth();
+  const { projectName, loading: projectNameLoading } = useProjectName();
 
   return (
     <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
@@ -16,7 +18,7 @@ export function Header() {
           {/* Left side: Title and Logos */}
           <div className="flex items-center space-x-2">
             <Link href="/" className="text-xl font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors">
-              Task Management AI
+              {projectNameLoading ? 'Loading...' : projectName || 'Task Management AI'}
             </Link>
             {/* Add Company Logos */}
             <div className="flex items-center space-x-1">
@@ -54,7 +56,7 @@ export function Header() {
 
           {/* Right side: User info, Theme Toggle, and Sign Out */}
           <div className="flex items-center space-x-4">
-            {loading ? (
+            {authLoading ? (
               <span className="text-sm text-gray-500 dark:text-gray-400">Loading...</span>
             ) : user ? (
               <>

@@ -8,6 +8,7 @@ import { UndoProvider } from "@/lib/contexts/UndoContext"; // Import UndoProvide
 import React from "react"; // Import React
 import { usePathname } from 'next/navigation'; // Import usePathname
 import { Header } from '@/components/Header'; // Import the Header component
+import { ProjectNameProvider } from "@/lib/contexts/ProjectNameContext";
 
 export default function RootLayout({
   children,
@@ -24,11 +25,13 @@ export default function RootLayout({
           <NotificationProvider>
             <UndoProvider>
               <AuthProvider>
-                {showHeader && <Header />} {/* Conditionally render Header */}
-                <main className="min-h-screen bg-slate-50 dark:bg-slate-900">
-                  {/* Content moves below header */}
-                  {children}
-                </main>
+                <ProjectNameProvider>
+                  {showHeader && <Header />} {/* Conditionally render Header */}
+                  <main className="min-h-screen bg-slate-50 dark:bg-slate-900">
+                    {/* Content moves below header */}
+                    {children}
+                  </main>
+                </ProjectNameProvider>
               </AuthProvider>
             </UndoProvider>
           </NotificationProvider>

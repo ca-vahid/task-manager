@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Dashboard } from '@/components/Dashboard';
 import { Control, Technician } from '@/lib/types';
 import { Timestamp } from 'firebase/firestore';
+import ProjectNameSettings from '@/components/ProjectNameSettings';
 
 export default function DashboardPage() {
   const [controls, setControls] = useState<Control[]>([]);
@@ -125,6 +126,9 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 pt-6 pb-12 px-4 md:px-6">
       <Dashboard controls={controls} technicians={technicians} />
+      <div className="mt-8">
+        <ProjectNameSettings />
+      </div>
     </div>
   );
 } 

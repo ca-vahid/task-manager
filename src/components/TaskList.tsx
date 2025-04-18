@@ -916,38 +916,28 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
           setGroupBy={setGroupBy}
           hasSelection={selectedTaskIds.length > 0}
           onClearSelection={() => setSelectedTaskIds([])}
+          selectedTaskIds={selectedTaskIds}
+          onBatchOperation={handleBatchOperation}
+          onDeleteTasks={async (taskIds) => {
+            try {
+              // Store IDs for UI updates
+              const deletingIds = [...taskIds];
+              
+              // First update UI immediately to remove the deleted tasks
+              setTasks(prevTasks => prevTasks.filter(task => !deletingIds.includes(task.id)));
+              setSelectedTaskIds([]); // Clear selection
+              
+              // Then delete each task in the backend
+              const promises = taskIds.map(id => handleDeleteTask(id, false)); // Don't update UI again
+              await Promise.all(promises);
+            } catch (error) {
+              console.error('Failed to delete multiple tasks:', error);
+              // Re-fetch data in case of errors
+              fetchData();
+            }
+          }}
+          onAnalyzeTasks={selectedTaskIds.length >= 2 ? handleAnalyzeTasks : undefined}
         />
-        
-        {/* Batch operations toolbar when tasks are selected */}
-        {selectedTaskIds.length > 0 && (
-          <BatchOperationsToolbar
-            selectedCount={selectedTaskIds.length}
-            onClearSelection={() => setSelectedTaskIds([])}
-            onBatchOperation={handleBatchOperation}
-            selectedIds={selectedTaskIds}
-            technicians={technicians}
-            groups={groups}
-            onDeleteTasks={async (taskIds) => {
-              try {
-                // Store IDs for UI updates
-                const deletingIds = [...taskIds];
-                
-                // First update UI immediately to remove the deleted tasks
-                setTasks(prevTasks => prevTasks.filter(task => !deletingIds.includes(task.id)));
-                setSelectedTaskIds([]); // Clear selection
-                
-                // Then delete each task in the backend
-                const promises = taskIds.map(id => handleDeleteTask(id, false)); // Don't update UI again
-                await Promise.all(promises);
-              } catch (error) {
-                console.error('Failed to delete multiple tasks:', error);
-                // Re-fetch data in case of errors
-                fetchData();
-              }
-            }}
-            onAnalyzeTasks={selectedTaskIds.length >= 2 ? handleAnalyzeTasks : undefined}
-          />
-        )}
         
         {/* Success message */}
         {successMessage && (
@@ -1127,6 +1117,37 @@ export function TaskList({ initialTasks = [] }: TaskListProps) {
       {/* Changelog Modal */}
       {isChangelogOpen && (
         <ChangelogModal isOpen={isChangelogOpen} onClose={() => setIsChangelogOpen(false)} />
+      )}
+
+      {/* Floating Batch Operations Toolbar */}
+      {selectedTaskIds.length > 0 && (
+        <BatchOperationsToolbar
+          selectedCount={selectedTaskIds.length}
+          onClearSelection={() => setSelectedTaskIds([])}
+          onBatchOperation={handleBatchOperation}
+          selectedIds={selectedTaskIds}
+          technicians={technicians}
+          groups={groups}
+          onDeleteTasks={async (taskIds) => {
+            try {
+              // Store IDs for UI updates
+              const deletingIds = [...taskIds];
+              
+              // First update UI immediately to remove the deleted tasks
+              setTasks(prevTasks => prevTasks.filter(task => !deletingIds.includes(task.id)));
+              setSelectedTaskIds([]); // Clear selection
+              
+              // Then delete each task in the backend
+              const promises = taskIds.map(id => handleDeleteTask(id, false)); // Don't update UI again
+              await Promise.all(promises);
+            } catch (error) {
+              console.error('Failed to delete multiple tasks:', error);
+              // Re-fetch data in case of errors
+              fetchData();
+            }
+          }}
+          onAnalyzeTasks={selectedTaskIds.length >= 2 ? handleAnalyzeTasks : undefined}
+        />
       )}
     </div>
   );

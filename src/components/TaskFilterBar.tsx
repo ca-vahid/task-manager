@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { Task, Technician, TaskStatus, ViewMode, ViewDensity, Group } from '@/lib/types';
+import React, { useState, useEffect, useRef } from 'react';
+import { Task, Technician, TaskStatus, ViewMode, ViewDensity, Group, BatchOperation } from '@/lib/types';
 
 interface TaskFilterBarProps {
   tasks: Task[];
@@ -16,6 +16,10 @@ interface TaskFilterBarProps {
   setGroupBy: (groupBy: 'status' | 'assignee' | 'group' | 'none') => void;
   hasSelection: boolean;
   onClearSelection: () => void;
+  selectedTaskIds?: string[];
+  onBatchOperation?: (operation: BatchOperation) => Promise<void>;
+  onDeleteTasks?: (taskIds: string[]) => Promise<void>;
+  onAnalyzeTasks?: () => void;
 }
 
 export function TaskFilterBar({
@@ -30,12 +34,40 @@ export function TaskFilterBar({
   groupBy,
   setGroupBy,
   hasSelection,
-  onClearSelection
+  onClearSelection,
+  selectedTaskIds = [],
+  onBatchOperation,
+  onDeleteTasks,
+  onAnalyzeTasks
 }: TaskFilterBarProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatuses, setSelectedStatuses] = useState<TaskStatus[]>([]);
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
+  const [showAssigneeMenu, setShowAssigneeMenu] = useState(false);
+  const [showGroupMenu, setShowGroupMenu] = useState(false);
+  // Refs for dropdown auto-close
+  const statusRef = useRef<HTMLDivElement>(null);
+  const assigneeRef = useRef<HTMLDivElement>(null);
+  const groupRef = useRef<HTMLDivElement>(null);
+
+  // Close any open dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (statusRef.current && !statusRef.current.contains(event.target as Node)) {
+        setShowStatusMenu(false);
+      }
+      if (assigneeRef.current && !assigneeRef.current.contains(event.target as Node)) {
+        setShowAssigneeMenu(false);
+      }
+      if (groupRef.current && !groupRef.current.contains(event.target as Node)) {
+        setShowGroupMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Apply filters whenever filter criteria change
   useEffect(() => {
@@ -136,7 +168,7 @@ export function TaskFilterBar({
   const activeFilterCount = selectedStatuses.length + selectedAssignees.length + selectedGroups.length + (searchTerm ? 1 : 0);
 
   return (
-    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-2 shadow-sm">
+    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-md space-y-3">
       {/* Top controls row: combines view options, density, and column selector */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center space-x-2">
@@ -179,12 +211,12 @@ export function TaskFilterBar({
         </div>
         
         {/* Right side with group by, column selector and filters */}
-        <div className="flex items-center space-x-2">
+        <div className="relative flex items-center space-x-2">
           {/* Group by selector */}
           <select
             value={groupBy}
             onChange={(e) => setGroupBy(e.target.value as 'status' | 'assignee' | 'group' | 'none')}
-            className="text-sm rounded-md border border-gray-300 dark:border-gray-600 py-1 px-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+            className="text-sm rounded-full border border-gray-200 dark:border-gray-600 py-2 px-4 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition"
           >
             <option value="none">No Grouping</option>
             <option value="status">Group by Status</option>
@@ -194,14 +226,14 @@ export function TaskFilterBar({
           
           {/* Column selector when in kanban view */}
           {viewMode === 'kanban' && (
-            <div className="inline-flex rounded-md shadow-sm" role="group">
+            <div className="inline-flex rounded-full bg-gray-100 dark:bg-gray-800 shadow-sm" role="group">
               <button
                 type="button"
                 onClick={() => {
                   // Communicate with TaskGroupView
                   window.dispatchEvent(new CustomEvent('setColumnCount', { detail: { count: 3 } }));
                 }}
-                className="px-2 py-1 text-sm font-medium rounded-l-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:z-10 focus:ring-1 focus:ring-indigo-500 dark:focus:ring-indigo-400"
+                className="px-4 py-2 text-sm font-medium rounded-l-full focus:z-10 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30 text-indigo-700 dark:text-indigo-200 transition"
                 title="3 Columns"
               >
                 3 Cols
@@ -212,13 +244,79 @@ export function TaskFilterBar({
                   // Communicate with TaskGroupView
                   window.dispatchEvent(new CustomEvent('setColumnCount', { detail: { count: 4 } }));
                 }}
-                className="px-2 py-1 text-sm font-medium rounded-r-md border border-gray-200 dark:border-gray-600 border-l-0 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:z-10 focus:ring-1 focus:ring-indigo-500 dark:focus:ring-indigo-400"
+                className="px-4 py-2 text-sm font-medium rounded-r-full focus:z-10 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30 text-indigo-700 dark:text-indigo-200 transition"
                 title="4 Columns"
               >
                 4 Cols
               </button>
             </div>
           )}
+          
+          {/* Status Filter */}
+          <div ref={statusRef} className="relative">
+            <button type="button" onClick={() => setShowStatusMenu(prev => !prev)} className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30 text-indigo-700 dark:text-indigo-200 font-medium rounded-full shadow-sm transition flex items-center">
+              Status
+              {selectedStatuses.length > 0 && <span className="ml-1 inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200 rounded-full">{selectedStatuses.length}</span>}
+            </button>
+            {showStatusMenu && (
+              <div className="absolute right-0 mt-1 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg z-10">
+                <ul className="max-h-60 overflow-auto p-2">
+                  {Object.values(TaskStatus).map(status => (
+                    <li key={status} className="flex items-center">
+                      <input id={`status-${status}`} type="checkbox" checked={selectedStatuses.includes(status)} onChange={() => toggleStatusFilter(status)} className="mr-2"/>
+                      <label htmlFor={`status-${status}`} className="text-sm text-gray-700 dark:text-gray-300">{status}</label>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+          {/* Assignee Filter */}
+          <div ref={assigneeRef} className="relative">
+            <button type="button" onClick={() => setShowAssigneeMenu(prev => !prev)} className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30 text-indigo-700 dark:text-indigo-200 font-medium rounded-full shadow-sm transition flex items-center">
+              Assignee
+              {selectedAssignees.length > 0 && <span className="ml-1 inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200 rounded-full">{selectedAssignees.length}</span>}
+            </button>
+            {showAssigneeMenu && (
+              <div className="absolute right-0 mt-1 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg z-10">
+                <ul className="max-h-60 overflow-auto p-2">
+                  <li className="flex items-center">
+                    <input id="assignee-unassigned" type="checkbox" checked={selectedAssignees.includes('unassigned')} onChange={() => toggleAssigneeFilter('unassigned')} className="mr-2"/>
+                    <label htmlFor="assignee-unassigned" className="text-sm text-gray-700 dark:text-gray-300">Unassigned</label>
+                  </li>
+                  {technicians.map(tech => (
+                    <li key={tech.id} className="flex items-center">
+                      <input id={`assignee-${tech.id}`} type="checkbox" checked={selectedAssignees.includes(tech.id)} onChange={() => toggleAssigneeFilter(tech.id)} className="mr-2"/>
+                      <label htmlFor={`assignee-${tech.id}`} className="text-sm text-gray-700 dark:text-gray-300">{tech.name}</label>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+          {/* Group Filter */}
+          <div ref={groupRef} className="relative">
+            <button type="button" onClick={() => setShowGroupMenu(prev => !prev)} className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30 text-indigo-700 dark:text-indigo-200 font-medium rounded-full shadow-sm transition flex items-center">
+              Group
+              {selectedGroups.length > 0 && <span className="ml-1 inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200 rounded-full">{selectedGroups.length}</span>}
+            </button>
+            {showGroupMenu && (
+              <div className="absolute right-0 mt-1 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg z-10">
+                <ul className="max-h-60 overflow-auto p-2">
+                  <li className="flex items-center">
+                    <input id="group-nogroup" type="checkbox" checked={selectedGroups.includes('nogroup')} onChange={() => toggleGroupFilter('nogroup')} className="mr-2"/>
+                    <label htmlFor="group-nogroup" className="text-sm text-gray-700 dark:text-gray-300">No Group</label>
+                  </li>
+                  {groups.map(group => (
+                    <li key={group.id} className="flex items-center">
+                      <input id={`group-${group.id}`} type="checkbox" checked={selectedGroups.includes(group.id)} onChange={() => toggleGroupFilter(group.id)} className="mr-2"/>
+                      <label htmlFor={`group-${group.id}`} className="text-sm text-gray-700 dark:text-gray-300">{group.name}</label>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
           
           {/* Clear filters button */}
           {activeFilterCount > 0 && (
@@ -261,7 +359,7 @@ export function TaskFilterBar({
           type="text"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="block w-full pl-10 pr-10 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md leading-5 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500 dark:focus:border-indigo-400 sm:text-sm"
+          className="block w-full pl-10 pr-10 py-2 bg-gray-100 dark:bg-gray-800 rounded-full text-sm placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white dark:focus:bg-gray-700 transition"
           placeholder="Search tasks by title, details, ticket #, or technician..."
         />
         {searchTerm && (

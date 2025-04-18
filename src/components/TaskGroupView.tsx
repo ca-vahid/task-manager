@@ -39,11 +39,11 @@ function GroupItem({
 }) {
   return (
     <div 
-      className={`bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden w-full ${className || ''}`}
+      className={`relative bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 rounded-2xl shadow-2xl transition-all overflow-hidden w-full ${className || ''}`}
     >
       {/* Group header */}
       <div 
-        className="mb-0 px-3 py-2 flex justify-between items-center bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
+        className="px-6 py-4 flex justify-between items-center bg-white/70 dark:bg-gray-900/70 backdrop-blur-sm rounded-t-2xl border-b border-gray-200 dark:border-gray-700"
       >
         <div>
           <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 flex items-center">
@@ -69,9 +69,9 @@ function GroupItem({
       </div>
       
       {/* Group content - collapsible */}
-      <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isCollapsed ? 'max-h-0' : 'max-h-[2000px]'}`}>
-        <div className="p-3">
-          <div className="space-y-3">
+      <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isCollapsed ? 'max-h-0' : 'max-h-full'}`}>
+        <div className="p-6">
+          <div className="space-y-6">
             {children}
           </div>
           
@@ -335,7 +335,7 @@ export function TaskGroupView({
     };
   }, [currentPage, goToNextPage, goToPreviousPage, totalPages]);
 
-  // Listen for custom column count change event
+  // Listen for custom column count change event (now matching TaskFilterBar dispatch)
   useEffect(() => {
     const handleColumnCountChange = (event: CustomEvent) => {
       const count = event.detail.count;
@@ -348,11 +348,17 @@ export function TaskGroupView({
       }
     };
     
-    window.addEventListener('columnCountChange' as any, handleColumnCountChange);
+    // Now listening to 'setColumnCount' to match dispatch in TaskFilterBar
+    window.addEventListener('setColumnCount' as any, handleColumnCountChange);
     return () => {
-      window.removeEventListener('columnCountChange' as any, handleColumnCountChange);
+      window.removeEventListener('setColumnCount' as any, handleColumnCountChange);
     };
   }, [currentPage, groupEntries.length]);
+
+  // Dynamically adjust columns: avoid blank columns when fewer groups than chosen count
+  const effectiveColumns = currentGroups.length > 0
+    ? Math.min(columnsPerPage, currentGroups.length)
+    : columnsPerPage;
 
   return (
     <div className="relative">
@@ -399,40 +405,75 @@ export function TaskGroupView({
       )}
       
       {/* Main content with non-draggable groups */}
-      <div className={`grid grid-cols-1 md:grid-cols-2 ${
-        columnsPerPage === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'
-      } gap-3 ${getAnimationClasses()}`}>
-        {/* Render current page groups */}
-        {currentGroups.map(([groupKey, groupTasks]) => (
-          <GroupItem
-            key={groupKey}
-            groupKey={groupKey}
-            groupTitle={getGroupTitle(groupKey)}
-            groupTasks={groupTasks as Task[]}
-            isCollapsed={collapsedGroups[groupKey] || false}
-            onToggleCollapse={(key) => setCollapsedGroups(prev => ({
-              ...prev,
-              [key]: !prev[key]
-            }))}
-            className=""
-          >
-            {(groupTasks as Task[]).map(task => (
-              <div key={task.id}>
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  technicians={technicians}
-                  categories={categories}
-                  onUpdateTask={onUpdateTask}
-                  onDeleteTask={onDeleteTask}
-                  viewDensity={viewDensity}
-                  isSelected={selectedTaskIds.includes(task.id)}
-                  onSelect={(selected) => onTaskSelection(task.id, selected)}
-                />
+      <div className="px-4 py-6 space-y-12">
+        {/* Render current page groups one after another, with cards flowing in a grid */}
+        {currentGroups.map(([groupKey, groupTasks]) => {
+          const isCollapsed = collapsedGroups[groupKey] || false;
+          
+          return (
+            <div 
+              key={groupKey} 
+              className={`relative bg-gradient-to-br from-white to-gray-100 dark:from-gray-900 dark:to-gray-800 rounded-3xl shadow-2xl hover:shadow-3xl transition-all ${columnsPerPage === 4 ? 'p-3 space-y-2' : 'p-6 space-y-6'}`}
+            >
+              {/* Group header */}
+              <div className={`flex justify-between items-center ${columnsPerPage === 4 ? 'mb-1' : 'mb-4'}`}>
+                <div>
+                  <h3 className={`${columnsPerPage === 4 ? 'text-sm' : 'text-xl'} font-semibold text-gray-900 dark:text-gray-100 flex items-center`}>
+                    {getGroupTitle(groupKey)}
+                    <span className={`${columnsPerPage === 4 ? 'ml-1 text-xs px-1.5 py-0' : 'ml-2 text-sm px-3 py-1'} bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-200 rounded-full`}>
+                      {groupTasks.length}
+                    </span>
+                  </h3>
+                </div>
+                
+                {/* Collapse/Expand button */}
+                <button 
+                  onClick={() => setCollapsedGroups(prev => ({...prev, [groupKey]: !prev[groupKey]}))}
+                  className={`${columnsPerPage === 4 ? 'p-1' : 'p-2'} rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 transition`}
+                  aria-label={isCollapsed ? "Expand group" : "Collapse group"}
+                >
+                  {isCollapsed ? (
+                    <ChevronDownIcon className={`${columnsPerPage === 4 ? 'w-4 h-4' : 'w-6 h-6'}`} />
+                  ) : (
+                    <ChevronUpIcon className={`${columnsPerPage === 4 ? 'w-4 h-4' : 'w-6 h-6'}`} />
+                  )}
+                </button>
               </div>
-            ))}
-          </GroupItem>
-        ))}
+              
+              {/* Cards grid */}
+              <div 
+                className={`transition-all duration-500 ease-in-out ${isCollapsed ? 'max-h-0 opacity-0 invisible' : 'max-h-full opacity-100 visible'}`}
+              >
+                <div 
+                  className={`grid ${columnsPerPage === 4 ? 'gap-2' : 'gap-8'} ${getAnimationClasses()}`}
+                  style={{ gridTemplateColumns: `repeat(${columnsPerPage}, minmax(0, 1fr))` }}
+                >
+                  {(groupTasks as Task[]).map(task => (
+                    <div key={task.id} className={`transform ${columnsPerPage === 4 ? 'hover:-translate-y-0.5' : 'hover:-translate-y-1.5'} transition-transform duration-200`}>
+                      <TaskCard
+                        task={task}
+                        technicians={technicians}
+                        categories={categories}
+                        onUpdateTask={onUpdateTask}
+                        onDeleteTask={onDeleteTask}
+                        viewDensity={viewDensity}
+                        isSelected={selectedTaskIds.includes(task.id)}
+                        onSelect={(selected) => onTaskSelection(task.id, selected)}
+                      />
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Empty state */}
+                {groupTasks.length === 0 && (
+                  <div className="text-center py-4">
+                    <p className="text-gray-500 dark:text-gray-400">No tasks in this group</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

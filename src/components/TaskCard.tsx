@@ -679,13 +679,6 @@ export function TaskCard({
     }
   };
 
-  // Handler for selection checkbox
-  const handleSelectChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (onSelect) {
-      onSelect(e.target.checked);
-    }
-  };
-
   // Toggle menu
   const toggleMenu = (e: React.MouseEvent) => {
     e.preventDefault(); // Prevent any default button behavior
@@ -897,36 +890,42 @@ export function TaskCard({
       <style>{animationStyles}</style>
       <div className={`border ${statusStyles.border} ${statusStyles.darkBorder} rounded-lg shadow-sm hover:shadow-md ${statusStyles.background} ${statusStyles.darkBackground} ${cardClasses} 
       transition-all duration-300 ease-in-out relative ${isSelected ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''} 
+      group
       ${isRemoving ? 'opacity-0 transform scale-95 -translate-x-4' : 'opacity-100 transform scale-100 translate-x-0'}`}>
-        {/* Header with title and action buttons */}
-        <div className="flex justify-between items-start mb-2">
-          <h3 className="font-semibold text-gray-900 dark:text-gray-50 text-lg pr-2">
-            {task.title}
-          </h3>
-          
-          <div className="flex items-center gap-2">
-            {/* Selection checkbox */}
-            {onSelect && (
-              <div>
-                <input
-                  type="checkbox"
-                  checked={isSelected}
-                  onChange={handleSelectChange}
-                  className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                />
-              </div>
+        {/* Selection corner indicator */}
+        {onSelect && (
+          <div 
+            onClick={(e) => { 
+              e.stopPropagation();
+              if (onSelect) onSelect(!isSelected);
+            }}
+            className={`absolute top-0 left-0 w-6 h-6 rounded-tl-lg z-20 cursor-pointer overflow-hidden transition-all duration-200
+              ${isSelected ? 'bg-blue-500' : 'bg-transparent group-hover:bg-gray-200 dark:group-hover:bg-gray-700'}`}
+            title={isSelected ? "Deselect task" : "Select task"}
+          >
+            {isSelected && (
+              <svg className="h-3 w-3 text-white absolute top-1 left-1" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
             )}
+          </div>
+        )}
+
+        {/* Header with title and action buttons */}
+        <div className="relative mb-2">
+          {/* Action buttons moved to top-right absolute corner */}
+          <div className="absolute top-0 right-0 flex items-center gap-1 z-10">
             
             {/* Menu button and dropdown */}
-            <div className="relative z-10" ref={menuRef}>
+            <div className="relative" ref={menuRef}>
               <button
                 ref={toggleButtonRef}
                 onClick={toggleMenu}
-                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
                 aria-label="Options menu"
                 style={{ touchAction: 'manipulation' }}
               >
-                <EllipsisVerticalIcon className="h-5 w-5" />
+                <EllipsisVerticalIcon className="h-4 w-4" />
               </button>
               
               {menuOpen && canUseDOM && createPortal(
@@ -1078,6 +1077,11 @@ export function TaskCard({
               )}
             </div>
           </div>
+
+          {/* Title with full width */}
+          <h3 className="font-semibold text-gray-900 dark:text-gray-50 text-lg pr-8">
+            {task.title}
+          </h3>
         </div>
 
         {/* Error message if any */}
