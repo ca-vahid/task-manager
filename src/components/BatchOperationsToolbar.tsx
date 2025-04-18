@@ -45,51 +45,44 @@ export function BatchOperationsToolbar({
   const [orientation, setOrientation] = useState<'horizontal' | 'vertical-left' | 'vertical-right'>('horizontal');
   const dragRef = useRef<HTMLDivElement>(null);
   
-  // Set initial position from localStorage or center
+  // Helper function for centering toolbar at top-center
+  const centerToolbar = () => {
+    if (typeof window !== 'undefined' && dragRef.current) {
+      const width = dragRef.current.offsetWidth;
+      return { x: Math.max(0, window.innerWidth / 2 - width / 2), y: 20 };
+    }
+    return { x: window.innerWidth / 2 - 200, y: 20 };
+  };
+
+  // Initialize position: use saved position or center on first load
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof window === 'undefined') return;
+    const savedPosition = localStorage.getItem('toolbarPosition');
+    const savedOrientation = localStorage.getItem('toolbarOrientation');
+
+    if (savedPosition) {
       try {
-        // Center calculation
-        const centerToolbar = () => {
-          if (dragRef.current) {
-            const width = dragRef.current.offsetWidth;
-            return { x: (window.innerWidth - width) / 2, y: 20 };
-          }
-          // Fallback if ref isn't available yet
-          return { x: window.innerWidth / 2 - 200, y: 20 };
-        };
-
-        const savedPosition = localStorage.getItem('toolbarPosition');
-        const savedOrientation = localStorage.getItem('toolbarOrientation');
-        
-        if (savedPosition) {
-          const pos = JSON.parse(savedPosition);
-          setPosition(pos);
-          setIsTop(pos.y < window.innerHeight / 2);
-        } else {
-          // If no saved position, center it
-          setPosition(centerToolbar());
-        }
-        
-        if (savedOrientation) {
-          setOrientation(savedOrientation as 'horizontal' | 'vertical-left' | 'vertical-right');
-        }
-
-        // Force center on first load by using a flag in localStorage
-        const hasLoadedBefore = localStorage.getItem('toolbarHasLoaded');
-        if (!hasLoadedBefore) {
-          // Set a small delay to allow the component to render first
-          setTimeout(() => {
-            setPosition(centerToolbar());
-            localStorage.setItem('toolbarHasLoaded', 'true');
-            localStorage.setItem('toolbarPosition', JSON.stringify(centerToolbar()));
-          }, 100);
-        }
-      } catch (e) {
-        // If there's an error, just position it in the center
-        const centerX = Math.max(window.innerWidth / 2 - 200, 0);
-        setPosition({ x: centerX, y: 20 });
+        const pos = JSON.parse(savedPosition);
+        setPosition(pos);
+        setIsTop(pos.y < window.innerHeight / 2);
+      } catch {
+        const pos = centerToolbar();
+        setPosition(pos);
+        setIsTop(pos.y < window.innerHeight / 2);
+        localStorage.setItem('toolbarPosition', JSON.stringify(pos));
       }
+    } else {
+      const pos = centerToolbar();
+      setPosition(pos);
+      setIsTop(pos.y < window.innerHeight / 2);
+      localStorage.setItem('toolbarPosition', JSON.stringify(pos));
+    }
+
+    if (savedOrientation) {
+      setOrientation(savedOrientation as 'horizontal' | 'vertical-left' | 'vertical-right');
+    } else {
+      setOrientation('horizontal');
+      localStorage.setItem('toolbarOrientation', 'horizontal');
     }
   }, []);
 
@@ -158,15 +151,7 @@ export function BatchOperationsToolbar({
   // Reset position to center
   const resetPosition = () => {
     // Calculate center position
-    const centerPosition = () => {
-      if (dragRef.current) {
-        const width = dragRef.current.offsetWidth;
-        return { x: (window.innerWidth - width) / 2, y: 20 };
-      }
-      return { x: window.innerWidth / 2 - 200, y: 20 };
-    };
-    
-    const newPosition = centerPosition();
+    const newPosition = centerToolbar();
     setPosition(newPosition);
     setOrientation('horizontal');
     setIsTop(true);
@@ -353,39 +338,31 @@ export function BatchOperationsToolbar({
     }
   };
 
-  const toolbarRef = useRef<HTMLDivElement>(null);
-
+  // Optionally clamp position to viewport on window resize
   useEffect(() => {
-    const centerToolbar = () => {
-      if (toolbarRef.current) {
-        const width = toolbarRef.current.offsetWidth;
-        return { x: Math.max(0, (window.innerWidth - width) / 2), y: 20 };
+    const clampPosition = () => {
+      if (typeof window !== 'undefined' && dragRef.current) {
+        const width = dragRef.current.offsetWidth;
+        const height = dragRef.current.offsetHeight;
+        setPosition(pos => ({
+          x: Math.max(0, Math.min(pos.x, window.innerWidth - width)),
+          y: Math.max(0, Math.min(pos.y, window.innerHeight - height)),
+        }));
       }
-      // Fallback if ref isn't available yet
-      return { x: window.innerWidth / 2 - 200, y: 20 };
     };
-
-    // Always center the toolbar on mount
-    setPosition(centerToolbar());
-    
-    // Add resize listener to keep it centered
-    const updatePosition = () => {
-      setPosition(centerToolbar());
-    };
-    
-    window.addEventListener('resize', updatePosition);
-    return () => window.removeEventListener('resize', updatePosition);
+    window.addEventListener('resize', clampPosition);
+    return () => window.removeEventListener('resize', clampPosition);
   }, []);
 
   return (
     <div
-      ref={toolbarRef}
+      ref={dragRef}
       style={{
         position: 'fixed',
         top: `${position.y}px`,
         left: `${position.x}px`,
         zIndex: 100,
-        transition: 'all 0.2s ease-in-out',
+        transition: isDragging ? 'none' : 'all 0.2s ease-in-out',
       }}
       className={`py-2 px-3 bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-800 dark:to-indigo-800 border-2 border-blue-400 dark:border-blue-600 rounded-xl shadow-xl animate-fade-in-down text-white ${
         orientation.startsWith('vertical') ? 'max-w-[150px]' : 'max-w-[90vw]'
