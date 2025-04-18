@@ -1,7 +1,7 @@
 import React from 'react';
 
 // Application version
-export const APP_VERSION = "1.2.12";
+export const APP_VERSION = "1.3.0";
 
 // Version history for changelog
 export interface VersionInfo {
@@ -14,6 +14,22 @@ export interface VersionInfo {
 }
 
 export const VERSION_HISTORY: VersionInfo[] = [
+  {
+    version: "1.3.0",
+    date: "April 18, 2024",
+    changes: [
+      {
+        category: "Major Feature",
+        items: [
+          "Added database backup and restore functionality",
+          "Implemented selective backup for tasks, technicians, and groups",
+          "Added restore option with duplicate handling (overwrite/skip)",
+          "Progress tracking for large backup/restore operations",
+          "Client-side JSON file export for data portability"
+        ]
+      }
+    ]
+  },
   {
     version: "1.2.12",
     date: "April 18, 2024",
