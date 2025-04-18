@@ -1,7 +1,7 @@
 import React from 'react';
 
 // Application version
-export const APP_VERSION = "1.2.9";
+export const APP_VERSION = "1.3.0";
 
 // Version history for changelog
 export interface VersionInfo {
@@ -14,6 +14,21 @@ export interface VersionInfo {
 }
 
 export const VERSION_HISTORY: VersionInfo[] = [
+  {
+    version: "1.3.0",
+    date: "April 19, 2024",
+    changes: [
+      {
+        category: "UI Improvements",
+        items: [
+          "Fixed modal overflow issue to ensure buttons are always visible",
+          "Improved form layout with sticky action buttons",
+          "Enhanced rich text editor height for better fit in modal",
+          "Added proper scrolling behavior to all modal content"
+        ]
+      }
+    ]
+  },
   {
     version: "1.2.9",
     date: "April 18, 2024",
@@ -593,7 +608,6 @@ export const VERSION_HISTORY: VersionInfo[] = [
         ]
       }
     ]
-
   }
 ];
 
