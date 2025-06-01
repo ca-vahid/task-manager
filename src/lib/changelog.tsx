@@ -1,7 +1,7 @@
 import React from 'react';
 
 // Application version
-export const APP_VERSION = "1.3.5";
+export const APP_VERSION = "1.3.9";
 
 // Version history for changelog
 export interface VersionInfo {
@@ -14,6 +14,22 @@ export interface VersionInfo {
 }
 
 export const VERSION_HISTORY: VersionInfo[] = [
+  {
+    version: "1.3.9",
+    date: "May 31, 2025",
+    changes: [
+      {
+        category: "Improvements",
+        items: [
+          "Removed verbose debug logs from Document Analysis module to declutter browser & server consoles.",
+          "Enhanced Gemini Thought Summaries formatting (brain emoji, bold titles).",
+          "Fixed duplicate parsing / fallback calls resulting in redundant API requests.",
+          "Disabled unnecessary \"continue\" prompts when Gemini responses appear truncated.",
+          "Added minimal error-only logging for cleaner production diagnostics."
+        ]
+      }
+    ]
+  },
   {
     version: "1.3.5",
     date: "April 18, 2024",

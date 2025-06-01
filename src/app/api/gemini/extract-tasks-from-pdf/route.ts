@@ -8,8 +8,8 @@ const genAI = new GoogleGenAI({
 });
 
 // Model constants
-const STANDARD_MODEL = "gemini-2.0-flash";
-const THINKING_MODEL = "gemini-2.5-pro-preview-03-25";
+const STANDARD_MODEL = "gemini-2.5-flash-preview-05-20";
+const THINKING_MODEL = "gemini-2.5-pro-preview-05-06";
 
 // Task schema for structured output
 const TASK_SCHEMA = {
@@ -107,7 +107,7 @@ async function optimizeTasks(tasks: any[], streamController?: ReadableStreamDefa
     streamController.enqueue(new TextEncoder().encode(`\n[System: Starting task optimization with ${tasks.length} tasks...]\n`));
   }
   
-  console.log(`Starting task optimization with ${tasks.length} tasks using Thinking model`);
+  // Starting task optimization
   
   try {
     if (streamController) {
@@ -119,11 +119,6 @@ async function optimizeTasks(tasks: any[], streamController?: ReadableStreamDefa
       apiKey: process.env.GEMINI_API_KEY || ""
     });
     
-    // Always use the thinking model for optimization
-    const chat = optimizationGenAI.chats.create({
-      model: THINKING_MODEL
-    });
-    
     // Create a comprehensive prompt that focuses on consolidation and optimization
     const prompt = `
       I need you to optimize this list of tasks by removing duplicates and consolidating related items.
@@ -133,7 +128,8 @@ async function optimizeTasks(tasks: any[], streamController?: ReadableStreamDefa
       
       Please:
       1. Go through these tasks carefully
-      2. Remove duplicate tasks 
+      2. Remove duplicate tasks. But also remove tasks that are not actionable in the future. The purpose of this is to create tasks that
+      are worthy of being added to a task management system
       3. Combine and merge related tasks when possible
       4. Account for typos in the original transcript when deciding if tasks are similar
       5. Ensure each final task is comprehensive and clear
@@ -149,18 +145,39 @@ async function optimizeTasks(tasks: any[], streamController?: ReadableStreamDefa
     // Use streaming if available
     if (streamController) {
       try {
-        const responseStream = await chat.sendMessageStream({
-          message: prompt
+        const responseStream = await optimizationGenAI.models.generateContentStream({
+          model: THINKING_MODEL,
+          contents: prompt,
+          config: {
+            thinkingConfig: {
+              includeThoughts: true,
+            },
+          },
         });
         
         streamController.enqueue(new TextEncoder().encode("\n[System: Receiving optimization results in real-time...]\n"));
         
         let outputText = '';
         for await (const chunk of responseStream) {
-          if (chunk && chunk.text) {
+          if (!chunk) continue;
+          // Handle thought summaries in optimization
+          if ((chunk as any).candidates) {
+            const candidates = (chunk as any).candidates;
+            const parts = candidates[0]?.content?.parts ?? [];
+            for (const part of parts) {
+              if (!part?.text) continue;
+              const text = part.text as string;
+              if (part.thought) {
+                // Thought part received
+                streamController.enqueue(new TextEncoder().encode(`[Thought] ${text}\n`));
+              } else {
+                outputText += text;
+                streamController.enqueue(new TextEncoder().encode(text));
+              }
+            }
+          } else if (chunk.text) {
+            // Legacy path
             outputText += chunk.text;
-            
-            // Send the actual text content to show streaming progress
             streamController.enqueue(new TextEncoder().encode(chunk.text));
           }
         }
@@ -211,8 +228,12 @@ async function optimizeTasks(tasks: any[], streamController?: ReadableStreamDefa
     }
     
     // Non-streaming fallback approach
-    const response = await chat.sendMessage({
-      message: prompt
+    const response = await optimizationGenAI.models.generateContent({
+      model: THINKING_MODEL,
+      contents: prompt,
+      config: {
+        thinkingConfig: { includeThoughts: true }
+      }
     });
     
     const outputText = response?.text || "";
@@ -232,7 +253,7 @@ async function optimizeTasks(tasks: any[], streamController?: ReadableStreamDefa
           streamController.enqueue(new TextEncoder().encode(`\n[System: Successfully optimized: ${tasks.length} → ${optimizedTasks.length} tasks]\n`));
         }
         
-        console.log(`Successfully optimized: ${tasks.length} → ${optimizedTasks.length} tasks`);
+        // Successfully optimized
         return optimizedTasks;
       }
       
@@ -244,7 +265,7 @@ async function optimizeTasks(tasks: any[], streamController?: ReadableStreamDefa
             streamController.enqueue(new TextEncoder().encode(`\n[System: Successfully optimized: ${tasks.length} → ${parsedJson.length} tasks]\n`));
           }
           
-          console.log(`Successfully optimized: ${tasks.length} → ${parsedJson.length} tasks`);
+          // Successfully optimized
           return parsedJson;
         } else if (parsedJson.tasks && Array.isArray(parsedJson.tasks)) {
           // Handle case where model returns {tasks: [...]}
@@ -252,7 +273,7 @@ async function optimizeTasks(tasks: any[], streamController?: ReadableStreamDefa
             streamController.enqueue(new TextEncoder().encode(`\n[System: Successfully optimized: ${tasks.length} → ${parsedJson.tasks.length} tasks]\n`));
           }
           
-          console.log(`Successfully optimized: ${tasks.length} → ${parsedJson.tasks.length} tasks`);
+          // Successfully optimized
           return parsedJson.tasks;
         }
       } catch (parseError) {
@@ -334,8 +355,7 @@ async function processPdfJob(jobId: string): Promise<void> {
       5. Category - The most appropriate category for the task (from the available categories)
       6. Due date - Preferred in YYYY-MM-DD format if mentioned, otherwise null
       7. Priority - Low, Medium, High, or Critical based on urgency mentioned
-      8. Ticket number - If mentioned in the document
-      9. External URL - If mentioned in the document
+
       
       Extract as many tasks as you can find in the document. If information isn't available for certain fields, set them to null.
       
@@ -355,11 +375,6 @@ async function processPdfJob(jobId: string): Promise<void> {
       }
     `;
 
-    // For the thinking model, set up the generation config
-    const generationConfig = useThinkingModel ? {
-      responseStructure: { schema: TASK_SCHEMA }
-    } : {};
-
     // Initial PDF content as attachment
     const initialMessageContent = [
       { text: initialPrompt },
@@ -371,46 +386,21 @@ async function processPdfJob(jobId: string): Promise<void> {
       }
     ];
 
-    // Create a chat instance to maintain conversation context
-    const chat = genAI.chats.create({
-      model: MODEL,
-      ...(useThinkingModel ? { generationConfig } : {})
-    });
-
     // Start with the initial PDF content
     let responseText = '';
     
     try {
       // Send the initial message with PDF
-      const chatResponse = await chat.sendMessage({
-        message: initialMessageContent
+      const chatResponse = await genAI.models.generateContent({
+        model: MODEL,
+        contents: initialMessageContent,
+        config: useThinkingModel ? {
+          thinkingConfig: { includeThoughts: true }
+        } : {}
       });
       
       responseText += chatResponse.text || '';
       
-      // Check if the response seems complete
-      if (isResponseIncomplete(responseText)) {
-        // Send a follow-up message asking to continue
-        console.log("Response seems incomplete. Requesting continuation...");
-        
-        const continuationResponse = await chat.sendMessage({
-          message: "Please continue. It seems your response was cut off. Complete the JSON output of the tasks you were extracting."
-        });
-        
-        responseText += continuationResponse.text || '';
-        
-        // Check if we need a final message to complete/wrap up - only for standard model
-        if (!useThinkingModel && isResponseIncomplete(responseText)) {
-          console.log("Response still incomplete. Sending final request...");
-          
-          const finalResponse = await chat.sendMessage({
-            message: "Please ensure your response is complete and properly formatted as JSON. If you're done, please state 'EXTRACTION COMPLETE'."
-          });
-          
-          responseText += finalResponse.text || '';
-        }
-      }
-
       // Try to extract tasks from the response
       let extractedTasks = [];
       try {
@@ -520,7 +510,7 @@ async function processPdfJob(jobId: string): Promise<void> {
       
       // Optimize tasks if we have them
       if (extractedTasks.length > 0) {
-        console.log(`Extracted ${extractedTasks.length} tasks. Optimizing...`);
+        // Extracted tasks, optimizing...
         const optimizedTasks = await optimizeTasks(extractedTasks);
         
         // Update job with successful result
@@ -587,7 +577,7 @@ export async function POST(req: Request) {
     
     if (isExtractedText && textContent) {
       // For extracted text content, we'll encode it as base64
-      console.log('Processing extracted text from Word document:', originalFileName);
+      // Processing extracted text from Word document
       base64File = Buffer.from(textContent).toString('base64');
     } else {
       // Get the PDF file from the request
@@ -761,28 +751,41 @@ async function handleStreamingRequest(
                 }
               ];
           
-          // Create a chat instance for meeting summary
-          const summaryChat = genAI.chats.create({
-            model: THINKING_MODEL // Always use thinking model for summaries
-          });
-          
           // Start streaming the summary process
-          const summaryStream = await summaryChat.sendMessageStream({
-            message: summaryMessageContent
+          const summaryStream = await genAI.models.generateContentStream({
+            model: THINKING_MODEL,
+            contents: summaryMessageContent,
+            config: {
+              thinkingConfig: { includeThoughts: true }
+            }
           });
           
           // Process the summary stream
           for await (const chunk of summaryStream) {
-            if (chunk && chunk.text) {
-              meetingSummary += chunk.text;
-              
-              // Send the actual summary chunk to the frontend stream
-              controller.enqueue(new TextEncoder().encode(chunk.text));
-              
-              // Check for completion marker, but don't send progress dots anymore
-              if (chunk.text.includes('MEETING SUMMARY COMPLETE')) {
-                controller.enqueue(new TextEncoder().encode("\n[System: Meeting summary generation complete]\n"));
+            if (!chunk) continue;
+            // Handle thought summaries in summary stream
+            if ((chunk as any).candidates) {
+              const candidates = (chunk as any).candidates;
+              const parts = candidates[0]?.content?.parts ?? [];
+              for (const part of parts) {
+                if (!part?.text) continue;
+                const text = part.text as string;
+                if (part.thought) {
+                  // Summary thought received
+                  controller.enqueue(new TextEncoder().encode(`[Thought] ${text}\n`));
+                } else {
+                  meetingSummary += text;
+                  controller.enqueue(new TextEncoder().encode(text));
+                  // Check for completion marker
+                  if (text.includes('MEETING SUMMARY COMPLETE')) {
+                    controller.enqueue(new TextEncoder().encode("\n[System: Meeting summary generation complete]\n"));
+                  }
+                }
               }
+            } else if (chunk.text) {
+              // Legacy path
+              meetingSummary += chunk.text;
+              controller.enqueue(new TextEncoder().encode(chunk.text));
             }
           }
           
@@ -805,15 +808,36 @@ async function handleStreamingRequest(
             // Ask for completion
             controller.enqueue(new TextEncoder().encode("\n\n[System: Summary seems incomplete. Requesting completion...]\n\n"));
             
-            const completionStream = await summaryChat.sendMessageStream({
-              message: "Please complete the meeting summary. When finished, state 'MEETING SUMMARY COMPLETE'."
+            const completionStream = await genAI.models.generateContentStream({
+              model: THINKING_MODEL,
+              contents: "Please complete the meeting summary. When finished, state 'MEETING SUMMARY COMPLETE'.",
+              config: {
+                thinkingConfig: { includeThoughts: true }
+              }
             });
             
             // Process the completion stream
             for await (const chunk of completionStream) {
-              if (chunk && chunk.text) {
+              if (!chunk) continue;
+              // Handle thought summaries in completion stream
+              if ((chunk as any).candidates) {
+                const candidates = (chunk as any).candidates;
+                const parts = candidates[0]?.content?.parts ?? [];
+                for (const part of parts) {
+                  if (!part?.text) continue;
+                  const text = part.text as string;
+                  if (part.thought) {
+                    controller.enqueue(new TextEncoder().encode(`[Thought] ${text}\n`));
+                  } else {
+                    meetingSummary += text;
+                    if (text.includes('MEETING SUMMARY COMPLETE')) {
+                      controller.enqueue(new TextEncoder().encode("\n[System: Meeting summary completion finished]\n"));
+                    }
+                  }
+                }
+              } else if (chunk.text) {
+                // Legacy path
                 meetingSummary += chunk.text;
-                // Don't show the content, just progress indicators
                 if (chunk.text.includes('MEETING SUMMARY COMPLETE')) {
                   controller.enqueue(new TextEncoder().encode("\n[System: Meeting summary completion finished]\n"));
                 }
@@ -841,8 +865,7 @@ async function handleStreamingRequest(
             5. Category - The most appropriate category for the task (from the available categories)
             6. Due date - Preferred in YYYY-MM-DD format if mentioned, otherwise null
             7. Priority - Low, Medium, High, or Critical based on urgency mentioned
-            8. Ticket number - If mentioned in the document
-            9. External URL - If mentioned in the document
+
             
             Extract as many tasks as you can find in the meeting summary. If information isn't available for certain fields, set them to null.
             
@@ -891,8 +914,7 @@ async function handleStreamingRequest(
             5. Category - The most appropriate category for the task (from the available categories)
             6. Due date - Preferred in YYYY-MM-DD format if mentioned, otherwise null
             7. Priority - Low, Medium, High, or Critical based on urgency mentioned
-            8. Ticket number - If mentioned in the document
-            9. External URL - If mentioned in the document
+
             
             Extract as many tasks as you can find in the ${isExtractedText ? 'text' : 'document'}. If information isn't available for certain fields, set them to null.
             
@@ -937,70 +959,47 @@ async function handleStreamingRequest(
           }
         }
 
-        // For the thinking model, set up the generation config
-        const generationConfig = useThinkingModel ? {
-          responseStructure: { schema: TASK_SCHEMA }
-        } : {};
-
-        // Create a chat instance to maintain conversation context
-        const chat = genAI.chats.create({
-          model: MODEL,
-          ...(useThinkingModel ? { generationConfig } : {})
-        });
-
         // Add a progress indicator
         if (useThinkingModel && !isMeetingTranscript) {
           controller.enqueue(new TextEncoder().encode("🧠 Thinking model is analyzing your document. You'll see real-time progress as it works...\n\n"));
         }
         
+        // Sending chat stream with thinking config
+        
         // Send the initial message
-        const chatStream = await chat.sendMessageStream({
-          message: initialMessageContent
+        const chatStream = await genAI.models.generateContentStream({
+          model: MODEL,
+          contents: initialMessageContent,
+          config: useThinkingModel ? {
+            thinkingConfig: { includeThoughts: true }
+          } : {}
         });
         
         // Process the initial stream
         for await (const chunk of chatStream) {
-          if (chunk && chunk.text) {
+          if (!chunk) continue;
+          // Processing chunk
+          if ((chunk as any).candidates) {
+            const candidates = (chunk as any).candidates;
+            const parts = candidates[0]?.content?.parts ?? [];
+            // Processing parts
+            for (const part of parts) {
+              if (!part?.text) continue;
+              const text = part.text as string;
+              if (part.thought) {
+                controller.enqueue(new TextEncoder().encode(`[Thought] ${text}\n`));
+              } else {
+                streamResponseText += text;
+                controller.enqueue(new TextEncoder().encode(text));
+              }
+            }
+          } else if (chunk.text) {
+            // Legacy chunk format
             streamResponseText += chunk.text;
             controller.enqueue(new TextEncoder().encode(chunk.text));
           }
         }
         
-        // Check if the response seems complete
-        if (isResponseIncomplete(streamResponseText)) {
-          // Send a follow-up message asking to continue
-          controller.enqueue(new TextEncoder().encode("\n\n[System: Response seems incomplete. Requesting continuation...]\n\n"));
-          
-          const continuationStream = await chat.sendMessageStream({
-            message: "Please continue. It seems your response was cut off. Complete the JSON output of the tasks you were extracting."
-          });
-          
-          // Process the continuation stream
-          for await (const chunk of continuationStream) {
-            if (chunk && chunk.text) {
-              streamResponseText += chunk.text;
-              controller.enqueue(new TextEncoder().encode(chunk.text));
-            }
-          }
-          
-          // Check if we need a final message to complete/wrap up - only for standard model
-          if (!useThinkingModel) {
-            controller.enqueue(new TextEncoder().encode("\n\n[System: Finalizing response...]\n\n"));
-            
-            const finalStream = await chat.sendMessageStream({
-              message: "Continue. If you're done, please state 'EXTRACTION COMPLETE'."
-            });
-            
-            // Process the final stream
-            for await (const chunk of finalStream) {
-              if (chunk && chunk.text) {
-                streamResponseText += chunk.text;
-                controller.enqueue(new TextEncoder().encode(chunk.text));
-              }
-            }
-          }
-        }
-
         // Always perform task optimization as a final step
         controller.enqueue(new TextEncoder().encode("\n\n[System: Optimizing and consolidating tasks...]\n\n"));
         
@@ -1071,7 +1070,7 @@ async function handleStreamingRequest(
       }
     },
   });
-
+  
   return new StreamingTextResponse(stream);
 }
 
@@ -1178,4 +1177,4 @@ function extractTasksFromText(text: string): any[] {
     console.error("Error extracting tasks from text:", e);
     return [];
   }
-} 
+}
