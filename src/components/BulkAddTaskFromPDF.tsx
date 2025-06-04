@@ -702,17 +702,16 @@ export function BulkAddTaskFromPDF({
         
         const completeText = await processStream();
         
+        console.log('Streaming complete, attempting to parse. Text length:', completeText.length);
         // After streaming completes, attempt a single JSON extraction
         try {
           const tasks = parseAndExtractTasks(completeText);
+          console.log('parseAndExtractTasks returned:', tasks);
           // Successfully extracted tasks
         } catch (parseError: any) {
           console.error('Failed to parse streaming output as JSON:', parseError);
-          setError(parseError.message || 'Failed to extract tasks from the document');
-          setIsProcessing(false);
-          setProcessingComplete(true);
-          setStreamedOutput(prevOutput => prevOutput + "\n\n❌ ERROR: Failed to extract tasks from the document. Please try again or use a different file.");
-          setCountdown(10);
+          // Don't set error state - parseAndExtractTasks handles various formats
+          // The effect watching for optimization complete will handle progression
         }
     } catch (err: any) {
       if (progressIntervalRef.current) {
@@ -923,6 +922,9 @@ export function BulkAddTaskFromPDF({
     setParsedTasks(null);
     setStreamedOutput('');
     setError(null);
+    setProcessingComplete(false);
+    setOptimizationComplete(false);
+    setNoTasksFound(false);
   };
   
   // Helper function to map a technician's name to a technician object
@@ -1013,6 +1015,20 @@ export function BulkAddTaskFromPDF({
   const showProcessingCompleteView = processingComplete && error !== null;
   const showReviewView = !isProcessing && !processingComplete && parsedTasks !== null;
   
+  // Debug view states
+  useEffect(() => {
+    console.log('View states:', {
+      showInputView,
+      showProcessingView,
+      showProcessingCompleteView,
+      showReviewView,
+      parsedTasks: parsedTasks?.length || 'null',
+      isProcessing,
+      processingComplete,
+      error
+    });
+  }, [showInputView, showProcessingView, showProcessingCompleteView, showReviewView, parsedTasks, isProcessing, processingComplete, error]);
+  
   // Function to toggle the thinking model
   const toggleThinkingModel = () => {
     const newValue = !useThinkingModel;
@@ -1037,10 +1053,13 @@ export function BulkAddTaskFromPDF({
   
   // Function to handle the parsing and extraction of tasks from JSON text
   const parseAndExtractTasks = (inputJson: string) => {
+    console.log('parseAndExtractTasks called with input length:', inputJson.length);
     try {
       // NEW: Try to extract JSON from markdown code blocks first
       const codeBlockPattern = /```json\s*([\s\S]*?)```/g;
       const codeBlocks = [...inputJson.matchAll(codeBlockPattern)];
+      
+      console.log('Found code blocks:', codeBlocks.length);
       
       let extractedTasks: any[] = [];
       
@@ -1048,19 +1067,24 @@ export function BulkAddTaskFromPDF({
       if (codeBlocks.length > 0) {
         for (let i = 0; i < codeBlocks.length; i++) {
           const jsonContent = codeBlocks[i][1].trim();
+          console.log('Trying code block', i, 'length:', jsonContent.length);
           
           try {
             const parsed = JSON.parse(jsonContent);
+            console.log('Parsed code block successfully:', parsed);
             
             // Check if it's an array or has a tasks property
             if (Array.isArray(parsed)) {
               extractedTasks = parsed;
+              console.log('Found array of tasks:', extractedTasks.length);
               break;
             } else if (parsed.tasks && Array.isArray(parsed.tasks)) {
               extractedTasks = parsed.tasks;
+              console.log('Found tasks property:', extractedTasks.length);
               break;
             }
           } catch (e: any) {
+            console.log('Failed to parse code block', i, ':', e.message);
             // Continue to next block
           }
         }
@@ -1068,7 +1092,7 @@ export function BulkAddTaskFromPDF({
       
       // If we found tasks from code blocks, use them
       if (extractedTasks.length > 0) {
-        return extractedTasks;
+        // Continue to process and set state below
       } else {
         // Fall back to the original method of trying to parse the whole string
         try {
@@ -1173,6 +1197,7 @@ export function BulkAddTaskFromPDF({
           
           // If we still don't have tasks, we can consider this an error or empty state
           if (extractedTasks.length === 0) {
+            console.log('No tasks found after all parsing attempts');
             // Handle empty tasks array as a valid state
             // No tasks found after all parsing attempts
             setParsedTasks([]);
@@ -1195,6 +1220,7 @@ export function BulkAddTaskFromPDF({
         externalUrl: task.externalUrl || null
       }));
       
+      console.log('Setting parsedTasks with', processedTasks.length, 'tasks');
       // Make sure to set the state with processed tasks
       setParsedTasks(processedTasks);
       
@@ -1297,7 +1323,14 @@ export function BulkAddTaskFromPDF({
   
   // Add a function to handle user confirmation
   const handleConfirmOptimization = () => {
+    console.log('handleConfirmOptimization called, current state:', {
+      parsedTasks,
+      optimizationComplete,
+      processingComplete,
+      isProcessing
+    });
     setOptimizationComplete(false); // Reset for next time
+    setProcessingComplete(false); // Reset this too
     setIsProcessing(false); // Now end processing and move to review
   };
   
@@ -1654,6 +1687,21 @@ export function BulkAddTaskFromPDF({
   
   // Use the incremented progress
   useProgressIncrementer(currentProcessStage, uploadProgress, undefined);
+  
+  // Automatically mark optimization complete when system message appears
+  useEffect(() => {
+    if (!optimizationComplete && streamedOutput.includes('[System: Optimization complete')) {
+      setOptimizationComplete(true);
+    }
+  }, [streamedOutput, optimizationComplete]);
+  
+  // Auto-advance out of processing view once everything is ready
+  useEffect(() => {
+    if (optimizationComplete && parsedTasks && parsedTasks.length > 0 && isProcessing) {
+      const t = setTimeout(() => setIsProcessing(false), 1000);
+      return () => clearTimeout(t);
+    }
+  }, [optimizationComplete, parsedTasks, isProcessing]);
   
   return (
     <div className="space-y-4 bg-white dark:bg-gray-800 rounded-md">

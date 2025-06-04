@@ -1064,11 +1064,19 @@ async function handleStreamingRequest(
             controller.enqueue(new TextEncoder().encode("\n\n[System: Could not extract tasks for optimization. Original extraction will be used.]\n\n"));
           }
         } catch (error: any) {
-          controller.enqueue(new TextEncoder().encode("\n\n[System: Error during task optimization: " + error.message + "]\n\n"));
+          try {
+            controller.enqueue(new TextEncoder().encode("\n\n[System: Error during task optimization: " + error.message + "]\n\n"));
+          } catch (e) {
+            // Controller might already be closed, ignore
+          }
         }
       } catch (error: any) {
         console.error("Error processing stream:", error);
-        controller.enqueue(new TextEncoder().encode("\nError during streaming: " + error.message));
+        try {
+          controller.enqueue(new TextEncoder().encode("\nError during streaming: " + error.message));
+        } catch (e) {
+          // Controller might already be closed, ignore
+        }
       } finally {
         controller.close();
       }
