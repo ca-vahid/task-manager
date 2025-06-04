@@ -978,7 +978,7 @@ export function BulkAddTaskFromPDF({
       // Give a delay to show the completion message
       const timer = setTimeout(() => {
         setIsProcessing(false); // This will trigger showing the review screen
-      }, 180000); // Changed from 1500 to 180000 (180 seconds)
+      }, 2000); // Show review screen after 2 seconds
       
       return () => clearTimeout(timer);
     }
