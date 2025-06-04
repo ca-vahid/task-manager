@@ -2,6 +2,10 @@ import { GoogleGenAI } from "@google/genai";
 import { NextResponse } from "next/server";
 import { StreamingTextResponse } from 'ai';
 
+// ADD_BELOW: Configuration constants to extend Vercel Serverless Function timeout and disable caching
+export const maxDuration = 900; // Allow up to 15-minute execution for large Gemini analyses
+export const dynamic = 'force-dynamic';
+
 // Initialize the Gemini API with the key from environment variables
 const genAI = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY || ""
