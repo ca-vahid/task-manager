@@ -1065,7 +1065,8 @@ export function BulkAddTaskFromPDF({
       
       // Try each code block until we find valid JSON with tasks
       if (codeBlocks.length > 0) {
-        for (let i = 0; i < codeBlocks.length; i++) {
+        // Iterate from last to first – the final code block should contain the optimized tasks
+        for (let i = codeBlocks.length - 1; i >= 0; i--) {
           const jsonContent = codeBlocks[i][1].trim();
           console.log('Trying code block', i, 'length:', jsonContent.length);
           
@@ -1694,14 +1695,6 @@ export function BulkAddTaskFromPDF({
       setOptimizationComplete(true);
     }
   }, [streamedOutput, optimizationComplete]);
-  
-  // Auto-advance out of processing view once everything is ready
-  useEffect(() => {
-    if (optimizationComplete && parsedTasks && parsedTasks.length > 0 && isProcessing) {
-      const t = setTimeout(() => setIsProcessing(false), 1000);
-      return () => clearTimeout(t);
-    }
-  }, [optimizationComplete, parsedTasks, isProcessing]);
   
   return (
     <div className="space-y-4 bg-white dark:bg-gray-800 rounded-md">
